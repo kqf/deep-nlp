@@ -1,0 +1,10 @@
+*.pyc
+*.png
+*.ipynb
+*.csv
+*.pkl
+*.json
+*.hd5
+*.egg*
+.DS_Store
+.python-version
