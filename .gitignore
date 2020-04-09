@@ -8,3 +8,8 @@
 *.egg*
 .DS_Store
 .python-version
+
+
+# Data
+*.zip
+*.csv
