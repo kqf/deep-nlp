@@ -66,35 +66,30 @@ def skip_gram_batchs(contexts, window_size, num_skips, batch_size):
     assert batch_size % num_skips == 0
     assert num_skips <= 2 * window_size
 
-    central_words = [word for word, context in contexts if len(
-        context) == 2 * window_size and word != 0]
-    contexts = [context for word, context in contexts if len(
-        context) == 2 * window_size and word != 0]
+    data = [
+        (word, context) for word, context in contexts
+        if len(context) == 2 * window_size and word != 0
+    ]
 
     batch_size = int(batch_size / num_skips)
-    batchs_count = int(math.ceil(len(contexts) / batch_size))
+    batchs_count = int(math.ceil(len(data) / batch_size))
 
     print(f'Initializing batch-generator with {batchs_count} batchs per epoch')
 
-    while True:
-        indices = np.arange(len(contexts))
-        np.random.shuffle(indices)
+    indices = np.arange(len(data))
+    np.random.shuffle(indices)
 
-        for i in range(batchs_count):
-            batch_begin, batch_end = i * \
-                batch_size, min((i + 1) * batch_size, len(contexts))
-            batch_indices = indices[batch_begin: batch_end]
+    for batch_indices in np.array_split(indices, batchs_count):
+        batch_data, batch_labels = [], []
 
-            batch_data, batch_labels = [], []
+        for idx in batch_indices:
+            central_word, context = data[idx]
 
-            for idx in batch_indices:
-                central_word, context = central_words[idx], contexts[idx]
+            words_to_use = random.sample(context, num_skips)
+            batch_data.extend([central_word] * num_skips)
+            batch_labels.extend(words_to_use)
 
-                words_to_use = random.sample(context, num_skips)
-                batch_data.extend([central_word] * num_skips)
-                batch_labels.extend(words_to_use)
-
-            yield batch_data, batch_labels
+        yield batch_data, batch_labels
 
 
 def main():

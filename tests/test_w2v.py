@@ -26,9 +26,10 @@ def test_contexts():
     contexts = list(build_contexts(inputs, window_size=2))
     assert list(contexts) == outputs
 
-    batches = skip_gram_batchs(
+    batches = list(skip_gram_batchs(
         contexts,
         window_size=2,
         num_skips=4,
-        batch_size=4)
-    assert tuple(map(set, next(batches))) == ({3}, {1, 2, 4, 5})
+        batch_size=4))
+    assert tuple(map(set, batches[0])) == ({3}, {1, 2, 4, 5})
+    assert len(batches) == 1
