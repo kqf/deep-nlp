@@ -15,6 +15,7 @@ def quora_data():
 
 class Tokenizer:
     def __init__(self, min_count=5, verbose=True, unk_token=0):
+        self.verbose = verbose
         self.min_count = min_count
         self.word2index = {
             '<unk>': unk_token
@@ -38,12 +39,22 @@ class Tokenizer:
         self.index2word = list(
             sorted(self.word2index.items(), key=lambda x: x[1]))
 
-        print('Vocabulary size:', len(self.word2index))
-        print('Tokens count:', sum(map(len, tokenized_texts)))
-        print('Unknown tokens appeared:', len(
-            set(sum(tokenized_texts, [])) - set(self.word2index.keys())))
-        print('Most freq words:', self.index2word[1:21])
+        if self.verbose:
+            print('Vocabulary size:', len(self.word2index))
+            print('Tokens count:', sum(map(len, tokenized_texts)))
+            print('Unknown tokens appeared:', len(
+                set(sum(tokenized_texts, [])) - set(self.word2index.keys())))
+            print('Most freq words:', self.index2word[1:21])
         return self
+
+
+def build_contexts(tokenized_texts, window_size):
+    for tokens in tokenized_texts:
+        for i, central_word in enumerate(tokens):
+            context = [
+                tokens[i + di] for di in range(-window_size, window_size + 1)
+                if di != 0 and 0 <= i + di < len(tokens)]
+            yield central_word, context
 
 
 def main():
