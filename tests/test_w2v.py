@@ -1,6 +1,7 @@
 import pytest
 
 from models.w2v import quora_data, Tokenizer, build_contexts
+from models.w2v import skip_gram_batchs
 
 
 @pytest.fixture
@@ -22,4 +23,12 @@ def test_contexts():
         (4, [2, 3, 5]),
         (5, [3, 4])
     ]
-    assert list(build_contexts(inputs, window_size=2)) == outputs
+    contexts = list(build_contexts(inputs, window_size=2))
+    assert list(contexts) == outputs
+
+    batches = skip_gram_batchs(
+        contexts,
+        window_size=2,
+        num_skips=4,
+        batch_size=4)
+    assert tuple(map(set, next(batches))) == ({3}, {1, 2, 4, 5})
