@@ -3,3 +3,5 @@ torch
 pytest
 pandas
 kaggle
+nltk
+tqdm
