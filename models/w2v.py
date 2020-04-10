@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 from nltk.tokenize import word_tokenize
 from collections import Counter
+from sklearn.base import BaseEstimator, TransformerMixin
 
 
 def quora_data():
@@ -17,7 +18,7 @@ def quora_data():
     return texts
 
 
-class Tokenizer:
+class Tokenizer(BaseEstimator, TransformerMixin):
     def __init__(self, min_count=5, verbose=True, unk_token=0):
         self.verbose = verbose
         self.min_count = min_count
@@ -55,7 +56,11 @@ class Tokenizer:
                 set(sum(self.tokenized_texts, [])) -
                 set(self.word2index.keys())))
             print('Most freq words:', self.index2word[1:21])
-        return self.tokenized_texts
+
+        return [
+            [self.word2index.get(t, 0) for t in tokens]
+            for tokens in self.tokenized_texts
+        ]
 
 
 class SkipGramModel:

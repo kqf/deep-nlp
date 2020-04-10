@@ -5,3 +5,4 @@ pandas
 kaggle
 nltk
 tqdm
+scikit-learn
