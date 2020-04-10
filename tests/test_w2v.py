@@ -11,7 +11,7 @@ def data(size=5000):
 
 def test_tokenizer(data):
     tokenizer = Tokenizer().fit(data)
-    assert tokenizer is not None
+    assert tokenizer.transform(data) is not None
 
 
 def test_contexts():
@@ -37,4 +37,6 @@ def test_contexts():
 
 def test_skipgram():
     inputs = [[1, 2, 3, 4, 5]] * 1000
-    SkipGramModel().fit(inputs)
+    model = SkipGramModel().fit(inputs)
+
+    assert model.embeddings_ is not None

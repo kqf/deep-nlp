@@ -27,7 +27,10 @@ class Tokenizer:
             '<unk>': unk_token
         }
 
-    def fit(self, X):
+    def fit(self, X, y=None):
+        return self
+
+    def transform(self, X):
         try:
             nltk.data.find('tokenizers/punkt.zip')
         except LookupError:
@@ -52,7 +55,7 @@ class Tokenizer:
                 set(sum(self.tokenized_texts, [])) -
                 set(self.word2index.keys())))
             print('Most freq words:', self.index2word[1:21])
-        return self
+        return self.tokenized_texts
 
 
 class SkipGramModel:
@@ -146,10 +149,15 @@ class SkipGramModel:
                     if d != 0 and 0 <= i + d < len(tokens)]
                 yield central_word, context
 
+    @property
+    def embeddings_(self):
+        return self.model[0].weight.cpu().data.numpy()
+
 
 def main():
     df = quora_data()
     tokenizer = Tokenizer().fit(df)
+    tokenizer.transform(data)
 
 
 if __name__ == '__main__':
