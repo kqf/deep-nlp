@@ -2,6 +2,7 @@ import pytest
 
 from models.w2v import quora_data, Tokenizer, build_contexts
 from models.w2v import skip_gram_batchs
+from models.w2v import SkipGramModel
 
 
 @pytest.fixture
@@ -33,3 +34,8 @@ def test_contexts():
         batch_size=4))
     assert tuple(map(set, batches[0])) == ({3}, {1, 2, 4, 5})
     assert len(batches) == 1
+
+
+def test_skipgram():
+    inputs = [[1, 2, 3, 4, 5]] * 1000
+    SkipGramModel().fit(inputs)

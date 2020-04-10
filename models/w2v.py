@@ -1,7 +1,9 @@
+import time
 import math
-import random
 import tqdm
 import nltk
+import torch
+import random
 import numpy as np
 import pandas as pd
 from nltk.tokenize import word_tokenize
@@ -90,6 +92,59 @@ def skip_gram_batchs(contexts, window_size, num_skips, batch_size):
             batch_labels.extend(words_to_use)
 
         yield batch_data, batch_labels
+
+
+class SkipGramModel:
+    def __init__(self):
+        self.embedding_size = 10
+        self.model = None
+        self.loss_nsteps = 1000
+        self.verbose = True
+
+    def fit(self, X):
+        self.model = torch.nn.Sequential(
+            torch.nn.Embedding(self.embedding_size, 32),
+            torch.nn.Linear(32, self.embedding_size)
+        )
+
+        device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+        if torch.cuda.is_available():
+            self.model = self.model.to(device)
+
+        total_loss = 0
+        start_time = time.time()
+
+        data = skip_gram_batchs(
+            build_contexts(X, window_size=2),
+            window_size=2,
+            num_skips=4,
+            batch_size=128
+        )
+
+        for step, (batch, labels) in enumerate(tqdm.tqdm(data)):
+            batch = torch.LongTensor(batch).to(device)
+            labels = torch.LongTensor(labels).to(device)
+
+            logits = self.model(batch)
+
+            loss_function = torch.nn.CrossEntropyLoss().to(device)
+            loss = loss_function(logits, labels)
+            loss.backward()
+            optimizer = torch.optim.Adam(self.model.parameters(), lr=0.01)
+            optimizer.step()
+            optimizer.zero_grad()
+
+            total_loss += loss.item()
+
+            if self.verbose and step != 0 and step % self.loss_nsteps == 0:
+                print("Step = {}, Avg Loss = {:.4f}, Time = {:.2f}s".format(
+                    step,
+                    total_loss / self.loss_nsteps,
+                    time.time() - start_time)
+                )
+                total_loss = 0
+                start_time = time.time()
+        return self
 
 
 def main():
