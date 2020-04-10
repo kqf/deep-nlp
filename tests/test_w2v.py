@@ -31,6 +31,7 @@ def test_contexts():
         window_size=2,
         num_skips=4,
         batch_size=4))
+
     assert tuple(map(set, batches[0])) == ({3}, {1, 2, 4, 5})
     assert len(batches) == 1
 

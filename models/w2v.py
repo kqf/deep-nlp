@@ -18,6 +18,28 @@ def quora_data():
     return texts
 
 
+class IdentityTokenizer(BaseEstimator, TransformerMixin):
+    def fit(self, X, y=None):
+        return self
+
+    def transform(self, X):
+        self.tokenized_texts = X
+        if isinstance(self.tokenized_texts[0], str):
+            self.tokenized_texts = [s.split() for s in X]
+
+        self.word2index = {
+            w: i for i, w in enumerate(set(sum(self.tokenized_texts, [])))
+        }
+
+        self.index2word = list(
+            sorted(self.word2index.items(), key=lambda x: x[1]))
+
+        return [
+            [self.word2index.get(t, 0) for t in tokens]
+            for tokens in self.tokenized_texts
+        ]
+
+
 class Tokenizer(BaseEstimator, TransformerMixin):
     def __init__(self, min_count=5, verbose=True, unk_token=0):
         self.verbose = verbose
@@ -69,8 +91,11 @@ class SkipGramModel:
         self.model = None
         self.loss_nsteps = 1000
         self.verbose = True
+        self.tokenizer = IdentityTokenizer()
 
     def fit(self, X):
+        tokenized_texts = self.tokenizer.fit_transform(X)
+
         self.model = torch.nn.Sequential(
             torch.nn.Embedding(self.embedding_size, 32),
             torch.nn.Linear(32, self.embedding_size)
@@ -84,7 +109,7 @@ class SkipGramModel:
         start_time = time.time()
 
         data = self.batches(
-            self.build_contexts(X, window_size=2),
+            self.build_contexts(tokenized_texts, window_size=2),
             window_size=2,
             num_skips=4,
             batch_size=128
