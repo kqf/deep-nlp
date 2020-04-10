@@ -1,7 +1,6 @@
 import pytest
 
-from models.w2v import quora_data, Tokenizer, build_contexts
-from models.w2v import skip_gram_batchs
+from models.w2v import quora_data, Tokenizer
 from models.w2v import SkipGramModel
 
 
@@ -24,10 +23,10 @@ def test_contexts():
         (4, [2, 3, 5]),
         (5, [3, 4])
     ]
-    contexts = list(build_contexts(inputs, window_size=2))
+    contexts = list(SkipGramModel.build_contexts(inputs, window_size=2))
     assert list(contexts) == outputs
 
-    batches = list(skip_gram_batchs(
+    batches = list(SkipGramModel.batches(
         contexts,
         window_size=2,
         num_skips=4,

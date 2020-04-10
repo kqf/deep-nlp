@@ -55,45 +55,6 @@ class Tokenizer:
         return self
 
 
-def build_contexts(tokenized_texts, window_size):
-    for tokens in tokenized_texts:
-        for i, central_word in enumerate(tokens):
-            context = [
-                tokens[i + di] for di in range(-window_size, window_size + 1)
-                if di != 0 and 0 <= i + di < len(tokens)]
-            yield central_word, context
-
-
-def skip_gram_batchs(contexts, window_size, num_skips, batch_size):
-    assert batch_size % num_skips == 0
-    assert num_skips <= 2 * window_size
-
-    data = [
-        (word, context) for word, context in contexts
-        if len(context) == 2 * window_size and word != 0
-    ]
-
-    batch_size = int(batch_size / num_skips)
-    batchs_count = int(math.ceil(len(data) / batch_size))
-
-    print(f'Initializing batch-generator with {batchs_count} batchs per epoch')
-
-    indices = np.arange(len(data))
-    np.random.shuffle(indices)
-
-    for batch_indices in np.array_split(indices, batchs_count):
-        batch_data, batch_labels = [], []
-
-        for idx in batch_indices:
-            central_word, context = data[idx]
-
-            words_to_use = random.sample(context, num_skips)
-            batch_data.extend([central_word] * num_skips)
-            batch_labels.extend(words_to_use)
-
-        yield batch_data, batch_labels
-
-
 class SkipGramModel:
     def __init__(self):
         self.embedding_size = 10
@@ -114,8 +75,8 @@ class SkipGramModel:
         total_loss = 0
         start_time = time.time()
 
-        data = skip_gram_batchs(
-            build_contexts(X, window_size=2),
+        data = self.batches(
+            self.build_contexts(X, window_size=2),
             window_size=2,
             num_skips=4,
             batch_size=128
@@ -145,6 +106,45 @@ class SkipGramModel:
                 total_loss = 0
                 start_time = time.time()
         return self
+
+    @staticmethod
+    def batches(contexts, window_size, num_skips, batch_size):
+        assert batch_size % num_skips == 0
+        assert num_skips <= 2 * window_size
+
+        data = [
+            (word, context) for word, context in contexts
+            if len(context) == 2 * window_size and word != 0
+        ]
+
+        batch_size = int(batch_size / num_skips)
+        batchs_count = int(math.ceil(len(data) / batch_size))
+
+        print(f'Init batch-generator with {batchs_count} batchs per epoch')
+
+        indices = np.arange(len(data))
+        np.random.shuffle(indices)
+
+        for batch_indices in np.array_split(indices, batchs_count):
+            batch_data, batch_labels = [], []
+
+            for idx in batch_indices:
+                central_word, context = data[idx]
+
+                words_to_use = random.sample(context, num_skips)
+                batch_data.extend([central_word] * num_skips)
+                batch_labels.extend(words_to_use)
+
+            yield batch_data, batch_labels
+
+    @staticmethod
+    def build_contexts(tokenized_texts, window_size):
+        for tokens in tokenized_texts:
+            for i, central_word in enumerate(tokens):
+                context = [
+                    tokens[i + d] for d in range(-window_size, window_size + 1)
+                    if d != 0 and 0 <= i + d < len(tokens)]
+                yield central_word, context
 
 
 def main():
