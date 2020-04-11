@@ -8,6 +8,8 @@ import numpy as np
 import pandas as pd
 from nltk.tokenize import word_tokenize
 from collections import Counter
+
+from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.base import BaseEstimator, TransformerMixin
 
 
@@ -198,10 +200,22 @@ class SkipGramModel:
         return self.model[0].weight.cpu().data.numpy()
 
 
+def most_similar(embeddings, index2word, word2index, word, n_words=10):
+    word_emb = embeddings[word2index[word]]
+
+    similarities = cosine_similarity([word_emb], embeddings)[0]
+    top_n = np.argsort(similarities)[-n_words:]
+
+    return [index2word[index] for index in reversed(top_n)]
+
+
 def main():
     df = quora_data()
     model = SkipGramModel(tokenizer=Tokenizer()).fit(df)
     print(model.embeddings_)
+    print("Most similar words")
+    print(most_similar(model.embeddings_, model.tokenizer.index2word,
+                       model.tokenizer.word2index, 'warm'))
 
 
 if __name__ == '__main__':
