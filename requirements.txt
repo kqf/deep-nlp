@@ -6,3 +6,4 @@ kaggle
 nltk
 tqdm
 scikit-learn
+bokeh
