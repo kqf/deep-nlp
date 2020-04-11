@@ -18,6 +18,19 @@ from bokeh.io import output_notebook
 from sklearn.manifold import TSNE
 from sklearn.preprocessing import scale
 
+"""
+
+!mkdir -p data/
+!pip install numpy torch pytest pandas kaggle nltk tqdm scikit-learn bokeh
+!wget -O data/quora.zip -qq --no-check-certificate "https://drive.google.com/uc?export=download&id=1ERtxpdWOgGQ3HOigqAMHTJjmOE_tWvoF"
+!unzip data/quora.zip -d data/
+!zip  data/train.csv.zip  data/train.csv
+
+
+import nltk
+nltk.download('punkt')
+""" # noqa
+
 
 def quora_data():
     df = pd.read_csv("data/train.csv.zip")
