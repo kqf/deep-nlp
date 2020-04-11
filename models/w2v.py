@@ -4,6 +4,7 @@ import tqdm
 import nltk
 import torch
 import random
+import itertools
 import numpy as np
 import pandas as pd
 from nltk.tokenize import word_tokenize
@@ -29,7 +30,7 @@ from sklearn.preprocessing import scale
 
 import nltk
 nltk.download('punkt')
-""" # noqa
+"""  # noqa
 
 
 def quora_data():
@@ -37,6 +38,10 @@ def quora_data():
     df.replace(np.nan, '', regex=True, inplace=True)
     texts = list(pd.concat([df.question1, df.question2]).str.lower().unique())
     return texts
+
+
+def flatten(sequence):
+    return itertools.chain(*sequence)
 
 
 class IdentityTokenizer(BaseEstimator, TransformerMixin):
@@ -49,7 +54,7 @@ class IdentityTokenizer(BaseEstimator, TransformerMixin):
             self.tokenized_texts = [s.split() for s in X]
 
         self.word2index = {
-            w: i for i, w in enumerate(set(sum(self.tokenized_texts, [])))
+            w: i for i, w in enumerate(set(flatten(self.tokenized_texts)))
         }
 
         self.index2word = list(
@@ -81,12 +86,12 @@ class Tokenizer(BaseEstimator, TransformerMixin):
             nltk.download('punkt')
 
         self.tokenized_texts = [word_tokenize(t.lower()) for t in tqdm.tqdm(X)]
-        words_counter = Counter(sum(self.tokenized_texts, []))
+        flat = flatten(self.tokenized_texts)
+        words_counter = Counter(flat)
 
         for word, count in words_counter.most_common():
-            print(count)
             if count < self.min_count:
-                break
+                continue
             self.word2index[word] = len(self.word2index)
 
         self.index2word = list(
@@ -96,8 +101,7 @@ class Tokenizer(BaseEstimator, TransformerMixin):
             print('Vocabulary size:', len(self.word2index))
             print('Tokens count:', sum(map(len, self.tokenized_texts)))
             print('Unknown tokens appeared:', len(
-                set(sum(self.tokenized_texts, [])) -
-                set(self.word2index.keys())))
+                set(flat) - set(self.word2index.keys())))
             print('Most freq words:', self.index2word[1:21])
 
         return [
@@ -106,7 +110,7 @@ class Tokenizer(BaseEstimator, TransformerMixin):
         ]
 
 
-class SkipGramModel:
+class SkipGram:
     def __init__(
         self,
         dim=32,
@@ -263,7 +267,7 @@ def visualize_embeddings(embeddings, index2word, word_count=1000):
 
 def main():
     df = quora_data()
-    model = SkipGramModel(tokenizer=Tokenizer()).fit(df)
+    model = SkipGram(tokenizer=Tokenizer()).fit(df)
     print(model.embeddings_)
     print("Most similar words")
     print(most_similar(model.embeddings_, model.tokenizer.index2word,
