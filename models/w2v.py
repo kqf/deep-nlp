@@ -86,19 +86,33 @@ class Tokenizer(BaseEstimator, TransformerMixin):
 
 
 class SkipGramModel:
-    def __init__(self):
-        self.embedding_size = 10
+    def __init__(
+        self,
+        dim=32,
+        window_size=2,
+        num_skips=4,
+        batch_size=128,
+        lr=0.01,
+        tokenizer=IdentityTokenizer(),
+        loss_nsteps=1000,
+        verbose=True
+    ):
+        self.dim = dim
+        self.window_size = window_size
+        self.num_skips = num_skips
+        self.batch_size = batch_size
+        self.lr = lr
+        self.tokenizer = tokenizer
+        self.loss_nsteps = loss_nsteps
+        self.verbose = verbose
         self.model = None
-        self.loss_nsteps = 1000
-        self.verbose = True
-        self.tokenizer = IdentityTokenizer()
 
     def fit(self, X):
         tokenized_texts = self.tokenizer.fit_transform(X)
 
         self.model = torch.nn.Sequential(
-            torch.nn.Embedding(self.embedding_size, 32),
-            torch.nn.Linear(32, self.embedding_size)
+            torch.nn.Embedding(len(self.tokenizer.word2index), self.dim),
+            torch.nn.Linear(self.dim, len(self.tokenizer.word2index))
         )
 
         device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
@@ -109,10 +123,10 @@ class SkipGramModel:
         start_time = time.time()
 
         data = self.batches(
-            self.build_contexts(tokenized_texts, window_size=2),
-            window_size=2,
-            num_skips=4,
-            batch_size=128
+            self.build_contexts(tokenized_texts, window_size=self.window_size),
+            window_size=self.window_size,
+            num_skips=self.num_skips,
+            batch_size=self.batch_size,
         )
 
         for step, (batch, labels) in enumerate(tqdm.tqdm(data)):
@@ -124,7 +138,7 @@ class SkipGramModel:
             loss_function = torch.nn.CrossEntropyLoss().to(device)
             loss = loss_function(logits, labels)
             loss.backward()
-            optimizer = torch.optim.Adam(self.model.parameters(), lr=0.01)
+            optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr)
             optimizer.step()
             optimizer.zero_grad()
 
@@ -186,8 +200,8 @@ class SkipGramModel:
 
 def main():
     df = quora_data()
-    tokenizer = Tokenizer().fit(df)
-    tokenizer.transform(data)
+    model = SkipGramModel(tokenizer=Tokenizer()).fit(df)
+    print(model.embeddings_)
 
 
 if __name__ == '__main__':
