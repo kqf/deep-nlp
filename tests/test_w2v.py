@@ -1,7 +1,7 @@
 import pytest
 
 from models.w2v import quora_data, Tokenizer
-from models.w2v import SkipGramModel
+from models.w2v import SkipGram
 
 
 @pytest.fixture
@@ -23,10 +23,10 @@ def test_contexts():
         (4, [2, 3, 5]),
         (5, [3, 4])
     ]
-    contexts = list(SkipGramModel.build_contexts(inputs, window_size=2))
+    contexts = list(SkipGram.build_contexts(inputs, window_size=2))
     assert list(contexts) == outputs
 
-    batches = list(SkipGramModel.batches(
+    batches = list(SkipGram.batches(
         contexts,
         window_size=2,
         num_skips=4,
@@ -38,6 +38,6 @@ def test_contexts():
 
 def test_skipgram():
     inputs = [[1, 2, 3, 4, 5]] * 1000
-    model = SkipGramModel().fit(inputs)
+    model = SkipGram().fit(inputs)
 
     assert model.embeddings_ is not None

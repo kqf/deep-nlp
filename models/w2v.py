@@ -111,6 +111,17 @@ class Tokenizer(BaseEstimator, TransformerMixin):
         ]
 
 
+class LinearEmbeddingModel(torch.nn.Module):
+    def __init__(self, vocab_size, embedding_dim):
+        super().__init__()
+        self.embeddings = torch.nn.Embedding(vocab_size, embedding_dim)
+        self.out_layer = torch.nn.Linear(embedding_dim, vocab_size)
+
+    def forward(self, inputs):
+        latent = self.embeddings(inputs)
+        return self.out_layer(latent)
+
+
 class SkipGram:
     def __init__(
         self,
@@ -136,10 +147,8 @@ class SkipGram:
     def fit(self, X):
         tokenized_texts = self.tokenizer.fit_transform(X)
 
-        self.model = torch.nn.Sequential(
-            torch.nn.Embedding(len(self.tokenizer.word2index), self.dim),
-            torch.nn.Linear(self.dim, len(self.tokenizer.word2index))
-        )
+        self.model = LinearEmbeddingModel(
+            len(self.tokenizer.word2index), self.dim)
 
         device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
         if torch.cuda.is_available():
@@ -222,7 +231,7 @@ class SkipGram:
 
     @property
     def embeddings_(self):
-        return self.model[0].weight.cpu().data.numpy()
+        return self.model.embeddings.weight.cpu().data.numpy()
 
 
 def most_similar(embeddings, index2word, word2index, word, n_words=10):
