@@ -111,7 +111,7 @@ class Tokenizer(BaseEstimator, TransformerMixin):
         ]
 
 
-class LinearEmbeddingModel(torch.nn.Module):
+class LinearSkipGramModel(torch.nn.Module):
     def __init__(self, vocab_size, embedding_dim):
         super().__init__()
         self.embeddings = torch.nn.Embedding(vocab_size, embedding_dim)
@@ -144,11 +144,21 @@ class SkipGram:
         self.verbose = verbose
         self.model = None
 
+    def _build_model(self):
+        return LinearSkipGramModel(len(self.tokenizer.word2index), self.dim)
+
+    def _create_batches(self, tokenized_texts):
+        return self.batches(
+            self.build_contexts(tokenized_texts, window_size=self.window_size),
+            window_size=self.window_size,
+            num_skips=self.num_skips,
+            batch_size=self.batch_size,
+        )
+
     def fit(self, X):
         tokenized_texts = self.tokenizer.fit_transform(X)
 
-        self.model = LinearEmbeddingModel(
-            len(self.tokenizer.word2index), self.dim)
+        self.model = self._build_model()
 
         device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
         if torch.cuda.is_available():
@@ -157,16 +167,10 @@ class SkipGram:
         total_loss = 0
         start_time = time.time()
 
-        data = self.batches(
-            self.build_contexts(tokenized_texts, window_size=self.window_size),
-            window_size=self.window_size,
-            num_skips=self.num_skips,
-            batch_size=self.batch_size,
-        )
-
         optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr)
         loss_function = torch.nn.CrossEntropyLoss().to(device)
 
+        data = self._create_batches(tokenized_texts)
         for step, (batch, labels) in enumerate(tqdm.tqdm(data)):
             batch = torch.LongTensor(batch).to(device)
             labels = torch.LongTensor(labels).to(device)
@@ -234,6 +238,18 @@ class SkipGram:
         return self.model.embeddings.weight.cpu().data.numpy()
 
 
+class CBoWModel(torch.nn.Module):
+    def __init__(self, vocab_size, embedding_dim):
+        super().__init__()
+        self.embeddings = torch.nn.Embedding(vocab_size, embedding_dim)
+        self.out_layer = torch.nn.Linear(embedding_dim, vocab_size)
+
+    def forward(self, inputs):
+        latent = self.embeddings(inputs)
+        weight = latent.mean(dim=1)
+        return self.out_layer(weight)
+
+
 class CBoW(SkipGram):
     @staticmethod
     def batches(contexts, window_size, batch_size):
@@ -255,6 +271,16 @@ class CBoW(SkipGram):
 
         for batch_indices in np.array_split(indices, batchs_count):
             yield context[batch_indices], word[batch_indices]
+
+    def _build_model(self):
+        return CBoWModel(len(self.tokenizer.word2index), self.dim)
+
+    def _create_batches(self, tokenized_texts):
+        return self.batches(
+            self.build_contexts(tokenized_texts, window_size=self.window_size),
+            window_size=self.window_size,
+            batch_size=self.batch_size,
+        )
 
 
 def most_similar(embeddings, index2word, word2index, word, n_words=10):

@@ -48,3 +48,10 @@ def test_skipgram():
     model = SkipGram().fit(inputs)
 
     assert model.embeddings_ is not None
+
+
+def test_cbow():
+    inputs = [[1, 2, 3, 4, 5]] * 1000
+    model = CBoW().fit(inputs)
+
+    assert model.embeddings_ is not None
