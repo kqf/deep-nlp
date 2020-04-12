@@ -155,16 +155,17 @@ class SkipGram:
             batch_size=self.batch_size,
         )
 
+        optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr)
+        loss_function = torch.nn.CrossEntropyLoss().to(device)
+
         for step, (batch, labels) in enumerate(tqdm.tqdm(data)):
             batch = torch.LongTensor(batch).to(device)
             labels = torch.LongTensor(labels).to(device)
 
             logits = self.model(batch)
 
-            loss_function = torch.nn.CrossEntropyLoss().to(device)
             loss = loss_function(logits, labels)
             loss.backward()
-            optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr)
             optimizer.step()
             optimizer.zero_grad()
 
