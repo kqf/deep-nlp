@@ -234,6 +234,29 @@ class SkipGram:
         return self.model.embeddings.weight.cpu().data.numpy()
 
 
+class CBoW(SkipGram):
+    @staticmethod
+    def batches(contexts, window_size, batch_size):
+        word, context = zip(*[
+            (word, context) for word, context in contexts
+            if len(context) == 2 * window_size and word != 0
+        ])
+
+        word = np.array(word)
+        context = np.array(context)
+
+        batch_size = int(batch_size)
+        batchs_count = int(math.ceil(len(word) / batch_size))
+
+        print(f'Init batch-generator with {batchs_count} batchs per epoch')
+
+        indices = np.arange(len(word))
+        np.random.shuffle(indices)
+
+        for batch_indices in np.array_split(indices, batchs_count):
+            yield context[batch_indices], word[batch_indices]
+
+
 def most_similar(embeddings, index2word, word2index, word, n_words=10):
     word_emb = embeddings[word2index[word]]
 

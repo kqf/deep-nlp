@@ -1,7 +1,7 @@
 import pytest
 
 from models.w2v import quora_data, Tokenizer
-from models.w2v import SkipGram
+from models.w2v import SkipGram, CBoW
 
 
 @pytest.fixture
@@ -34,6 +34,13 @@ def test_contexts():
 
     assert tuple(map(set, batches[0])) == ({3}, {1, 2, 4, 5})
     assert len(batches) == 1
+
+    batches = list(CBoW.batches(contexts, window_size=2, batch_size=4))
+
+    assert len(batches) == 1
+    inputs, label = batches[0]
+    assert inputs.tolist() == [[1, 2, 4, 5]]
+    assert label.tolist() == [3]
 
 
 def test_skipgram():
