@@ -91,11 +91,12 @@ class Tokenizer(BaseEstimator, TransformerMixin):
 
         for word, count in words_counter.most_common():
             if count < self.min_count:
-                continue
+                break
             self.word2index[word] = len(self.word2index)
 
-        self.index2word = list(
-            sorted(self.word2index.items(), key=lambda x: x[1]))
+        self.index2word = [
+            word for word, _ in
+            sorted(self.word2index.items(), key=lambda x: x[1])]
 
         if self.verbose:
             print('Vocabulary size:', len(self.word2index))
