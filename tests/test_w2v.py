@@ -1,7 +1,7 @@
 import pytest
 
 from models.w2v import quora_data, Tokenizer
-from models.w2v import SkipGram, CBoW
+from models.w2v import SkipGram, CBoW, Word2VecGeneric
 
 
 @pytest.fixture
@@ -23,7 +23,7 @@ def test_contexts():
         (4, [2, 3, 5]),
         (5, [3, 4])
     ]
-    contexts = list(SkipGram.build_contexts(inputs, window_size=2))
+    contexts = list(Word2VecGeneric.build_contexts(inputs, window_size=2))
     assert list(contexts) == outputs
 
     batches = list(SkipGram.batches(

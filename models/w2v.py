@@ -122,12 +122,11 @@ class LinearSkipGramModel(torch.nn.Module):
         return self.out_layer(latent)
 
 
-class SkipGram:
+class Word2VecGeneric:
     def __init__(
         self,
         dim=32,
         window_size=2,
-        num_skips=4,
         batch_size=128,
         n_epochs=1,
         lr=0.01,
@@ -137,7 +136,6 @@ class SkipGram:
     ):
         self.dim = dim
         self.window_size = window_size
-        self.num_skips = num_skips
         self.batch_size = batch_size
         self.n_epochs = n_epochs
         self.lr = lr
@@ -147,16 +145,10 @@ class SkipGram:
         self.model = None
 
     def _build_model(self):
-        return LinearSkipGramModel(len(self.tokenizer.word2index), self.dim)
+        pass
 
     def _create_batches(self, tokenized_texts):
-        return self.batches(
-            self.build_contexts(tokenized_texts, window_size=self.window_size),
-            window_size=self.window_size,
-            num_skips=self.num_skips,
-            batch_size=self.batch_size,
-            n_epochs=self.n_epochs,
-        )
+        pass
 
     def fit(self, X):
         tokenized_texts = self.tokenizer.fit_transform(X)
@@ -197,6 +189,37 @@ class SkipGram:
                 start_time = time.time()
         return self
 
+    @property
+    def embeddings_(self):
+        return self.model.embeddings.weight.cpu().data.numpy()
+
+    @staticmethod
+    def build_contexts(tokenized_texts, window_size):
+        for tokens in tokenized_texts:
+            for i, central_word in enumerate(tokens):
+                context = [
+                    tokens[i + d] for d in range(-window_size, window_size + 1)
+                    if d != 0 and 0 <= i + d < len(tokens)]
+                yield central_word, context
+
+
+class SkipGram(Word2VecGeneric):
+    def __init__(self, num_skips=4, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.num_skips = num_skips
+
+    def _build_model(self):
+        return LinearSkipGramModel(len(self.tokenizer.word2index), self.dim)
+
+    def _create_batches(self, tokenized_texts):
+        return self.batches(
+            self.build_contexts(tokenized_texts, window_size=self.window_size),
+            window_size=self.window_size,
+            num_skips=self.num_skips,
+            batch_size=self.batch_size,
+            n_epochs=self.n_epochs,
+        )
+
     @staticmethod
     def batches(contexts, window_size, num_skips, batch_size, n_epochs=1):
         assert batch_size % num_skips == 0
@@ -228,19 +251,6 @@ class SkipGram:
 
                 yield batch_data, batch_labels
 
-    @staticmethod
-    def build_contexts(tokenized_texts, window_size):
-        for tokens in tokenized_texts:
-            for i, central_word in enumerate(tokens):
-                context = [
-                    tokens[i + d] for d in range(-window_size, window_size + 1)
-                    if d != 0 and 0 <= i + d < len(tokens)]
-                yield central_word, context
-
-    @property
-    def embeddings_(self):
-        return self.model.embeddings.weight.cpu().data.numpy()
-
 
 class CBoWModel(torch.nn.Module):
     def __init__(self, vocab_size, embedding_dim):
@@ -254,7 +264,7 @@ class CBoWModel(torch.nn.Module):
         return self.out_layer(weight)
 
 
-class CBoW(SkipGram):
+class CBoW(Word2VecGeneric):
     @staticmethod
     def batches(contexts, window_size, batch_size, n_epochs=1):
         word, context = zip(*[
