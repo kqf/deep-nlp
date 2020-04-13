@@ -106,6 +106,12 @@ class Tokenizer(BaseEstimator, TransformerMixin):
                 set(flat) - set(self.word2index.keys())))
             print('Most freq words:', self.index2word[1:21])
 
+        words_sum_count = sum(words_counter.values())
+        self.word_distribution = np.array(
+            [(words_counter[word] / words_sum_count) ** (3 / 4)
+             for word in self.index2word])
+        self.word_distribution /= self.word_distribution.sum()
+
         return [
             [self.word2index.get(t, 0) for t in tokens]
             for tokens in self.tokenized_texts
