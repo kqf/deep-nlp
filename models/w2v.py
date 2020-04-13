@@ -129,6 +129,7 @@ class SkipGram:
         window_size=2,
         num_skips=4,
         batch_size=128,
+        n_epochs=1,
         lr=0.01,
         tokenizer=IdentityTokenizer(),
         loss_nsteps=1000,
@@ -138,6 +139,7 @@ class SkipGram:
         self.window_size = window_size
         self.num_skips = num_skips
         self.batch_size = batch_size
+        self.n_epochs = n_epochs
         self.lr = lr
         self.tokenizer = tokenizer
         self.loss_nsteps = loss_nsteps
@@ -153,6 +155,7 @@ class SkipGram:
             window_size=self.window_size,
             num_skips=self.num_skips,
             batch_size=self.batch_size,
+            n_epochs=self.n_epochs,
         )
 
     def fit(self, X):
@@ -195,7 +198,7 @@ class SkipGram:
         return self
 
     @staticmethod
-    def batches(contexts, window_size, num_skips, batch_size):
+    def batches(contexts, window_size, num_skips, batch_size, n_epochs=1):
         assert batch_size % num_skips == 0
         assert num_skips <= 2 * window_size
 
@@ -212,17 +215,18 @@ class SkipGram:
         indices = np.arange(len(data))
         np.random.shuffle(indices)
 
-        for batch_indices in np.array_split(indices, batchs_count):
-            batch_data, batch_labels = [], []
+        for epoch in range(n_epochs):
+            for batch_indices in np.array_split(indices, batchs_count):
+                batch_data, batch_labels = [], []
 
-            for idx in batch_indices:
-                central_word, context = data[idx]
+                for idx in batch_indices:
+                    central_word, context = data[idx]
 
-                words_to_use = random.sample(context, num_skips)
-                batch_data.extend([central_word] * num_skips)
-                batch_labels.extend(words_to_use)
+                    words_to_use = random.sample(context, num_skips)
+                    batch_data.extend([central_word] * num_skips)
+                    batch_labels.extend(words_to_use)
 
-            yield batch_data, batch_labels
+                yield batch_data, batch_labels
 
     @staticmethod
     def build_contexts(tokenized_texts, window_size):
@@ -252,7 +256,7 @@ class CBoWModel(torch.nn.Module):
 
 class CBoW(SkipGram):
     @staticmethod
-    def batches(contexts, window_size, batch_size):
+    def batches(contexts, window_size, batch_size, n_epochs=1):
         word, context = zip(*[
             (word, context) for word, context in contexts
             if len(context) == 2 * window_size and word != 0
@@ -269,8 +273,9 @@ class CBoW(SkipGram):
         indices = np.arange(len(word))
         np.random.shuffle(indices)
 
-        for batch_indices in np.array_split(indices, batchs_count):
-            yield context[batch_indices], word[batch_indices]
+        for epoch in range(n_epochs):
+            for batch_indices in np.array_split(indices, batchs_count):
+                yield context[batch_indices], word[batch_indices]
 
     def _build_model(self):
         return CBoWModel(len(self.tokenizer.word2index), self.dim)
@@ -280,6 +285,7 @@ class CBoW(SkipGram):
             self.build_contexts(tokenized_texts, window_size=self.window_size),
             window_size=self.window_size,
             batch_size=self.batch_size,
+            n_epochs=self.n_epochs,
         )
 
 
