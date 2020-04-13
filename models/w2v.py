@@ -317,11 +317,60 @@ class NegativeSamplingModel(torch.nn.Module):
         u = self.out_layer(self.embeddings(inputs))
         v = self.out_layer(self.embeddings(targets))
 
-        neg = np.random.choice(np.arange(len(self.prob)), p=self.prob)
+        neg = np.random.choice(
+            np.arange(len(self.prob)),
+            p=self.prob,
+            size=(self.out_layer.shape[0], num_samples)
+        )
         vp = self.out_layer(self.embeddings(neg))
 
         loss = F.logsigmoid(v * u) + F.logsigmoid(-vp * u)
         return -loss
+
+
+class NetagitveSamplingCBoW(CBoW):
+    def _build_model(self):
+        return NegativeSamplingModel(
+            len(self.tokenizer.word2index),
+            self.dim,
+            self.tokenizer.word_distribution
+        )
+
+    def fit(self, X):
+        tokenized_texts = self.tokenizer.fit_transform(X)
+
+        self.model = self._build_model()
+
+        device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+        if torch.cuda.is_available():
+            self.model = self.model.to(device)
+
+        total_loss = 0
+        start_time = time.time()
+
+        optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr)
+        data = self._create_batches(tokenized_texts)
+        for step, (batch, labels) in enumerate(tqdm.tqdm(data)):
+            batch = torch.LongTensor(batch).to(device)
+            labels = torch.LongTensor(labels).to(device)
+
+            loss = self.model(batch, labels, 5)
+
+            loss.backward()
+            optimizer.step()
+            optimizer.zero_grad()
+
+            total_loss += loss.item()
+
+            if self.verbose and step != 0 and step % self.loss_nsteps == 0:
+                print("Step = {}, Avg Loss = {:.4f}, Time = {:.2f}s".format(
+                    step,
+                    total_loss / self.loss_nsteps,
+                    time.time() - start_time)
+                )
+                total_loss = 0
+                start_time = time.time()
+        return self
 
 
 def most_similar(embeddings, index2word, word2index, word, n_words=10):
