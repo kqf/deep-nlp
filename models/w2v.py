@@ -7,6 +7,7 @@ import random
 import itertools
 import numpy as np
 import pandas as pd
+import torch.functional as F
 from nltk.tokenize import word_tokenize
 from collections import Counter
 
@@ -297,6 +298,24 @@ class CBoW(Word2VecGeneric):
             batch_size=self.batch_size,
             n_epochs=self.n_epochs,
         )
+
+
+class NegativeSamplingModel(torch.nn.Module):
+    def __init__(self, vocab_size, embedding_dim, prob):
+        super().__init__()
+        self.embeddings = torch.nn.Embedding(vocab_size, embedding_dim)
+        self.out_layer = torch.nn.Linear(embedding_dim, vocab_size)
+        self.prob = prob
+
+    def forward(self, inputs, targets, num_samples):
+        u = self.out_layer(self.embeddings(inputs))
+        v = self.out_layer(self.embeddings(targets))
+
+        neg = np.random.choice(np.arange(len(self.prob)), p=self.prob)
+        vp = self.out_layer(self.embeddings(neg))
+
+        loss = F.logsigmoid(v * u) + F.logsigmoid(-vp * u)
+        return -loss
 
 
 def most_similar(embeddings, index2word, word2index, word, n_words=10):
