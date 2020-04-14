@@ -310,39 +310,31 @@ class CBoW(Word2VecGeneric):
 
 
 class NegativeSamplingModel(torch.nn.Module):
-    def __init__(self, vocab_size, embedding_dim, prob):
+    def __init__(self, vocab_size, embedding_dim):
         super().__init__()
         self.embeddings = torch.nn.Embedding(vocab_size, embedding_dim)
         self.out_layer = torch.nn.Linear(embedding_dim, vocab_size)
-        self.prob = prob
 
-    def forward(self, inputs, targets, num_samples):
+    def forward(self, inputs, targets, negatives):
         u = self.out_layer(self.embeddings(inputs)).mean(dim=1)
         v = self.out_layer(self.embeddings(targets))
+        vp = self.out_layer(self.embeddings(negatives))
 
-        neg = np.random.choice(
-            np.arange(len(self.prob)),
-            p=self.prob,
-            size=(v.shape[0], num_samples),
-        )
-        neg = torch.LongTensor(neg)
-        vp = self.out_layer(self.embeddings(neg))
-
+        # loss_b = v_bi * u_bi)
         loss = F.logsigmoid(torch.sum(v * u, dim=1))
 
         # vp[batch, neg, v] * u[batch, v] -> [batch, neg, 1] -> [barch, neg]
         neg_prod = torch.bmm(vp, u.unsqueeze(dim=2)).squeeze()
+
+        # loss_b = sum_neg [batch, neg]
         loss += F.logsigmoid(torch.sum(-neg_prod, dim=1))
         return -loss.mean()
 
 
 class NegativeSamplingCBoW(CBoW):
     def _build_model(self):
-        return NegativeSamplingModel(
-            len(self.tokenizer.word2index),
-            self.dim,
-            self.tokenizer.word_distribution
-        )
+        self.num_samples = 5
+        return NegativeSamplingModel(len(self.tokenizer.word2index), self.dim)
 
     def fit(self, X):
         tokenized_texts = self.tokenizer.fit_transform(X)
@@ -358,11 +350,19 @@ class NegativeSamplingCBoW(CBoW):
 
         optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr)
         data = self._create_batches(tokenized_texts)
+        self.tokenizer.word_distribution
         for step, (batch, labels) in enumerate(tqdm.tqdm(data)):
+            negatives = np.random.choice(
+                np.arange(len(self.tokenizer.word_distribution)),
+                p=self.tokenizer.word_distribution,
+                size=(batch.shape[0], self.num_samples),
+            )
+
             batch = torch.LongTensor(batch).to(device)
             labels = torch.LongTensor(labels).to(device)
+            negatives = torch.LongTensor(negatives).to(device)
 
-            loss = self.model(batch, labels, 5)
+            loss = self.model(batch, labels, negatives)
 
             loss.backward()
             optimizer.step()
