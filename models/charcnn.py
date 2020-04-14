@@ -11,25 +11,32 @@ class ConvClassifier(torch.nn.Module):
         self._relu = torch.nn.ReLU()
         self._max_pooling = torch.nn.MaxPool2d(kernel_size=(1, 15))
         self._out_layer = torch.nn.Linear(filters_count * 15, 1, bias=False)
+        model = torch.nn.Sequential(
+            self.embedding,
+            self._conv,
+            self._dropout,
+            self._relu,
+            self._max_pooling,
+            self._out_layer,
+        )
+        self.total = model
 
     def forward(self, inputs):
         '''
         inputs - LongTensor with shape (batch_size, max_word_len)
         outputs - FloatTensor with shape (batch_size,)
         '''
-
-        outputs = self.embedding(inputs)
-        outputs = self._conv(outputs)
-        outputs = self._dropout(outputs)
-        outputs = self._relu(outputs)
-        outputs = self._max_pooling(outputs).reshape(inputs.shape[0], -1)
-        outputs = self._out_layer(outputs)
-        return outputs
+        self.batch_size = inputs[0]
+        return self.total(inputs)
 
     def embedding(self, inputs):
-        batch_size, max_len = inputs.shape
+        batch_size, max_len = inputs.shape[0]
         embed = self._embedding(inputs).view(batch_size, 1, max_len, -1)
         return embed
+
+    def max_pooling(self, inputs):
+        # Original inputs shape
+        return inputs.reshape(self.batch_size, -1)
 
     def get_filters(self):
         return self._conv.weight.data.cpu().detach().numpy()
