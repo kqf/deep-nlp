@@ -1,6 +1,5 @@
 import time
 import math
-import tqdm
 import nltk
 import torch
 import random
@@ -9,6 +8,7 @@ import numpy as np
 import pandas as pd
 import torch.nn.functional as F
 from nltk.tokenize import word_tokenize
+from tqdm.autonotebook import tqdm
 from collections import Counter
 
 from sklearn.metrics.pairwise import cosine_similarity
@@ -89,7 +89,7 @@ class Tokenizer(BaseEstimator, TransformerMixin):
         except LookupError:
             nltk.download('punkt')
 
-        self.tokenized_texts = [word_tokenize(t.lower()) for t in tqdm.tqdm(X)]
+        self.tokenized_texts = [word_tokenize(t.lower()) for t in tqdm(X)]
         flat = flatten(self.tokenized_texts)
         words_counter = Counter(flat)
 
@@ -176,7 +176,7 @@ class Word2VecGeneric:
         loss_function = torch.nn.CrossEntropyLoss().to(device)
 
         data = self._create_batches(tokenized_texts)
-        for step, (batch, labels) in enumerate(tqdm.tqdm(data)):
+        for step, (batch, labels) in enumerate(tqdm(data)):
             batch = torch.LongTensor(batch).to(device)
             labels = torch.LongTensor(labels).to(device)
 
@@ -313,12 +313,14 @@ class NegativeSamplingModel(torch.nn.Module):
     def __init__(self, vocab_size, embedding_dim):
         super().__init__()
         self.embeddings = torch.nn.Embedding(vocab_size, embedding_dim)
+        self.embed_v = torch.nn.Embedding(vocab_size, embedding_dim)
+        self.embed_neg = torch.nn.Embedding(vocab_size, embedding_dim)
         self.out_layer = torch.nn.Linear(embedding_dim, vocab_size)
 
     def forward(self, inputs, targets, negatives):
         u = self.out_layer(self.embeddings(inputs)).mean(dim=1)
-        v = self.out_layer(self.embeddings(targets))
-        vp = self.out_layer(self.embeddings(negatives))
+        v = self.out_layer(self.embed_v(targets))
+        vp = self.out_layer(self.embed_neg(negatives))
 
         # loss_b = v_bi * u_bi)
         loss = F.logsigmoid(torch.sum(v * u, dim=1))
@@ -350,8 +352,7 @@ class NegativeSamplingCBoW(CBoW):
 
         optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr)
         data = self._create_batches(tokenized_texts)
-        self.tokenizer.word_distribution
-        for step, (batch, labels) in enumerate(tqdm.tqdm(data)):
+        for step, (batch, labels) in enumerate(tqdm(data)):
             negatives = np.random.choice(
                 np.arange(len(self.tokenizer.word_distribution)),
                 p=self.tokenizer.word_distribution,
