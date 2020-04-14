@@ -7,7 +7,7 @@ import random
 import itertools
 import numpy as np
 import pandas as pd
-import torch.functional as F
+import torch.nn.functional as F
 from nltk.tokenize import word_tokenize
 from collections import Counter
 
@@ -60,6 +60,9 @@ class IdentityTokenizer(BaseEstimator, TransformerMixin):
 
         self.index2word = list(
             sorted(self.word2index.items(), key=lambda x: x[1]))
+
+        self.word_distribution = np.ones(len(self.index2word))
+        self.word_distribution /= self.word_distribution.sum()
 
         return [
             [self.word2index.get(t, 0) for t in tokens]
@@ -314,21 +317,26 @@ class NegativeSamplingModel(torch.nn.Module):
         self.prob = prob
 
     def forward(self, inputs, targets, num_samples):
-        u = self.out_layer(self.embeddings(inputs))
+        u = self.out_layer(self.embeddings(inputs)).mean(dim=1)
         v = self.out_layer(self.embeddings(targets))
 
         neg = np.random.choice(
             np.arange(len(self.prob)),
             p=self.prob,
-            size=(self.out_layer.shape[0], num_samples)
+            size=(v.shape[0], num_samples),
         )
+        neg = torch.LongTensor(neg)
         vp = self.out_layer(self.embeddings(neg))
 
-        loss = F.logsigmoid(v * u) + F.logsigmoid(-vp * u)
-        return -loss
+        loss = F.logsigmoid(torch.sum(v * u, dim=1))
+
+        # vp[batch, neg, v] * u[batch, v] -> [batch, neg, 1] -> [barch, neg]
+        neg_prod = torch.bmm(vp, u.unsqueeze(dim=2)).squeeze()
+        loss += F.logsigmoid(torch.sum(-neg_prod, dim=1))
+        return -loss.mean()
 
 
-class NetagitveSamplingCBoW(CBoW):
+class NegativeSamplingCBoW(CBoW):
     def _build_model(self):
         return NegativeSamplingModel(
             len(self.tokenizer.word2index),

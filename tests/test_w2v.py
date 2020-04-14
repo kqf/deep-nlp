@@ -1,7 +1,7 @@
 import pytest
 
 from models.w2v import quora_data, Tokenizer
-from models.w2v import SkipGram, CBoW, Word2VecGeneric
+from models.w2v import SkipGram, CBoW, Word2VecGeneric, NegativeSamplingCBoW
 
 
 @pytest.fixture
@@ -53,5 +53,12 @@ def test_skipgram():
 def test_cbow():
     inputs = [[1, 2, 3, 4, 5]] * 1000
     model = CBoW().fit(inputs)
+
+    assert model.embeddings_ is not None
+
+
+def test_ngative_sampling():
+    inputs = [[1, 2, 3, 4, 5]] * 1000
+    model = NegativeSamplingCBoW().fit(inputs)
 
     assert model.embeddings_ is not None
