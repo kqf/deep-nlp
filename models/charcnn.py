@@ -47,8 +47,8 @@ class ConvClassifier(torch.nn.Module):
 class Tokenizer:
     def fit(self, X):
         chars = set("".join(X))
-        self.char_index = {c: i + 1 for i, c in enumerate(chars)}
-        self.char_index['<pad>'] = 0
+        self.c2i = {c: i + 1 for i, c in enumerate(chars)}
+        self.c2i['<pad>'] = 0
 
         word_len_counter = Counter(list(map(len, X)))
 
@@ -65,6 +65,14 @@ class Tokenizer:
             if cum_count > sum_count * threshold:
                 return i
         return max(counter)
+
+    def transform(self, X):
+        shorted_data = []
+        for word in X:
+            cc = np.array([self.c2i.get(s, 0) for s in word[:self.max_len]])
+            padded = np.pad(cc, (0, self.max_len - len(cc)), mode="constant")
+            shorted_data.append(padded)
+        return np.array(shorted_data)
 
 
 def main():

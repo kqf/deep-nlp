@@ -11,6 +11,9 @@ def data(size=1000):
     })
 
 
-def test_tokenizer(data):
+def test_converts_data(data):
     tokenizer = Tokenizer().fit(data["names"])
     assert tokenizer.max_len == 8
+
+    tokenized = tokenizer.transform(data["names"])
+    assert tokenized.shape, (data.shape, tokenizer.max_len)
