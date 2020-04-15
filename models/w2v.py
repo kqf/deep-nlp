@@ -313,14 +313,12 @@ class NegativeSamplingModel(torch.nn.Module):
     def __init__(self, vocab_size, embedding_dim):
         super().__init__()
         self.embeddings = torch.nn.Embedding(vocab_size, embedding_dim)
-        self.embed_v = torch.nn.Embedding(vocab_size, embedding_dim)
-        self.embed_neg = torch.nn.Embedding(vocab_size, embedding_dim)
-        self.out_layer = torch.nn.Linear(embedding_dim, vocab_size)
+        self.embeddings_v = torch.nn.Embedding(vocab_size, embedding_dim)
 
     def forward(self, inputs, targets, negatives):
-        u = self.out_layer(self.embeddings(inputs)).mean(dim=1)
-        v = self.out_layer(self.embed_v(targets))
-        vp = self.out_layer(self.embed_neg(negatives))
+        u = self.embeddings(inputs).mean(dim=1)
+        v = self.embeddings_v(targets)
+        vp = self.embeddings_v(negatives)
 
         # loss_b = v_bi * u_bi)
         loss = F.logsigmoid(torch.sum(v * u, dim=1))
@@ -432,6 +430,12 @@ def main():
     print(most_similar(model.embeddings_, model.tokenizer.index2word,
                        model.tokenizer.word2index, 'warm'))
 
+    model = NegativeSamplingCBoW(
+        lr=0.01, n_epochs=4, batch_size=2048, tokenizer=Tokenizer()).fit(df)
+    print(model.embeddings_)
+    print("Most similar words")
+    print(most_similar(model.embeddings_, model.tokenizer.index2word,
+                       model.tokenizer.word2index, 'warm'))
     print("Visualize the embeddings")
     visualize_embeddings(model.embeddings_, model.tokenizer.index2word)
 
