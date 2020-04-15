@@ -1,4 +1,6 @@
 import torch
+import numpy as np
+from collections import Counter
 
 
 class ConvClassifier(torch.nn.Module):
@@ -40,6 +42,29 @@ class ConvClassifier(torch.nn.Module):
 
     def get_filters(self):
         return self._conv.weight.data.cpu().detach().numpy()
+
+
+class Tokenizer:
+    def fit(self, X):
+        chars = set("".join(X))
+        self.char_index = {c: i + 1 for i, c in enumerate(chars)}
+        self.char_index['<pad>'] = 0
+
+        word_len_counter = Counter(list(map(len, X)))
+
+        threshold = 0.99
+        self.max_len = self._find_max_len(word_len_counter, threshold)
+        return self
+
+    @staticmethod
+    def _find_max_len(counter, threshold):
+        sum_count = sum(counter.values())
+        cum_count = 0
+        for i in range(max(counter)):
+            cum_count += counter[i]
+            if cum_count > sum_count * threshold:
+                return i
+        return max(counter)
 
 
 def main():
