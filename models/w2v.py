@@ -333,7 +333,7 @@ class NegativeSamplingModel(torch.nn.Module):
 
 class NegativeSamplingCBoW(CBoW):
     def _build_model(self):
-        self.num_samples = 5
+        self.num_samples = 20
         return NegativeSamplingModel(len(self.tokenizer.word2index), self.dim)
 
     def fit(self, X):
@@ -431,7 +431,9 @@ def main():
                        model.tokenizer.word2index, 'warm'))
 
     model = NegativeSamplingCBoW(
-        lr=0.01, n_epochs=4, batch_size=2048, tokenizer=Tokenizer()).fit(df)
+        lr=0.01 / 2, n_epochs=32, batch_size=2048, tokenizer=Tokenizer())
+    model.fit(df)
+
     print(model.embeddings_)
     print("Most similar words")
     print(most_similar(model.embeddings_, model.tokenizer.index2word,
