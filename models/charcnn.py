@@ -75,6 +75,22 @@ class Tokenizer:
         return np.array(shorted_data)
 
 
+class CharClassifier:
+
+    @staticmethod
+    def batches(X, y, batch_size):
+        num_samples = X.shape[0]
+
+        indices = np.arange(num_samples)
+        np.random.shuffle(indices)
+
+        for start in range(0, num_samples, batch_size):
+            end = min(start + batch_size, num_samples)
+
+            batch_idx = indices[start: end]
+            yield X[batch_idx], y[batch_idx]
+
+
 def main():
     model = ConvClassifier()
     print(model)

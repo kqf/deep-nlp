@@ -1,6 +1,6 @@
 import pytest
 import pandas as pd
-from models.charcnn import Tokenizer
+from models.charcnn import Tokenizer, CharClassifier
 
 
 @pytest.fixture
@@ -17,3 +17,9 @@ def test_converts_data(data):
 
     tokenized = tokenizer.transform(data["names"])
     assert tokenized.shape, (data.shape, tokenizer.max_len)
+
+
+@pytest.mark.parametrize("bsize", [1, 2, 3, 4, 31, 128])
+def test_generates_batches(data, bsize):
+    x, y = next(CharClassifier.batches(data["names"], data["labels"], bsize))
+    assert len(x) == len(y)
