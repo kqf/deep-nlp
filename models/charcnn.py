@@ -20,7 +20,7 @@ class ConvClassifier(torch.nn.Module):
         outputs - FloatTensor with shape (batch_size,)
         '''
         outputs = self.embed(inputs)
-        return self._out_layer(outputs).squeeze(-1)
+        return self._out_layer(outputs).squeeze(1).squeeze(1)
 
     def embed(self, inputs):
 
