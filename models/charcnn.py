@@ -12,7 +12,7 @@ class ConvClassifier(torch.nn.Module):
         self._relu = torch.nn.ReLU()
         self._max_pooling = torch.nn.MaxPool2d(
             kernel_size=(word_size - filters_count + 1, 1))
-        self._out_layer = torch.nn.Linear(emb_dim, 1, bias=False)
+        self._out_layer = torch.nn.Linear(emb_dim, 2, bias=False)
 
     def forward(self, inputs):
         '''
@@ -20,7 +20,7 @@ class ConvClassifier(torch.nn.Module):
         outputs - FloatTensor with shape (batch_size,)
         '''
         outputs = self.embed(inputs)
-        return self._out_layer(outputs).reshape(-1)
+        return self._out_layer(outputs).squeeze(-1)
 
     def embed(self, inputs):
 
@@ -99,15 +99,16 @@ class CharClassifier:
              if param.requires_grad],
             lr=0.01)
 
+        loss_function = torch.nn.CrossEntropyLoss()
         for epoch in range(epochs_count):
             batches = self.batches(X, y, batch_size)
             epoch_loss = 0
             for i, (X_batch, y_batch) in enumerate(batches):
                 X_batch = torch.LongTensor(X_batch).to(device)
-                y_batch = torch.FloatTensor(y_batch).to(device)
+                y_batch = torch.LongTensor(y_batch).to(device)
 
                 logits = self.model.forward(X_batch)
-                loss = torch.nn.CrossEntropyLoss(logits, y_batch)
+                loss = loss_function(logits, y_batch)
                 epoch_loss += loss.item()
 
                 optimizer.zero_grad()
