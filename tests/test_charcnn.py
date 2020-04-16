@@ -23,3 +23,8 @@ def test_converts_data(data):
 def test_generates_batches(data, bsize):
     x, y = next(CharClassifier.batches(data["names"], data["labels"], bsize))
     assert len(x) == len(y)
+
+
+def test_charclassifier(data):
+    model = CharClassifier().fit(data["names"], data["labels"].values)
+    assert model is not None

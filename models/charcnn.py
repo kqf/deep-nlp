@@ -13,35 +13,24 @@ class ConvClassifier(torch.nn.Module):
         self._relu = torch.nn.ReLU()
         self._max_pooling = torch.nn.MaxPool2d(kernel_size=(1, 15))
         self._out_layer = torch.nn.Linear(filters_count * 15, 1, bias=False)
-        model = torch.nn.Sequential(
-            self.embedding,
-            self._conv,
-            self._dropout,
-            self._relu,
-            self._max_pooling,
-            self._out_layer,
-        )
-        self.total = model
 
     def forward(self, inputs):
         '''
         inputs - LongTensor with shape (batch_size, max_word_len)
         outputs - FloatTensor with shape (batch_size,)
         '''
-        self.batch_size = inputs[0]
-        return self.total(inputs)
+        outputs = self.embed(inputs)
+        return self._out_layer(outputs).squeeze(-1)
 
-    def embedding(self, inputs):
-        batch_size, max_len = inputs.shape[0]
-        embed = self._embedding(inputs).view(batch_size, 1, max_len, -1)
-        return embed
-
-    def max_pooling(self, inputs):
-        # Original inputs shape
-        return inputs.reshape(self.batch_size, -1)
-
-    def get_filters(self):
-        return self._conv.weight.data.cpu().detach().numpy()
+    def embed(self, inputs):
+        model = torch.nn.Sequential(
+            self._embedding,
+            self._conv,
+            self._dropout,
+            self._relu,
+            self._max_pooling,
+        )
+        return model(inputs)
 
 
 class Tokenizer:
@@ -89,6 +78,52 @@ class CharClassifier:
 
             batch_idx = indices[start: end]
             yield X[batch_idx], y[batch_idx]
+
+    def fit(self, X, y, epochs_count=1,
+            batch_size=32, val_data=None, val_batch_size=None):
+
+        device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+
+        self.tokenizer = Tokenizer().fit(X)
+        X = self.tokenizer.transform(X)
+
+        self.model = ConvClassifier(len(self.tokenizer.c2i), 24, 64).to(device)
+        optimizer = torch.optim.Adam(
+            [param for param in self.model.parameters()
+             if param.requires_grad],
+            lr=0.01)
+
+        for epoch in range(epochs_count):
+            batches = self.batches(X, y, batch_size)
+            epoch_loss = 0
+            for i, (X_batch, y_batch) in enumerate(batches):
+                X_batch = torch.LongTensor(X_batch)
+                y_batch = torch.FloatTensor(y_batch)
+
+                logits = self.model(X_batch)
+                loss = torch.nn.CrossEntropyLoss(logits, y_batch)
+                epoch_loss += loss.item()
+
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+
+                # if is_train:
+                #     < how to optimize the beast?>
+
+                # <u can move the stuff to some function >
+                # tp= < calc true positives >
+                # fp= < calc false positives >
+                # fn= < calc false negatives >
+
+                # precision=...
+                # recall=...
+                # f1=...
+
+                # epoch_tp += tp
+                # epoch_fp += fp
+                # epoch_fn += fn
+        return self
 
 
 def main():
