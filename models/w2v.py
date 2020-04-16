@@ -342,8 +342,7 @@ class NegativeSamplingCBoW(CBoW):
         self.model = self._build_model()
 
         device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-        if torch.cuda.is_available():
-            self.model = self.model.to(device)
+        self.model = self.model.to(device)
 
         total_loss = 0
         start_time = time.time()
