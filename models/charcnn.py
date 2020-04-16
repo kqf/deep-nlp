@@ -4,15 +4,15 @@ from collections import Counter
 
 
 class ConvClassifier(torch.nn.Module):
-    def __init__(self, vocab_size, emb_dim, filters_count):
+    def __init__(self, vocab_size, emb_dim, word_size=22, filters_count=3):
         super().__init__()
 
         self._embedding = torch.nn.Embedding(vocab_size, emb_dim)
-        self._conv = torch.nn.Conv2d(1, filters_count, (3, 1))
-        self._dropout = torch.nn.Dropout(0.2)
+        self._conv = torch.nn.Conv2d(1, 1, (filters_count, 1))
         self._relu = torch.nn.ReLU()
-        self._max_pooling = torch.nn.MaxPool2d(kernel_size=(1, 15))
-        self._out_layer = torch.nn.Linear(filters_count * 15, 1, bias=False)
+        self._max_pooling = torch.nn.MaxPool2d(
+            kernel_size=(word_size - filters_count + 1, 1))
+        self._out_layer = torch.nn.Linear(emb_dim, 1, bias=False)
 
     def forward(self, inputs):
         '''
@@ -20,17 +20,17 @@ class ConvClassifier(torch.nn.Module):
         outputs - FloatTensor with shape (batch_size,)
         '''
         outputs = self.embed(inputs)
-        return self._out_layer(outputs).squeeze(-1)
+        return self._out_layer(outputs).reshape(-1)
 
     def embed(self, inputs):
+
+        embs = self._embedding(inputs)
         model = torch.nn.Sequential(
-            self._embedding,
             self._conv,
-            self._dropout,
             self._relu,
             self._max_pooling,
         )
-        return model(inputs)
+        return model(embs.unsqueeze(dim=1))
 
 
 class Tokenizer:
@@ -86,8 +86,14 @@ class CharClassifier:
 
         self.tokenizer = Tokenizer().fit(X)
         X = self.tokenizer.transform(X)
+        print(X)
 
-        self.model = ConvClassifier(len(self.tokenizer.c2i), 24, 64).to(device)
+        self.model = ConvClassifier(
+            len(self.tokenizer.c2i),
+            emb_dim=24,
+            word_size=X.shape[1],
+            filters_count=3).to(device)
+
         optimizer = torch.optim.Adam(
             [param for param in self.model.parameters()
              if param.requires_grad],
@@ -97,10 +103,10 @@ class CharClassifier:
             batches = self.batches(X, y, batch_size)
             epoch_loss = 0
             for i, (X_batch, y_batch) in enumerate(batches):
-                X_batch = torch.LongTensor(X_batch)
-                y_batch = torch.FloatTensor(y_batch)
+                X_batch = torch.LongTensor(X_batch).to(device)
+                y_batch = torch.FloatTensor(y_batch).to(device)
 
-                logits = self.model(X_batch)
+                logits = self.model.forward(X_batch)
                 loss = torch.nn.CrossEntropyLoss(logits, y_batch)
                 epoch_loss += loss.item()
 
