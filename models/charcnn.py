@@ -79,6 +79,11 @@ def custom_f1(y_pred, y):
 
 class CharClassifier:
 
+    def __init__(self, batch_size=32, epochs_count=1, verbose=True):
+        self.batch_size = batch_size
+        self.epochs_count = epochs_count
+        self.verbose = verbose
+
     @staticmethod
     def batches(X, y, batch_size):
         num_samples = X.shape[0]
@@ -92,14 +97,12 @@ class CharClassifier:
             batch_idx = indices[start: end]
             yield X[batch_idx], y[batch_idx]
 
-    def fit(self, X, y, epochs_count=1,
-            batch_size=32, val_data=None, val_batch_size=None, verbose=True):
-
+    def fit(self, X, y):
         device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
         self.tokenizer = Tokenizer().fit(X)
         X = self.tokenizer.transform(X)
-        print(X)
+        print((np.max(X) + 1) == len(self.tokenizer.c2i))
 
         self.model = ConvClassifier(
             len(self.tokenizer.c2i),
@@ -113,8 +116,8 @@ class CharClassifier:
             lr=0.01)
 
         loss_function = torch.nn.CrossEntropyLoss()
-        for epoch in range(epochs_count):
-            batches = self.batches(X, y, batch_size)
+        for epoch in range(self.epochs_count):
+            batches = self.batches(X, y, self.batch_size)
             epoch_loss = 0
             epoch_f1 = 0
             for i, (X_batch, y_batch) in enumerate(batches):
@@ -130,7 +133,7 @@ class CharClassifier:
                 optimizer.step()
                 epoch_f1 += custom_f1(self.predict(X_batch), y_batch)
 
-            if verbose:
+            if self.verbose:
                 print(f"Epoch {epoch}, F1 {epoch_f1}")
         return self
 
