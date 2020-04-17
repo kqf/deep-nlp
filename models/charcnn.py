@@ -103,33 +103,42 @@ class CharClassifier:
         for epoch in range(epochs_count):
             batches = self.batches(X, y, batch_size)
             epoch_loss = 0
+            epoch_tp, epoch_fp, epoch_fn, epoch_f1 = 0, 0, 0, 0
             for i, (X_batch, y_batch) in enumerate(batches):
-                X_batch = torch.LongTensor(X_batch).to(device)
-                y_batch = torch.LongTensor(y_batch).to(device)
+                Xt = torch.LongTensor(X_batch).to(device)
+                yt = torch.LongTensor(y_batch).to(device)
 
-                logits = self.model.forward(X_batch)
-                loss = loss_function(logits, y_batch)
+                logits = self.model.forward(Xt)
+                loss = loss_function(logits, yt)
                 epoch_loss += loss.item()
 
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
 
-                # if is_train:
-                #     < how to optimize the beast?>
+                y_pred = self.predict(X_batch)
 
-                # <u can move the stuff to some function >
-                # tp= < calc true positives >
-                # fp= < calc false positives >
-                # fn= < calc false negatives >
+                positives = y_pred.astype(bool)
+                tp = np.sum(y_pred[positives] & y_batch[positives])
+                fp = np.sum(y_pred[positives] & 1 - y_batch[positives])
+                fn = np.sum(y_pred[~positives] | y_batch[~positives])
 
-                # precision=...
-                # recall=...
-                # f1=...
+                precision = tp / (tp + fp)
+                recall = tp / (tp + fn)
+                f1 = 2 * precision * recall / (precision + recall)
 
-                # epoch_tp += tp
-                # epoch_fp += fp
-                # epoch_fn += fn
+                epoch_tp += tp
+                epoch_fp += fp
+                epoch_fn += fn
+                epoch_f1 += f1
+
+            print(
+                f"Epoch {epoch}, "
+                f"tp {epoch_tp}, "
+                f"fp {epoch_fp}, "
+                f"fn {epoch_fn}, "
+                f"f1 {epoch_f1}."
+            )
         return self
 
     def predict_proba(self, X):
