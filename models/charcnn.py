@@ -64,6 +64,19 @@ class Tokenizer:
         return np.array(shorted_data)
 
 
+def custom_f1(y_pred, y):
+    positives = y_pred.astype(bool)
+    tp = np.sum(y_pred[positives] & y[positives])
+    fp = np.sum(y_pred[positives] & 1 - y[positives])
+    fn = np.sum(y_pred[~positives] | y[~positives])
+
+    precision = tp / (tp + fp)
+    recall = tp / (tp + fn)
+
+    f1 = 2 * precision * recall / (precision + recall)
+    return f1 if np.isfinite(f1) else 0
+
+
 class CharClassifier:
 
     @staticmethod
@@ -80,7 +93,7 @@ class CharClassifier:
             yield X[batch_idx], y[batch_idx]
 
     def fit(self, X, y, epochs_count=1,
-            batch_size=32, val_data=None, val_batch_size=None):
+            batch_size=32, val_data=None, val_batch_size=None, verbose=True):
 
         device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
@@ -103,7 +116,7 @@ class CharClassifier:
         for epoch in range(epochs_count):
             batches = self.batches(X, y, batch_size)
             epoch_loss = 0
-            epoch_tp, epoch_fp, epoch_fn, epoch_f1 = 0, 0, 0, 0
+            epoch_f1 = 0
             for i, (X_batch, y_batch) in enumerate(batches):
                 Xt = torch.LongTensor(X_batch).to(device)
                 yt = torch.LongTensor(y_batch).to(device)
@@ -115,30 +128,10 @@ class CharClassifier:
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
+                epoch_f1 += custom_f1(self.predict(X_batch), y_batch)
 
-                y_pred = self.predict(X_batch)
-
-                positives = y_pred.astype(bool)
-                tp = np.sum(y_pred[positives] & y_batch[positives])
-                fp = np.sum(y_pred[positives] & 1 - y_batch[positives])
-                fn = np.sum(y_pred[~positives] | y_batch[~positives])
-
-                precision = tp / (tp + fp)
-                recall = tp / (tp + fn)
-                f1 = 2 * precision * recall / (precision + recall)
-
-                epoch_tp += tp
-                epoch_fp += fp
-                epoch_fn += fn
-                epoch_f1 += f1
-
-            print(
-                f"Epoch {epoch}, "
-                f"tp {epoch_tp}, "
-                f"fp {epoch_fp}, "
-                f"fn {epoch_fn}, "
-                f"f1 {epoch_f1}."
-            )
+            if verbose:
+                print(f"Epoch {epoch}, F1 {epoch_f1}")
         return self
 
     def predict_proba(self, X):
