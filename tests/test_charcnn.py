@@ -28,3 +28,6 @@ def test_generates_batches(data, bsize):
 def test_charclassifier(data):
     model = CharClassifier().fit(data["names"], data["labels"].values)
     assert model is not None
+
+    probs = model.predict_proba(data["names"])
+    assert probs.shape == (data.shape[0], 2)

@@ -132,6 +132,13 @@ class CharClassifier:
                 # epoch_fn += fn
         return self
 
+    def predict_proba(self, X):
+        X = self.tokenizer.transform(X)
+        device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+        X = torch.LongTensor(X).to(device)
+        logits = self.model(X)
+        return torch.nn.functional.softmax(logits, dim=1)
+
 
 def main():
     model = ConvClassifier()
