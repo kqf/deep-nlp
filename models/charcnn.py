@@ -139,6 +139,9 @@ class CharClassifier:
         logits = self.model(X)
         return torch.nn.functional.softmax(logits, dim=1)
 
+    def predict(self, X):
+        return self.predict_proba(X).cpu().data.numpy().argmax(axis=1)
+
 
 def main():
     model = ConvClassifier()

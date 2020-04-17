@@ -1,4 +1,5 @@
 import pytest
+import numpy as np
 import pandas as pd
 from models.charcnn import Tokenizer, CharClassifier
 
@@ -31,3 +32,6 @@ def test_charclassifier(data):
 
     probs = model.predict_proba(data["names"])
     assert probs.shape == (data.shape[0], 2)
+
+    y_pred = model.predict(data["names"])
+    np.testing.assert_array_equal(y_pred, data["labels"].values)
