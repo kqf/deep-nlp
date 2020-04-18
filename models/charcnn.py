@@ -1,6 +1,8 @@
 import torch
 import numpy as np
 from collections import Counter
+from sklearn.pipeline import make_pipeline
+from sklearn.base import BaseEstimator, TransformerMixin, ClassifierMixin
 
 
 class ConvClassifier(torch.nn.Module):
@@ -33,8 +35,8 @@ class ConvClassifier(torch.nn.Module):
         return model(embs.unsqueeze(dim=1))
 
 
-class Tokenizer:
-    def fit(self, X):
+class Tokenizer(BaseEstimator, TransformerMixin):
+    def fit(self, X, y=None):
         chars = set("".join(X))
         self.c2i = {c: i + 1 for i, c in enumerate(chars)}
         self.c2i['<pad>'] = 0
@@ -77,12 +79,12 @@ def custom_f1(y_pred, y):
     return f1 if np.isfinite(f1) else 0
 
 
-class CharClassifier:
-
+class CharClassifier(BaseEstimator, ClassifierMixin):
     def __init__(self, batch_size=32, epochs_count=1, verbose=True):
         self.batch_size = batch_size
         self.epochs_count = epochs_count
         self.verbose = verbose
+        self.model = None
 
     @staticmethod
     def batches(X, y, batch_size):
@@ -100,12 +102,8 @@ class CharClassifier:
     def fit(self, X, y):
         device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
-        self.tokenizer = Tokenizer().fit(X)
-        X = self.tokenizer.transform(X)
-        print((np.max(X) + 1) == len(self.tokenizer.c2i))
-
         self.model = ConvClassifier(
-            len(self.tokenizer.c2i),
+            vocab_size=(np.max(X) + 1),
             emb_dim=24,
             word_size=X.shape[1],
             filters_count=3).to(device)
@@ -138,7 +136,6 @@ class CharClassifier:
         return self
 
     def predict_proba(self, X):
-        X = self.tokenizer.transform(X)
         device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
         X = torch.LongTensor(X).to(device)
         logits = self.model(X)
@@ -148,8 +145,16 @@ class CharClassifier:
         return self.predict_proba(X).cpu().data.numpy().argmax(axis=1)
 
 
+def build_model():
+    model = make_pipeline(
+        Tokenizer(),
+        CharClassifier(),
+    )
+    return model
+
+
 def main():
-    model = ConvClassifier()
+    model = build_model()
     print(model)
 
 

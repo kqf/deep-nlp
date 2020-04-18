@@ -1,7 +1,7 @@
 import pytest
 import numpy as np
 import pandas as pd
-from models.charcnn import Tokenizer, CharClassifier, custom_f1
+from models.charcnn import Tokenizer, CharClassifier, custom_f1, build_model
 from sklearn.metrics import f1_score
 
 
@@ -27,8 +27,8 @@ def test_generates_batches(data, bsize):
     assert len(x) == len(y)
 
 
-def test_charclassifier(data):
-    model = CharClassifier().fit(data["names"], data["labels"].values)
+def test_model(data):
+    model = build_model().fit(data["names"], data["labels"].values)
     assert model is not None
 
     probs = model.predict_proba(data["names"])
