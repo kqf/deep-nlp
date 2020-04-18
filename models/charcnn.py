@@ -4,8 +4,11 @@ import pandas as pd
 from collections import Counter
 from sklearn.pipeline import make_pipeline
 from sklearn.base import BaseEstimator, TransformerMixin, ClassifierMixin
+from sklearn.model_selection import train_test_split
+
 
 """
+!mkdir -p data
 !pip3 -qq install torch
 !pip install -qq bokeh
 !pip install -qq eli5
@@ -145,7 +148,7 @@ class CharClassifier(BaseEstimator, ClassifierMixin):
                 epoch_f1 += custom_f1(self.predict(X_batch), y_batch)
 
             if self.verbose:
-                print(f"Epoch {epoch}, F1 {epoch_f1}")
+                print(f"Epoch {epoch}, F1 {epoch_f1}, loss {epoch_loss}")
         return self
 
     def predict_proba(self, X):
@@ -158,18 +161,23 @@ class CharClassifier(BaseEstimator, ClassifierMixin):
         return self.predict_proba(X).cpu().data.numpy().argmax(axis=1)
 
 
-def build_model():
+def build_model(**kwargs):
     model = make_pipeline(
         Tokenizer(),
-        CharClassifier(),
+        CharClassifier(**kwargs),
     )
     return model
 
 
 def main():
     df = data()
-    model = build_model().fit(df["surname"], df["label"].values)
-    print(df)
+    X_tr, X_te, y_tr, y_te = train_test_split(
+        df["surname"], df["label"].values, test_size=0.33, random_state=42)
+
+    model = build_model(epochs_count=10).fit(X_tr, y_tr)
+
+    print("F1 test", custom_f1(model.predict(X_te), y_te))
+    print("F1 train", custom_f1(model.predict(X_tr), y_tr))
 
 
 if __name__ == '__main__':
