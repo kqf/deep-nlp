@@ -8,6 +8,7 @@ from sklearn.base import BaseEstimator, TransformerMixin, ClassifierMixin
 from sklearn.metrics import f1_score, precision_score, recall_score
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import plot_precision_recall_curve
+from model.visualize import visualize_embeddings
 
 
 """
@@ -159,7 +160,13 @@ class CharClassifier(BaseEstimator, ClassifierMixin):
         device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
         X = torch.LongTensor(X).to(device)
         logits = self.model(X)
-        return torch.nn.functional.softmax(logits, dim=1).cpu().data.numpy()
+        return torch.sigmoid(logits).cpu().data.numpy()
+
+    def predict_proba(self, X):
+        device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+        X = torch.LongTensor(X).to(device)
+        logits = self.model(X)
+        return torch.sigmoid(logits).cpu().data.numpy()
 
     def predict(self, X):
         self.model.eval()
@@ -193,6 +200,17 @@ def main():
     print("Precision", precision_score(model.predict(X_te), y_te))
     print("Recall", recall_score(model.predict(X_te), y_te))
     plot_precision_recall_curve(model, X_te, y_te)
+
+    word_indices = np.random.choice(
+        np.arange(len(X_te)), 1000, replace=False)
+    words = [X_te[ind] for ind in word_indices]
+    labels = y_te[word_indices]
+
+    words = model.steps[0][-1].transform(words)
+    embeddings = model.embeddings(words)
+
+    colors = ['red' if label else 'blue' for label in labels]
+    visualize_embeddings(embeddings, words, colors)
 
 
 if __name__ == '__main__':
