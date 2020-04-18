@@ -1,10 +1,13 @@
+import time
 import torch
 import numpy as np
 import pandas as pd
 from collections import Counter
 from sklearn.pipeline import make_pipeline
 from sklearn.base import BaseEstimator, TransformerMixin, ClassifierMixin
+from sklearn.metrics import f1_score, precision_score, recall_score
 from sklearn.model_selection import train_test_split
+from sklearn.metrics import plot_precision_recall_curve
 
 
 """
@@ -101,6 +104,7 @@ class CharClassifier(BaseEstimator, ClassifierMixin):
         self.epochs_count = epochs_count
         self.verbose = verbose
         self.model = None
+        self.clsses_ = [0, 1]
 
     @staticmethod
     def batches(X, y, batch_size):
@@ -133,7 +137,7 @@ class CharClassifier(BaseEstimator, ClassifierMixin):
         for epoch in range(self.epochs_count):
             batches = self.batches(X, y, self.batch_size)
             epoch_loss = 0
-            epoch_f1 = 0
+            time_epoch = time.time()
             for i, (X_batch, y_batch) in enumerate(batches):
                 Xt = torch.LongTensor(X_batch).to(device)
                 yt = torch.LongTensor(y_batch).to(device)
@@ -145,20 +149,21 @@ class CharClassifier(BaseEstimator, ClassifierMixin):
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
-                epoch_f1 += custom_f1(self.predict(X_batch), y_batch)
 
             if self.verbose:
-                print(f"Epoch {epoch}, F1 {epoch_f1}, loss {epoch_loss}")
+                te = time.time() - time_epoch
+                print(f"Epoch {epoch}, loss {epoch_loss}, time {te:.2f}")
         return self
 
     def predict_proba(self, X):
         device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
         X = torch.LongTensor(X).to(device)
         logits = self.model(X)
-        return torch.nn.functional.softmax(logits, dim=1)
+        return torch.nn.functional.softmax(logits, dim=1).cpu().data.numpy()
 
     def predict(self, X):
-        return self.predict_proba(X).cpu().data.numpy().argmax(axis=1)
+        self.model.eval()
+        return self.predict_proba(X).argmax(axis=1)
 
 
 def build_model(**kwargs):
@@ -170,14 +175,24 @@ def build_model(**kwargs):
 
 
 def main():
+    if torch.cuda.is_available():
+        print(torch.cuda.get_device_name(0))
+        print('Memory Usage:')
+        print(f'Alloc.:{round(torch.cuda.memory_allocated(0)/1024**3, 1)} GB')
+        print(f'Cached:{round(torch.cuda.memory_cached(0) / 1024**3, 1)} GB')
+
     df = data()
     X_tr, X_te, y_tr, y_te = train_test_split(
         df["surname"], df["label"].values, test_size=0.33, random_state=42)
 
     model = build_model(epochs_count=10).fit(X_tr, y_tr)
 
-    print("F1 test", custom_f1(model.predict(X_te), y_te))
-    print("F1 train", custom_f1(model.predict(X_tr), y_tr))
+    print("F1 test", f1_score(model.predict(X_te), y_te))
+    print("F1 train", f1_score(model.predict(X_tr), y_tr))
+
+    print("Precision", precision_score(model.predict(X_te), y_te))
+    print("Recall", recall_score(model.predict(X_te), y_te))
+    plot_precision_recall_curve(model, X_te, y_te)
 
 
 if __name__ == '__main__':

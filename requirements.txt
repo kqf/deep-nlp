@@ -7,3 +7,4 @@ nltk
 tqdm
 scikit-learn
 bokeh
+matplotlib
