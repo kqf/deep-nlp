@@ -1,8 +1,21 @@
 import torch
 import numpy as np
+import pandas as pd
 from collections import Counter
 from sklearn.pipeline import make_pipeline
 from sklearn.base import BaseEstimator, TransformerMixin, ClassifierMixin
+
+"""
+!pip3 -qq install torch
+!pip install -qq bokeh
+!pip install -qq eli5
+!pip install scikit-learn
+!curl -k -L "https://drive.google.com/uc?export=download&id=1z7avv1JiI30V4cmHJGFIfDEs9iE4SHs5" -o data/surnames.txt
+"""  # noqa
+
+
+def data(filename="data/surnames.txt"):
+    return pd.read_csv(filename, sep="\t", names=["surname", "label"])
 
 
 class ConvClassifier(torch.nn.Module):
@@ -154,8 +167,9 @@ def build_model():
 
 
 def main():
-    model = build_model()
-    print(model)
+    df = data()
+    model = build_model().fit(df["surname"], df["label"].values)
+    print(df)
 
 
 if __name__ == '__main__':
