@@ -8,7 +8,6 @@ from sklearn.base import BaseEstimator, TransformerMixin, ClassifierMixin
 from sklearn.metrics import f1_score, precision_score, recall_score
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import plot_precision_recall_curve
-from models.visualize import visualize_embeddings
 
 
 """
@@ -48,7 +47,9 @@ class ConvClassifier(torch.nn.Module):
 
         embs = self._embedding(inputs)
         model = torch.nn.Sequential(
+            # torch.nn.Dropout(0.2),
             self._conv,
+            # torch.nn.Dropout(0.2),
             self._relu,
             self._max_pooling,
         )
@@ -100,11 +101,12 @@ def custom_f1(y_pred, y):
 
 
 class CharClassifier(BaseEstimator, ClassifierMixin):
-    def __init__(self, batch_size=32, epochs_count=1, verbose=True):
+    def __init__(self, lr=0.01, batch_size=32, epochs_count=1, verbose=True):
         self.batch_size = batch_size
         self.epochs_count = epochs_count
         self.verbose = verbose
         self.model = None
+        self.lr = lr
         self.clsses_ = [0, 1]
 
     @staticmethod
@@ -132,7 +134,7 @@ class CharClassifier(BaseEstimator, ClassifierMixin):
         optimizer = torch.optim.Adam(
             [param for param in self.model.parameters()
              if param.requires_grad],
-            lr=0.01)
+            lr=self.lr)
 
         loss_function = torch.nn.CrossEntropyLoss()
         for epoch in range(self.epochs_count):
@@ -191,7 +193,7 @@ def main():
     X_tr, X_te, y_tr, y_te = train_test_split(
         df["surname"], df["label"].values, test_size=0.33, random_state=42)
 
-    model = build_model(epochs_count=10).fit(X_tr, y_tr)
+    model = build_model(epochs_count=10, batch_size=2048).fit(X_tr, y_tr)
 
     print("F1 test", f1_score(model.predict(X_te), y_te))
     print("F1 train", f1_score(model.predict(X_tr), y_tr))
@@ -200,6 +202,7 @@ def main():
     print("Recall", recall_score(model.predict(X_te), y_te))
     plot_precision_recall_curve(model, X_te, y_te)
 
+    # from models.visualize import visualize_embeddings
     word_indices = np.random.choice(
         np.arange(len(X_te)), 1000, replace=False)
     words = [X_te[ind] for ind in word_indices]
