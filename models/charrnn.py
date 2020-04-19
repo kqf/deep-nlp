@@ -1,12 +1,10 @@
-import time
+import math
+# import time
 import torch
 import numpy as np
 import pandas as pd
-from collections import Counter
 from sklearn.pipeline import make_pipeline
-from sklearn.metrics import f1_score, precision_score, recall_score
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import plot_precision_recall_curve
 from sklearn.preprocessing import LabelEncoder
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.linear_model import LogisticRegression
@@ -25,6 +23,64 @@ from sklearn.metrics import classification_report
 
 def data(filename="data/surnames-multilang.txt"):
     return pd.read_csv(filename, sep="\t", names=["surname", "label"])
+
+
+class SimpleRNN(torch.nn.Module):
+    def __init__(self, seq_len, n_classes):
+        super().__init__()
+        self.n_classes = n_classes
+        self.output = torch.nn.Linear(seq_len, self.n_classes)
+
+    def forward(self, inputs, hidden=None):
+        return self.output(inputs)
+
+
+def generate_data(num_batches=10 ** 4, seq_len=5):
+    for _ in range(num_batches):
+        data = np.random.randint(0, 10, seq_len)
+        yield data, data[0]
+
+
+class BasicRNNClassifier():
+    def __init__(self):
+        pass
+
+    def fit(self, X, y):
+        X = np.array(X)
+        y = np.array(y)
+        rnn = SimpleRNN(seq_len=5, n_classes=10)
+        criterion = torch.nn.CrossEntropyLoss()
+        for param in filter(lambda p: p.requires_grad, rnn.parameters()):
+            print(param.requires_grad)
+        optimizer = torch.optim.Adam(
+            filter(lambda p: p.requires_grad, rnn.parameters()))
+
+        total_loss = 0
+        epochs_count = 100
+        batch_size = 128
+        indices = np.arange(len(X))
+        np.random.shuffle(indices)
+        batchs_count = int(math.ceil(len(X) / batch_size))
+        device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+
+        for epoch_ind in range(epochs_count):
+            for batch_indices in np.array_split(indices, batchs_count):
+                print(batch_indices)
+                X_batch, y_batch = X[batch_indices], y[batch_indices]
+                batch = torch.FloatTensor(X_batch).to(device)
+                labels = torch.LongTensor(y_batch).to(device)
+
+                optimizer.zero_grad()
+                rnn.train()
+
+                logits = rnn(batch)
+
+                loss = criterion(logits, labels)
+                loss.backward()
+                optimizer.step()
+
+                total_loss += loss.item()
+        return self
 
 
 def baseline(X_tr, X_te, y_tr, y_te):
