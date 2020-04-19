@@ -8,7 +8,7 @@ from sklearn.base import BaseEstimator, TransformerMixin, ClassifierMixin
 from sklearn.metrics import f1_score, precision_score, recall_score
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import plot_precision_recall_curve
-from model.visualize import visualize_embeddings
+from models.visualize import visualize_embeddings
 
 
 """
@@ -162,11 +162,10 @@ class CharClassifier(BaseEstimator, ClassifierMixin):
         logits = self.model(X)
         return torch.sigmoid(logits).cpu().data.numpy()
 
-    def predict_proba(self, X):
+    def embeddings(self, X):
         device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
         X = torch.LongTensor(X).to(device)
-        logits = self.model(X)
-        return torch.sigmoid(logits).cpu().data.numpy()
+        return self.model.embed(X).cpu().data.numpy()
 
     def predict(self, X):
         self.model.eval()
