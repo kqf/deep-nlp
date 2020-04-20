@@ -78,26 +78,26 @@ def generate_data(num_batches=10, batch_size=25, seq_len=5):
 
 
 class BasicRNNClassifier():
-    def __init__(self):
-        pass
+    def __init__(self, hidden_size=100, batch_size=25, epochs_count=1):
+        self.hidden_size = hidden_size
+        self.batch_size = batch_size
+        self.epochs_count = epochs_count
 
     def fit(self, X, y):
         X = np.array(X)
         y = np.array(y)
-        rnn = MemorizerModel(hidden_size=100)
+        rnn = MemorizerModel(hidden_size=self.hidden_size)
         criterion = torch.nn.CrossEntropyLoss()
         optimizer = torch.optim.Adam(
             filter(lambda p: p.requires_grad, rnn.parameters()))
 
         total_loss = 0
-        epochs_count = 100
-        batch_size = 25
         indices = np.arange(len(X))
         np.random.shuffle(indices)
-        batchs_count = int(math.ceil(len(X) / batch_size))
+        batchs_count = int(math.ceil(len(X) / self.batch_size))
         device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
-        for epoch_ind in range(epochs_count):
+        for epoch_ind in range(self.epochs_count):
             for batch_indices in np.array_split(indices, batchs_count):
                 X_batch, y_batch = X[batch_indices], y[batch_indices]
                 batch = torch.LongTensor(X_batch).to(device)
