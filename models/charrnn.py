@@ -46,14 +46,29 @@ class SimpleRNN(torch.nn.Module):
         return hidden
 
 
-class MemoizedModel(torch.nn.Module):
-    def __init__(self, seq_len, n_classes):
+class MemorizerModel(torch.nn.Module):
+    def __init__(self, hidden_size):
         super().__init__()
-        self.n_classes = n_classes
-        self.output = torch.nn.Linear(seq_len, self.n_classes)
+
+        self._hidden_size = hidden_size
+        self._embedding = torch.nn.Embedding.from_pretrained(
+            torch.eye(10, requires_grad=True).float())
+        self._hidden_layer = torch.nn.Linear(10 + hidden_size, hidden_size)
+        self._relu = torch.nn.LeakyReLU()
+        self._linear = torch.nn.Linear(hidden_size, 10)
 
     def forward(self, inputs, hidden=None):
-        return self.output(inputs)
+        seq_len, batch_size = inputs.shape[:2]
+
+        embed = self._embedding(inputs)
+        if hidden is None:
+            hidden = embed.new_zeros((batch_size, self._hidden_size)).float()
+
+        for i in range(seq_len):
+            layer_input = torch.cat((embed[i], hidden), 1)
+            hidden = self._relu(self._hidden_layer(layer_input))
+        result = self._linear(hidden)
+        return result
 
 
 def generate_data(num_batches=10 ** 4, seq_len=5):
@@ -69,7 +84,7 @@ class BasicRNNClassifier():
     def fit(self, X, y):
         X = np.array(X)
         y = np.array(y)
-        rnn = MemoizedModel(seq_len=5, n_classes=10)
+        rnn = MemorizerModel(hidden_size=100)
         criterion = torch.nn.CrossEntropyLoss()
         optimizer = torch.optim.Adam(
             filter(lambda p: p.requires_grad, rnn.parameters()))
