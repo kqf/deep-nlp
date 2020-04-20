@@ -71,7 +71,7 @@ class MemorizerModel(torch.nn.Module):
         return result
 
 
-def generate_data(num_batches=10 ** 4, batch_size=25, seq_len=5):
+def generate_data(num_batches=10, batch_size=25, seq_len=5):
     for _ in range(num_batches * batch_size):
         data = np.random.randint(0, 10, seq_len)
         yield data, data[0]
@@ -91,7 +91,7 @@ class BasicRNNClassifier():
 
         total_loss = 0
         epochs_count = 100
-        batch_size = 125
+        batch_size = 25
         indices = np.arange(len(X))
         np.random.shuffle(indices)
         batchs_count = int(math.ceil(len(X) / batch_size))
