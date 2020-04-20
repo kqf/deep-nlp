@@ -71,8 +71,8 @@ class MemorizerModel(torch.nn.Module):
         return result
 
 
-def generate_data(num_batches=10 ** 4, seq_len=5):
-    for _ in range(num_batches):
+def generate_data(num_batches=10 ** 4, batch_size=25, seq_len=5):
+    for _ in range(num_batches * batch_size):
         data = np.random.randint(0, 10, seq_len)
         yield data, data[0]
 
@@ -91,7 +91,7 @@ class BasicRNNClassifier():
 
         total_loss = 0
         epochs_count = 100
-        batch_size = 128
+        batch_size = 125
         indices = np.arange(len(X))
         np.random.shuffle(indices)
         batchs_count = int(math.ceil(len(X) / batch_size))
@@ -100,7 +100,7 @@ class BasicRNNClassifier():
         for epoch_ind in range(epochs_count):
             for batch_indices in np.array_split(indices, batchs_count):
                 X_batch, y_batch = X[batch_indices], y[batch_indices]
-                batch = torch.FloatTensor(X_batch).to(device)
+                batch = torch.LongTensor(X_batch).to(device)
                 labels = torch.LongTensor(y_batch).to(device)
 
                 optimizer.zero_grad()

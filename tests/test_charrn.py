@@ -5,8 +5,8 @@ from models.charrnn import SimpleRNN
 
 
 @pytest.fixture
-def fake_data():
-    return list(zip(*generate_data()))
+def fake_data(seq_len=25):
+    return list(zip(*generate_data(seq_len=25)))
 
 
 def test_dummy_rnn(fake_data):
