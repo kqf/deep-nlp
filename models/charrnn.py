@@ -26,6 +26,27 @@ def data(filename="data/surnames-multilang.txt"):
 
 
 class SimpleRNN(torch.nn.Module):
+    def __init__(self, input_size, hidden_size):
+        super().__init__()
+
+        self._hidden_size = hidden_size
+        self._hidden = torch.nn.Linear(input_size + hidden_size, hidden_size)
+        self._tanh = torch.nn.Tanh()
+
+    def forward(self, inputs, hidden=None):
+        seq_len, batch_size = inputs.shape[:2]
+
+        if hidden is None:
+            hidden = inputs.new_zeros((batch_size, self._hidden_size)).float()
+
+        inputs = inputs.reshape(seq_len, batch_size, -1).float()
+        for i in range(seq_len):
+            layer_input = torch.cat((hidden, inputs[i]), 1)
+            hidden = self._tanh(self._hidden(layer_input))
+        return hidden
+
+
+class MemoizedModel(torch.nn.Module):
     def __init__(self, seq_len, n_classes):
         super().__init__()
         self.n_classes = n_classes
@@ -48,10 +69,8 @@ class BasicRNNClassifier():
     def fit(self, X, y):
         X = np.array(X)
         y = np.array(y)
-        rnn = SimpleRNN(seq_len=5, n_classes=10)
+        rnn = MemoizedModel(seq_len=5, n_classes=10)
         criterion = torch.nn.CrossEntropyLoss()
-        for param in filter(lambda p: p.requires_grad, rnn.parameters()):
-            print(param.requires_grad)
         optimizer = torch.optim.Adam(
             filter(lambda p: p.requires_grad, rnn.parameters()))
 
@@ -65,7 +84,6 @@ class BasicRNNClassifier():
 
         for epoch_ind in range(epochs_count):
             for batch_indices in np.array_split(indices, batchs_count):
-                print(batch_indices)
                 X_batch, y_batch = X[batch_indices], y[batch_indices]
                 batch = torch.FloatTensor(X_batch).to(device)
                 labels = torch.LongTensor(y_batch).to(device)
