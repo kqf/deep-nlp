@@ -6,7 +6,7 @@ import pandas as pd
 from sklearn.pipeline import make_pipeline
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
-from sklearn.collections import Counter
+from sklearn.base import BaseEstimator, TransformerMixin
 # from sklearn.metrics import classification_report
 
 
@@ -47,12 +47,6 @@ class MemorizerModel(torch.nn.Module):
             hidden = self._relu(self._hidden_layer(layer_input))
         result = self._linear(hidden)
         return result
-
-
-def generate_data(num_batches=10, batch_size=25, seq_len=5):
-    for _ in range(num_batches * batch_size):
-        data = np.random.randint(0, 10, seq_len)
-        yield data, data[0]
 
 
 class BasicRNNClassifier():
@@ -99,30 +93,16 @@ class Tokenizer(BaseEstimator, TransformerMixin):
         chars = set("".join(X))
         self.c2i = {c: i + 1 for i, c in enumerate(chars)}
         self.c2i['<pad>'] = 0
-
-        word_len_counter = Counter(list(map(len, X)))
-
-        threshold = 0.99
-        self.max_len = self._find_max_len(word_len_counter, threshold)
+        self.max_len = max(map(len, X))
         return self
 
-    @staticmethod
-    def _find_max_len(counter, threshold):
-        sum_count = sum(counter.values())
-        cum_count = 0
-        for i in range(max(counter)):
-            cum_count += counter[i]
-            if cum_count > sum_count * threshold:
-                return i
-        return max(counter)
-
     def transform(self, X):
-        shorted_data = []
+        padded_data = []
         for word in X:
             cc = np.array([self.c2i.get(s, 0) for s in word[:self.max_len]])
             padded = np.pad(cc, (0, self.max_len - len(cc)), mode="constant")
-            shorted_data.append(padded)
-        return np.array(shorted_data)
+            padded_data.append(padded)
+        return np.array(padded_data)
 
 
 def build_model(**kwargs):
