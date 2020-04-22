@@ -42,7 +42,9 @@ class MemorizerModel(torch.nn.Module):
         self._embedding = torch.nn.Embedding.from_pretrained(
             torch.eye(embedding_size, requires_grad=True))
         self._rnn = SimpleRNN(embedding_size, hidden_size, activation)
-        self._linear = torch.nn.Linear(hidden_size, 1)
+        # We have as many output classes as the input ones
+        output_size = embedding_size
+        self._linear = torch.nn.Linear(hidden_size, output_size)
 
         self._model = torch.nn.Sequential(
             self._embedding,
@@ -56,14 +58,14 @@ class MemorizerModel(torch.nn.Module):
         return self._model(inputs.squeeze(dim=-1))
 
 
-def generate_data(num_batches=10, batch_size=25, seq_len=5):
+def generate_data(num_batches=10, batch_size=100, seq_len=5):
     for _ in range(num_batches * batch_size):
         data = np.random.randint(0, 10, seq_len)
         yield data, data[0]
 
 
 class BasicRNNClassifier():
-    def __init__(self, hidden_size=100, batch_size=25, epochs_count=1):
+    def __init__(self, hidden_size=100, batch_size=100, epochs_count=1):
         self.hidden_size = hidden_size
         self.batch_size = batch_size
         self.epochs_count = epochs_count
@@ -85,14 +87,15 @@ class BasicRNNClassifier():
         for epoch_ind in range(self.epochs_count):
             for batch_indices in np.array_split(indices, batchs_count):
                 X_batch, y_batch = X[batch_indices], y[batch_indices]
-                batch = torch.LongTensor(X_batch).to(device)
+                # Convention all RNNs: [sequence, batch, input_size]
+                x_rnn = X_batch.T[:, :, np.newaxis]
+
+                batch = torch.LongTensor(x_rnn).to(device)
                 labels = torch.LongTensor(y_batch).to(device)
 
                 optimizer.zero_grad()
-                rnn.train()
 
                 logits = rnn(batch)
-
                 loss = criterion(logits, labels)
                 loss.backward()
                 optimizer.step()
