@@ -48,28 +48,25 @@ class SimpleRNN(torch.nn.Module):
 
 
 class MemorizerModel(torch.nn.Module):
-    def __init__(self, hidden_size):
+    def __init__(self, embedding_size, hidden_size, activation=None):
         super().__init__()
 
         self._hidden_size = hidden_size
         self._embedding = torch.nn.Embedding.from_pretrained(
-            torch.eye(10, requires_grad=True).float())
-        self._hidden_layer = torch.nn.Linear(10 + hidden_size, hidden_size)
-        self._relu = torch.nn.LeakyReLU()
-        self._linear = torch.nn.Linear(hidden_size, 10)
+            torch.eye(embedding_size, requires_grad=True))
+        self._rnn = SimpleRNN(embedding_size, hidden_size, activation)
+        self._linear = torch.nn.Linear(hidden_size, 1)
+
+        self._model = torch.nn.Sequential(
+            self._embedding,
+            self._rnn,
+            self._linear
+
+        )
 
     def forward(self, inputs, hidden=None):
-        seq_len, batch_size = inputs.shape[:2]
-
-        embed = self._embedding(inputs)
-        if hidden is None:
-            hidden = embed.new_zeros((batch_size, self._hidden_size)).float()
-
-        for i in range(seq_len):
-            layer_input = torch.cat((embed[i], hidden), 1)
-            hidden = self._relu(self._hidden_layer(layer_input))
-        result = self._linear(hidden)
-        return result
+        # Convention: inputs[sequence, batch, input_size=1]
+        return self._model(inputs.squeeze(dim=-1))
 
 
 def generate_data(num_batches=10, batch_size=25, seq_len=5):
@@ -87,7 +84,7 @@ class BasicRNNClassifier():
     def fit(self, X, y):
         X = np.array(X)
         y = np.array(y)
-        rnn = MemorizerModel(hidden_size=self.hidden_size)
+        rnn = MemorizerModel(10, hidden_size=self.hidden_size)
         criterion = torch.nn.CrossEntropyLoss()
         optimizer = torch.optim.Adam(
             filter(lambda p: p.requires_grad, rnn.parameters()))
