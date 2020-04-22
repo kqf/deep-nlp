@@ -26,23 +26,24 @@ def data(filename="data/surnames-multilang.txt"):
 
 
 class SimpleRNN(torch.nn.Module):
-    def __init__(self, input_size, hidden_size):
+    def __init__(self, input_size, hidden_size, activation=None):
         super().__init__()
 
         self._hidden_size = hidden_size
+        # Convention: X[batch, inputs] * W[inputs, outputs]
         self._hidden = torch.nn.Linear(input_size + hidden_size, hidden_size)
-        self._tanh = torch.nn.Tanh()
+        self._activate = activation or torch.nn.Tanh()
 
     def forward(self, inputs, hidden=None):
+        # RNN Convention: X[sequence, batch, inputs]
         seq_len, batch_size = inputs.shape[:2]
 
         if hidden is None:
-            hidden = inputs.new_zeros((batch_size, self._hidden_size)).float()
+            hidden = inputs.new_zeros((batch_size, self._hidden_size))
 
-        inputs = inputs.reshape(seq_len, batch_size, -1).float()
         for i in range(seq_len):
-            layer_input = torch.cat((hidden, inputs[i]), 1)
-            hidden = self._tanh(self._hidden(layer_input))
+            layer_input = torch.cat((hidden, inputs[i]), dim=1)
+            hidden = self._activate(self._hidden(layer_input))
         return hidden
 
 

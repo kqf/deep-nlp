@@ -17,8 +17,8 @@ def test_dummy_rnn(fake_data):
 
 
 def test_simple_model(batch_size=128, seq_len=5, hidden_size=3):
-    data = torch.randint(0, 10, size=(seq_len, batch_size), dtype=torch.long)
+    X = torch.randint(0, 10, size=(seq_len, batch_size, 1), dtype=torch.long)
     model = SimpleRNN(1, hidden_size)
 
-    logits = model(data)
+    logits = model(X.float())
     logits.shape == (batch_size, hidden_size)
