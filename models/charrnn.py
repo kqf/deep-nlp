@@ -57,6 +57,12 @@ class MemorizerModel(torch.nn.Module):
         # Convention: inputs[sequence, batch, input_size=1]
         return self._model(inputs.squeeze(dim=-1))
 
+    def parameters(self, learnable=False):
+        parameters = super().parameters()
+        if learnable:
+            return filter(lambda p: p.requires_grad, parameters)
+        return parameters
+
 
 def generate_data(num_batches=10, batch_size=100, seq_len=5):
     for _ in range(num_batches * batch_size):
@@ -65,26 +71,32 @@ def generate_data(num_batches=10, batch_size=100, seq_len=5):
 
 
 class BasicRNNClassifier():
-    def __init__(self, hidden_size=100, batch_size=100, epochs_count=1):
+    def __init__(self,
+                 hidden_size=100,
+                 batch_size=100,
+                 epochs_count=100,
+                 print_frequency=10):
+
         self.hidden_size = hidden_size
         self.batch_size = batch_size
         self.epochs_count = epochs_count
+        self.print_frequency = print_frequency
 
     def fit(self, X, y):
         X = np.array(X)
         y = np.array(y)
-        rnn = MemorizerModel(10, hidden_size=self.hidden_size)
-        criterion = torch.nn.CrossEntropyLoss()
-        optimizer = torch.optim.Adam(
-            filter(lambda p: p.requires_grad, rnn.parameters()))
 
-        total_loss = 0
+        self.rnn = MemorizerModel(10, hidden_size=self.hidden_size)
+        self.criterion = torch.nn.CrossEntropyLoss()
+        optimizer = torch.optim.Adam(self.rnn.parameters())
+
         indices = np.arange(len(X))
         np.random.shuffle(indices)
         batchs_count = int(math.ceil(len(X) / self.batch_size))
         device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
-        for epoch_ind in range(self.epochs_count):
+        total_loss = 0
+        for epoch in range(self.epochs_count):
             for batch_indices in np.array_split(indices, batchs_count):
                 X_batch, y_batch = X[batch_indices], y[batch_indices]
                 # Convention all RNNs: [sequence, batch, input_size]
@@ -95,13 +107,29 @@ class BasicRNNClassifier():
 
                 optimizer.zero_grad()
 
-                logits = rnn(batch)
-                loss = criterion(logits, labels)
+                self.rnn.eval()
+                logits = self.rnn(batch)
+                loss = self.criterion(logits, labels)
                 loss.backward()
                 optimizer.step()
 
                 total_loss += loss.item()
+            self._status(loss, epoch)
+
         return self
+
+    def _status(self, loss, epoch=-1):
+        if (epoch + 1) % self.print_frequency != 0:
+            return
+        self.rnn.eval()
+
+        with torch.no_grad():
+            msg = '[{}/{}] Train: {:.3f}'
+            print(msg.format(
+                epoch + 1,
+                self.epochs_count,
+                loss / self.epochs_count)
+            )
 
 
 def main():
