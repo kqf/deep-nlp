@@ -12,7 +12,7 @@ import numpy as np
 """  # noqa
 
 
-class SimpleRNN(torch.nn.Module):
+class SimpleRNNModel(torch.nn.Module):
     def __init__(self, input_size, hidden_size, activation=None):
         super().__init__()
 
@@ -41,7 +41,7 @@ class MemorizerModel(torch.nn.Module):
         self._hidden_size = hidden_size
         self._embedding = torch.nn.Embedding.from_pretrained(
             torch.eye(embedding_size, requires_grad=True))
-        self._rnn = SimpleRNN(embedding_size, hidden_size, activation)
+        self._rnn = SimpleRNNModel(embedding_size, hidden_size, activation)
         # We have as many output classes as the input ones
         output_size = embedding_size
         self._linear = torch.nn.Linear(hidden_size, output_size)
