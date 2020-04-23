@@ -74,7 +74,7 @@ class BasicRNNClassifier():
     def __init__(self,
                  hidden_size=100,
                  batch_size=100,
-                 epochs_count=100,
+                 epochs_count=50,
                  print_frequency=10):
 
         self.hidden_size = hidden_size
@@ -130,6 +130,21 @@ class BasicRNNClassifier():
                 self.epochs_count,
                 loss / self.epochs_count)
             )
+
+    def predict_proba(self, X):
+        X = np.array(X)
+        self.rnn.eval()
+
+        # Convention all RNNs: [sequence, batch, input_size]
+        x_rnn = X.T[:, :, np.newaxis]
+        device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+        batch = torch.LongTensor(x_rnn).to(device)
+        with torch.no_grad():
+            preds = torch.nn.functional.softmax(self.rnn(batch), dim=-1)
+        return preds.detach().cpu().data.numpy()
+
+    def predict(self, X):
+        return np.argmax(self.predict_proba(X), axis=-1)
 
 
 def main():
