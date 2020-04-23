@@ -78,11 +78,13 @@ def generate_data(num_batches=10, batch_size=100, seq_len=5):
 class BasicRNNClassifier():
     def __init__(self,
                  hidden_size=100,
+                 activation=None,
                  batch_size=100,
                  epochs_count=50,
                  print_frequency=10):
 
         self.hidden_size = hidden_size
+        self.activation = activation
         self.batch_size = batch_size
         self.epochs_count = epochs_count
         self.print_frequency = print_frequency
@@ -91,9 +93,13 @@ class BasicRNNClassifier():
         X = np.array(X)
         y = np.array(y)
 
-        self.rnn = MemorizerModel(10, hidden_size=self.hidden_size)
+        self.model = MemorizerModel(
+            10,
+            hidden_size=self.hidden_size,
+            activation=self.activation
+        )
         self.criterion = torch.nn.CrossEntropyLoss()
-        optimizer = torch.optim.Adam(self.rnn.parameters())
+        optimizer = torch.optim.Adam(self.model.parameters())
 
         indices = np.arange(len(X))
         np.random.shuffle(indices)
@@ -112,10 +118,12 @@ class BasicRNNClassifier():
 
                 optimizer.zero_grad()
 
-                self.rnn.eval()
-                logits = self.rnn(batch)
+                self.model.eval()
+                logits = self.model(batch)
                 loss = self.criterion(logits, labels)
                 loss.backward()
+
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.)
                 optimizer.step()
 
                 total_loss += loss.item()
@@ -126,7 +134,7 @@ class BasicRNNClassifier():
     def _status(self, loss, epoch=-1):
         if (epoch + 1) % self.print_frequency != 0:
             return
-        self.rnn.eval()
+        self.model.eval()
 
         with torch.no_grad():
             msg = '[{}/{}] Train: {:.3f}'
@@ -138,14 +146,14 @@ class BasicRNNClassifier():
 
     def predict_proba(self, X):
         X = np.array(X)
-        self.rnn.eval()
+        self.model.eval()
 
         # Convention all RNNs: [sequence, batch, input_size]
         x_rnn = X.T[:, :, np.newaxis]
         device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
         batch = torch.LongTensor(x_rnn).to(device)
         with torch.no_grad():
-            preds = torch.nn.functional.softmax(self.rnn(batch), dim=-1)
+            preds = torch.nn.functional.softmax(self.model(batch), dim=-1)
         return preds.detach().cpu().data.numpy()
 
     def predict(self, X):
@@ -161,6 +169,7 @@ def main():
 
         params = {
             "hidden_size": 30,
+            "activation": torch.nn.ReLU(),
             "print_frequency": 100000,
         }
         model = BasicRNNClassifier(**params).fit(X_tr, y_tr)
