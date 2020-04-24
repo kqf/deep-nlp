@@ -27,19 +27,19 @@ class RecurrentClassifier(torch.nn.Module):
     def __init__(self, vocab_size, emb_dim, hidden_size, classes_count):
         super().__init__()
         self.classes_count = classes_count
-        self.output = torch.nn.Linear(vocab_size, self.classes_count)
+        self._embedding = torch.nn.Embedding(vocab_size, emb_dim)
+        self._output = torch.nn.Linear(vocab_size, self.classes_count)
 
         # <set layers >
 
     def forward(self, inputs):
         # 'embed(inputs) -> prediction'
         # <implement it >
-        return self.output(inputs.squeeze(-1).T.float())
+        embeded = self.embed(inputs)
+        return self._output(inputs.squeeze(-1).T.float())
 
-    # def embed(self, inputs):
-    #     # 'inputs -> word embedding'
-    #     # <and it >
-    #     pass
+    def embed(self, inputs):
+        return self._embedding(inputs)
 
 
 class Tokenizer(BaseEstimator, TransformerMixin):
@@ -80,10 +80,10 @@ class CharClassifier(BaseEstimator, ClassifierMixin):
         y = np.array(y)
 
         self.model = RecurrentClassifier(
-            vocab_size=X.shape[1],
+            vocab_size=len(np.unique(X)),
             emb_dim=self.emb_dim,
             hidden_size=self.hidden_size,
-            classes_count=len(set(y))
+            classes_count=len(np.unique(y))
         )
 
         self.criterion = torch.nn.CrossEntropyLoss()
