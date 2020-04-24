@@ -1,4 +1,4 @@
-import time
+import math
 import torch
 import numpy as np
 import pandas as pd
@@ -65,74 +65,89 @@ class Tokenizer(BaseEstimator, TransformerMixin):
         return np.array(padded_data)
 
 
-class CharLSTMClassifier(BaseEstimator, ClassifierMixin):
-    def __init__(self, lr=0.01, batch_size=32, epochs_count=1, verbose=True):
+class CharClassifier(BaseEstimator, ClassifierMixin):
+    def __init__(self,
+                 hidden_size=100,
+                 activation=None,
+                 batch_size=100,
+                 epochs_count=50,
+                 print_frequency=10):
+
+        self.hidden_size = hidden_size
+        self.activation = activation
         self.batch_size = batch_size
         self.epochs_count = epochs_count
-        self.verbose = verbose
-        self.model = None
-        self.lr = lr
-        self.clsses_ = [0, 1]
-
-    @staticmethod
-    def batches(X, y, batch_size):
-        num_samples = X.shape[0]
-
-        indices = np.arange(num_samples)
-        np.random.shuffle(indices)
-
-        for start in range(0, num_samples, batch_size):
-            end = min(start + batch_size, num_samples)
-
-            batch_idx = indices[start: end]
-            yield X[batch_idx], y[batch_idx]
+        self.print_frequency = print_frequency
 
     def fit(self, X, y):
+        X = np.array(X)
+        y = np.array(y)
+
+        self.model = LSTMModel(
+            10,
+            hidden_size=self.hidden_size,
+            activation=self.activation
+        )
+        self.criterion = torch.nn.CrossEntropyLoss()
+        optimizer = torch.optim.Adam(self.model.parameters())
+
+        indices = np.arange(len(X))
+        np.random.shuffle(indices)
+        batchs_count = int(math.ceil(len(X) / self.batch_size))
         device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
-        self.model = LSTMModel(1000)
-
-        optimizer = torch.optim.Adam(
-            [param for param in self.model.parameters()
-             if param.requires_grad],
-            lr=self.lr)
-
-        loss_function = torch.nn.CrossEntropyLoss()
+        total_loss = 0
         for epoch in range(self.epochs_count):
-            batches = self.batches(X, y, self.batch_size)
-            epoch_loss = 0
-            time_epoch = time.time()
-            for i, (X_batch, y_batch) in enumerate(batches):
-                Xt = torch.LongTensor(X_batch).to(device)
-                yt = torch.LongTensor(y_batch).to(device)
+            for batch_indices in np.array_split(indices, batchs_count):
+                X_batch, y_batch = X[batch_indices], y[batch_indices]
+                # Convention all RNNs: [sequence, batch, input_size]
+                x_rnn = X_batch.T[:, :, np.newaxis]
 
-                logits = self.model.forward(Xt)
-                loss = loss_function(logits, yt)
-                epoch_loss += loss.item()
+                batch = torch.LongTensor(x_rnn).to(device)
+                labels = torch.LongTensor(y_batch).to(device)
 
                 optimizer.zero_grad()
+
+                self.model.eval()
+                logits = self.model(batch)
+                loss = self.criterion(logits, labels)
                 loss.backward()
+
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.)
                 optimizer.step()
 
-            if self.verbose:
-                te = time.time() - time_epoch
-                print(f"Epoch {epoch}, loss {epoch_loss}, time {te:.2f}")
+                total_loss += loss.item()
+            self._status(loss, epoch)
+
         return self
 
-    def predict_proba(self, X):
-        device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-        X = torch.LongTensor(X).to(device)
-        logits = self.model(X)
-        return torch.sigmoid(logits).cpu().data.numpy()
+    def _status(self, loss, epoch=-1):
+        if (epoch + 1) % self.print_frequency != 0:
+            return
+        self.model.eval()
 
-    def embeddings(self, X):
+        with torch.no_grad():
+            msg = '[{}/{}] Train: {:.3f}'
+            print(msg.format(
+                epoch + 1,
+                self.epochs_count,
+                loss / self.epochs_count)
+            )
+
+    def predict_proba(self, X):
+        X = np.array(X)
+        self.model.eval()
+
+        # Convention all RNNs: [sequence, batch, input_size]
+        x_rnn = X.T[:, :, np.newaxis]
         device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-        X = torch.LongTensor(X).to(device)
-        return self.model.embed(X).cpu().data.numpy()
+        batch = torch.LongTensor(x_rnn).to(device)
+        with torch.no_grad():
+            preds = torch.nn.functional.softmax(self.model(batch), dim=-1)
+        return preds.detach().cpu().data.numpy()
 
     def predict(self, X):
-        self.model.eval()
-        return self.predict_proba(X).argmax(axis=1)
+        return np.argmax(self.predict_proba(X), axis=-1)
 
 
 def build_model(**kwargs):
