@@ -40,7 +40,7 @@ class RecurrentClassifier(torch.nn.Module):
         return self._output(embeded.sum(dim=0))
 
     def embed(self, inputs):
-        return self._embedding(inputs.squeeze(dim=-1))
+        return self._embedding(inputs)
 
 
 class Tokenizer(BaseEstimator, TransformerMixin):
@@ -99,8 +99,8 @@ class CharClassifier(BaseEstimator, ClassifierMixin):
         for epoch in range(self.epochs_count):
             for batch_indices in np.array_split(indices, batchs_count):
                 X_batch, y_batch = X[batch_indices], y[batch_indices]
-                # Convention all RNNs: [sequence, batch, input_size]
-                x_rnn = X_batch.T[:, :, np.newaxis]
+                # Convention all RNNs: [integer sequence, batch]
+                x_rnn = X_batch.T
 
                 batch = torch.LongTensor(x_rnn).to(device)
                 labels = torch.LongTensor(y_batch).to(device)
