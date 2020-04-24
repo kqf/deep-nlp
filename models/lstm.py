@@ -28,18 +28,19 @@ class RecurrentClassifier(torch.nn.Module):
         super().__init__()
         self.classes_count = classes_count
         self._embedding = torch.nn.Embedding(vocab_size, emb_dim)
-        self._output = torch.nn.Linear(vocab_size, self.classes_count)
+        self._output = torch.nn.Linear(emb_dim, self.classes_count)
 
         # <set layers >
 
     def forward(self, inputs):
         # 'embed(inputs) -> prediction'
         # <implement it >
+        # import IPython IPython.embed()
         embeded = self.embed(inputs)
-        return self._output(inputs.squeeze(-1).T.float())
+        return self._output(embeded.sum(dim=0))
 
     def embed(self, inputs):
-        return self._embedding(inputs)
+        return self._embedding(inputs.squeeze(dim=-1))
 
 
 class Tokenizer(BaseEstimator, TransformerMixin):
@@ -62,9 +63,9 @@ class Tokenizer(BaseEstimator, TransformerMixin):
 class CharClassifier(BaseEstimator, ClassifierMixin):
     def __init__(self,
                  emb_dim=100,
-                 hidden_size=100,
+                 hidden_size=20,
                  activation=None,
-                 batch_size=100,
+                 batch_size=128,
                  epochs_count=50,
                  print_frequency=10):
 
