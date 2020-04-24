@@ -1,6 +1,6 @@
 import pytest
 import pandas as pd
-from models.lstm import Tokenizer
+from models.lstm import Tokenizer, build_model
 
 
 @pytest.fixture
@@ -17,3 +17,8 @@ def test_converts_data(data):
 
     tokenized = tokenizer.transform(data["names"])
     assert tokenized.shape, (data.shape, tokenizer.max_len)
+
+
+def test_surname_classifier(data):
+    model = build_model()
+    model.fit(data["names"], data["labels"])

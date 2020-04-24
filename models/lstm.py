@@ -23,29 +23,23 @@ def data(filename="data/surnames-multilang.txt"):
     return pd.read_csv(filename, sep="\t", names=["surname", "label"])
 
 
-class LSTMModel(torch.nn.Module):
-    def __init__(self, hidden_size):
+class RecurrentClassifier(torch.nn.Module):
+    def __init__(self, vocab_size, emb_dim, hidden_size, classes_count):
         super().__init__()
+        self.classes_count = classes_count
+        self.output = torch.nn.Linear(vocab_size, self.classes_count)
 
-        self._hidden_size = hidden_size
-        self._embedding = torch.nn.Embedding.from_pretrained(
-            torch.eye(10, requires_grad=True).float())
-        self._hidden_layer = torch.nn.Linear(10 + hidden_size, hidden_size)
-        self._relu = torch.nn.LeakyReLU()
-        self._linear = torch.nn.Linear(hidden_size, 10)
+        # <set layers >
 
-    def forward(self, inputs, hidden=None):
-        seq_len, batch_size = inputs.shape[:2]
+    def forward(self, inputs):
+        # 'embed(inputs) -> prediction'
+        # <implement it >
+        return self.output(inputs.squeeze(-1).T.float())
 
-        embed = self._embedding(inputs)
-        if hidden is None:
-            hidden = embed.new_zeros((batch_size, self._hidden_size)).float()
-
-        for i in range(seq_len):
-            layer_input = torch.cat((embed[i], hidden), 1)
-            hidden = self._relu(self._hidden_layer(layer_input))
-        result = self._linear(hidden)
-        return result
+    # def embed(self, inputs):
+    #     # 'inputs -> word embedding'
+    #     # <and it >
+    #     pass
 
 
 class Tokenizer(BaseEstimator, TransformerMixin):
@@ -67,6 +61,7 @@ class Tokenizer(BaseEstimator, TransformerMixin):
 
 class CharClassifier(BaseEstimator, ClassifierMixin):
     def __init__(self,
+                 emb_dim=100,
                  hidden_size=100,
                  activation=None,
                  batch_size=100,
@@ -74,6 +69,7 @@ class CharClassifier(BaseEstimator, ClassifierMixin):
                  print_frequency=10):
 
         self.hidden_size = hidden_size
+        self.emb_dim = emb_dim
         self.activation = activation
         self.batch_size = batch_size
         self.epochs_count = epochs_count
@@ -83,11 +79,13 @@ class CharClassifier(BaseEstimator, ClassifierMixin):
         X = np.array(X)
         y = np.array(y)
 
-        self.model = LSTMModel(
-            10,
+        self.model = RecurrentClassifier(
+            vocab_size=X.shape[1],
+            emb_dim=self.emb_dim,
             hidden_size=self.hidden_size,
-            activation=self.activation
+            classes_count=len(set(y))
         )
+
         self.criterion = torch.nn.CrossEntropyLoss()
         optimizer = torch.optim.Adam(self.model.parameters())
 
