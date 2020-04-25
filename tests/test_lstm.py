@@ -24,4 +24,4 @@ def test_surname_classifier(data):
     model = build_model()
     model.fit(data["names"], data["labels"])
 
-    # assert f1_score(data["labels"], model.predict(data["names"])) > 0.95
+    assert f1_score(data["labels"], model.predict(data["names"])) > 0.95

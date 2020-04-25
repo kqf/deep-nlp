@@ -158,7 +158,7 @@ class CharClassifier(BaseEstimator, ClassifierMixin):
         self.model.eval()
 
         # Convention all RNNs: [sequence, batch, input_size]
-        x_rnn = X.T[:, :, np.newaxis]
+        x_rnn = X.T
         device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
         batch = torch.LongTensor(x_rnn).to(device)
         with torch.no_grad():
