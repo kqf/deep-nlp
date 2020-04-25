@@ -23,14 +23,35 @@ def data(filename="data/surnames-multilang.txt"):
     return pd.read_csv(filename, sep="\t", names=["surname", "label"])
 
 
+class SimpleRNNModel(torch.nn.Module):
+    def __init__(self, input_size, hidden_size, activation=None):
+        super().__init__()
+
+        self._hidden_size = hidden_size
+        # Convention: X[batch, inputs] * W[inputs, outputs]
+        self._hidden = torch.nn.Linear(input_size + hidden_size, hidden_size)
+        self._activate = activation or torch.nn.Tanh()
+
+    def forward(self, inputs, hidden=None):
+        # RNN Convention: X[sequence, batch, inputs]
+        seq_len, batch_size = inputs.shape[:2]
+
+        if hidden is None:
+            hidden = inputs.new_zeros((batch_size, self._hidden_size))
+
+        for i in range(seq_len):
+            layer_input = torch.cat((hidden, inputs[i]), dim=1)
+            hidden = self._activate(self._hidden(layer_input))
+        return hidden
+
+
 class RecurrentClassifier(torch.nn.Module):
     def __init__(self, vocab_size, emb_dim, hidden_size, classes_count):
         super().__init__()
         self.classes_count = classes_count
         self._embedding = torch.nn.Embedding(vocab_size, emb_dim)
-        self._output = torch.nn.Linear(emb_dim, self.classes_count)
-
-        # <set layers >
+        self._rnn = SimpleRNNModel(emb_dim, hidden_size)
+        self._output = torch.nn.Linear(hidden_size, self.classes_count)
 
     def forward(self, inputs):
         # 'embed(inputs) -> prediction'
