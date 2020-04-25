@@ -1,6 +1,11 @@
 import math
+import tqdm
 import torch
 import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.metrics import f1_score
+sns.set()
 
 
 """
@@ -148,7 +153,30 @@ class BasicRNNClassifier():
 
 
 def main():
-    pass
+    sequence_lengths = np.arange(1, 50)
+    train, test = [], []
+    for seq in tqdm.tqdm(sequence_lengths):
+        X_tr, y_tr = list(zip(*generate_data(num_batches=9, seq_len=seq)))
+        X_te, y_te = list(zip(*generate_data(num_batches=3, seq_len=seq)))
+
+        params = {
+            "hidden_size": 30,
+            "print_frequency": 100000,
+        }
+        model = BasicRNNClassifier(**params).fit(X_tr, y_tr)
+        train.append(f1_score(model.predict(X_te), y_te, average="micro"))
+        test.append(f1_score(model.predict(X_te), y_te, average="micro"))
+
+    fig, (ax1, ax2) = plt.subplots(ncols=2, sharey=True, sharex=True)
+
+    ax1.plot(sequence_lengths, train)
+    ax2.plot(sequence_lengths, test)
+
+    ax1.set_ylabel("f1 score")
+    ax1.set_xlabel("sequence length")
+    ax2.set_ylabel("f1 score")
+    ax2.set_xlabel("sequence length")
+    plt.show()
 
 
 if __name__ == '__main__':

@@ -9,3 +9,4 @@ scikit-learn
 bokeh
 matplotlib
 ipython
+seaborn
