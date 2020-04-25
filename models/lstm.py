@@ -58,7 +58,8 @@ class RecurrentClassifier(torch.nn.Module):
         # <implement it >
         # import IPython IPython.embed()
         embeded = self.embed(inputs)
-        return self._output(embeded.sum(dim=0))
+        hidden = self._rnn(embeded)
+        return self._output(hidden)
 
     def embed(self, inputs):
         return self._embedding(inputs)
