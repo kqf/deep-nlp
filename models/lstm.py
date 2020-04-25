@@ -46,17 +46,15 @@ class SimpleRNNModel(torch.nn.Module):
 
 
 class RecurrentClassifier(torch.nn.Module):
-    def __init__(self, vocab_size, emb_dim, hidden_size, classes_count):
+    def __init__(self, vocab_size, emb_dim,
+                 hidden_size, classes_count, rnn=None):
         super().__init__()
         self.classes_count = classes_count
         self._embedding = torch.nn.Embedding(vocab_size, emb_dim)
-        self._rnn = SimpleRNNModel(emb_dim, hidden_size)
+        self._rnn = rnn or SimpleRNNModel(emb_dim, hidden_size)
         self._output = torch.nn.Linear(hidden_size, self.classes_count)
 
     def forward(self, inputs):
-        # 'embed(inputs) -> prediction'
-        # <implement it >
-        # import IPython IPython.embed()
         embeded = self.embed(inputs)
         hidden = self._rnn(embeded)
         return self._output(hidden)

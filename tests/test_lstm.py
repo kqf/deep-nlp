@@ -1,5 +1,6 @@
 import pytest
 import pandas as pd
+from sklearn.metrics import f1_score
 from models.lstm import Tokenizer, build_model
 
 
@@ -22,3 +23,5 @@ def test_converts_data(data):
 def test_surname_classifier(data):
     model = build_model()
     model.fit(data["names"], data["labels"])
+
+    # assert f1_score(data["labels"], model.predict(data["names"])) > 0.95
