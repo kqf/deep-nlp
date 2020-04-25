@@ -51,12 +51,12 @@ class RecurrentClassifier(torch.nn.Module):
         super().__init__()
         self.classes_count = classes_count
         self._embedding = torch.nn.Embedding(vocab_size, emb_dim)
-        self._rnn = rnn or SimpleRNNModel(emb_dim, hidden_size)
+        self._rnn = rnn or torch.nn.LSTM(emb_dim, hidden_size)
         self._output = torch.nn.Linear(hidden_size, self.classes_count)
 
     def forward(self, inputs):
         embeded = self.embed(inputs)
-        hidden = self._rnn(embeded)
+        hidden, _ = self._rnn(embeded)
         return self._output(hidden)
 
     def embed(self, inputs):
