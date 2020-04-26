@@ -1,12 +1,26 @@
+import time
 import math
 import torch
 import numpy as np
 import pandas as pd
+from contextlib import contextmanager
 from sklearn.pipeline import make_pipeline
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 from sklearn.base import BaseEstimator, TransformerMixin, ClassifierMixin
-# from sklearn.metrics import classification_report
+from sklearn.metrics import f1_score
+
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.linear_model import LogisticRegression
+
+
+@contextmanager
+def timer(name):
+    t0 = time.time()
+    yield
+    print("{color}[{name}] done in {et:.0f} s{nocolor}".format(
+        name=name, et=time.time() - t0,
+        color='\033[1;33m', nocolor='\033[0m'))
 
 
 """
@@ -51,7 +65,8 @@ class RecurrentClassifier(torch.nn.Module):
         super().__init__()
         self.classes_count = classes_count
         self._embedding = torch.nn.Embedding(vocab_size, emb_dim)
-        self._rnn = rnn or SimpleRNNModel(emb_dim, hidden_size)
+        model_type = rnn or torch.nn.LSTM
+        self._rnn = model_type(emb_dim, hidden_size)
         self._output = torch.nn.Linear(hidden_size, self.classes_count)
 
     def forward(self, inputs):
@@ -87,8 +102,10 @@ class CharClassifier(BaseEstimator, ClassifierMixin):
                  activation=None,
                  batch_size=128,
                  epochs_count=50,
-                 print_frequency=1):
+                 rnn=None,
+                 print_frequency=10):
 
+        self.rnn = rnn
         self.hidden_size = hidden_size
         self.emb_dim = emb_dim
         self.activation = activation
@@ -104,7 +121,8 @@ class CharClassifier(BaseEstimator, ClassifierMixin):
             vocab_size=len(np.unique(X)),
             emb_dim=self.emb_dim,
             hidden_size=self.hidden_size,
-            classes_count=len(np.unique(y))
+            classes_count=len(np.unique(y)),
+            rnn=self.rnn,
         )
 
         self.criterion = torch.nn.CrossEntropyLoss()
@@ -146,7 +164,7 @@ class CharClassifier(BaseEstimator, ClassifierMixin):
         self.model.eval()
 
         with torch.no_grad():
-            msg = '[{}/{}] Train: {:.3f}'
+            msg = '[{}/{}] Training loss: {:.3f}'
             print(msg.format(
                 epoch + 1,
                 self.epochs_count,
@@ -177,7 +195,19 @@ def build_model(**kwargs):
     return model
 
 
+def baseline_model():
+    model = make_pipeline(
+        CountVectorizer(analyzer='char', ngram_range=(1, 4)),
+        LogisticRegression(),
+    )
+    return model
+
+
 def main():
+
+    torch.manual_seed(42)
+    np.random.seed(42)
+
     df = data()
     le = LabelEncoder()
     X, y = df["surname"], le.fit_transform(df["label"])
@@ -185,11 +215,28 @@ def main():
         X, y, test_size=0.3, stratify=y, random_state=42
     )
 
-    model = build_model()
-    model.fit(X_tr, y_tr)
+    model = baseline_model()
+    with timer("Fit logistic regression"):
+        model.fit(X_tr, y_tr)
+    print("Logistic Regression:")
+    print("Train score", f1_score(model.predict(X_tr), y_tr, average="micro"))
+    print("Test score", f1_score(model.predict(X_tr), y_tr, average="micro"))
 
-    print("Train score", model.score(X_tr, y_tr))
-    print("Test score", model.score(X_te, y_te))
+    model = build_model()
+    with timer("Fit fit the LSTM"):
+        model.fit(X_tr, y_tr)
+
+    print("LSTM:")
+    print("Train score", f1_score(model.predict(X_tr), y_tr, average="micro"))
+    print("Test score", f1_score(model.predict(X_tr), y_tr, average="micro"))
+
+    print("SimpleRNN:")
+    model = build_model(rnn=SimpleRNNModel)
+    with timer("Fit fit the simple RNN"):
+        model.fit(X_tr, y_tr)
+
+    print("Train score", f1_score(model.predict(X_tr), y_tr, average="micro"))
+    print("Test score", f1_score(model.predict(X_tr), y_tr, average="micro"))
 
 
 if __name__ == '__main__':

@@ -1,7 +1,13 @@
 import pytest
+
+import torch
+import numpy as np
 import pandas as pd
 from sklearn.metrics import f1_score
 from models.lstm import Tokenizer, build_model
+
+torch.manual_seed(0)
+np.random.seed(0)
 
 
 @pytest.fixture
