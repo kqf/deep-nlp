@@ -30,19 +30,19 @@ class SimpleRNNModel(torch.nn.Module):
         self._hidden_size = hidden_size
         # Convention: X[batch, inputs] * W[inputs, outputs]
         self._hidden = torch.nn.Linear(input_size + hidden_size, hidden_size)
-        self._activate = activation or torch.nn.Tanh()
+        self._activate = activation or torch.nn.ReLU()
 
     def forward(self, inputs, hidden=None):
         # RNN Convention: X[sequence, batch, inputs]
         seq_len, batch_size = inputs.shape[:2]
 
         if hidden is None:
-            hidden = inputs.new_zeros((batch_size, self._hidden_size))
+            hidden = inputs.new_zeros((seq_len, batch_size, self._hidden_size))
 
         for i in range(seq_len):
-            layer_input = torch.cat((hidden, inputs[i]), dim=1)
-            hidden = self._activate(self._hidden(layer_input))
-        return hidden
+            layer_input = torch.cat((hidden[(i - 1) * (i > 0)], inputs[i]), 1)
+            hidden[i] = self._activate(self._hidden(layer_input))
+        return hidden, None
 
 
 class RecurrentClassifier(torch.nn.Module):
@@ -51,7 +51,7 @@ class RecurrentClassifier(torch.nn.Module):
         super().__init__()
         self.classes_count = classes_count
         self._embedding = torch.nn.Embedding(vocab_size, emb_dim)
-        self._rnn = rnn or torch.nn.LSTM(emb_dim, hidden_size)
+        self._rnn = rnn or SimpleRNNModel(emb_dim, hidden_size)
         self._output = torch.nn.Linear(hidden_size, self.classes_count)
 
     def forward(self, inputs):
@@ -132,7 +132,7 @@ class CharClassifier(BaseEstimator, ClassifierMixin):
                 loss = self.criterion(logits, labels)
                 loss.backward()
 
-                torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.)
+                # torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.)
                 optimizer.step()
 
                 total_loss += loss.item()
