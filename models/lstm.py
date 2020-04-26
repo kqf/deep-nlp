@@ -3,6 +3,7 @@ import math
 import torch
 import numpy as np
 import pandas as pd
+from functools import partial
 from contextlib import contextmanager
 from sklearn.pipeline import make_pipeline
 from sklearn.model_selection import train_test_split
@@ -38,6 +39,8 @@ def data(filename="data/surnames-multilang.txt"):
 
 
 class SimpleRNNModel(torch.nn.Module):
+    bidirectional = False
+
     def __init__(self, input_size, hidden_size, activation=None):
         super().__init__()
 
@@ -59,6 +62,16 @@ class SimpleRNNModel(torch.nn.Module):
         return hidden, None
 
 
+def bilstm_out(x, backward=False):
+    idx = int(backward)
+    hidden_size = x.shape[-1]
+    if hidden_size % 2 != 0:
+        raise RuntimeError(f"Output of Bi-LSTM should be multiple of 2")
+
+    shaped = x.reshape(x.shape[:-1] + (int(hidden_size / 2), 2))
+    return shaped[:, :, idx]
+
+
 class RecurrentClassifier(torch.nn.Module):
     def __init__(self, vocab_size, emb_dim,
                  hidden_size, classes_count, rnn=None):
@@ -67,12 +80,22 @@ class RecurrentClassifier(torch.nn.Module):
         self._embedding = torch.nn.Embedding(vocab_size, emb_dim)
         model_type = rnn or torch.nn.LSTM
         self._rnn = model_type(emb_dim, hidden_size)
-        self._output = torch.nn.Linear(hidden_size, self.classes_count)
+        self._output = torch.nn.Linear(
+            hidden_size + hidden_size * int(self._rnn.bidirectional),
+            self.classes_count
+        )
 
     def forward(self, inputs):
         embeded = self.embed(inputs)
         lstm_outputs, _ = self._rnn(embeded)
-        return self._output(lstm_outputs[-1])
+
+        recurrent = lstm_outputs[-1]
+        if self._rnn.bidirectional:
+            first = bilstm_out(lstm_outputs[0], backward=False)
+            last = bilstm_out(lstm_outputs[-1], backward=True)
+            recurrent = torch.cat([first, last], dim=-1)
+
+        return self._output(recurrent)
 
     def embed(self, inputs):
         return self._embedding(inputs)
@@ -232,6 +255,14 @@ def main():
 
     print("SimpleRNN:")
     model = build_model(rnn=SimpleRNNModel)
+    with timer("Fit fit the simple RNN"):
+        model.fit(X_tr, y_tr)
+
+    print("Train score", f1_score(model.predict(X_tr), y_tr, average="micro"))
+    print("Test score", f1_score(model.predict(X_tr), y_tr, average="micro"))
+
+    print("Bidirectional LSTM:")
+    model = build_model(rnn=partial(torch.nn.LSTM, bidirectional=True))
     with timer("Fit fit the simple RNN"):
         model.fit(X_tr, y_tr)
 
