@@ -56,8 +56,8 @@ class RecurrentClassifier(torch.nn.Module):
 
     def forward(self, inputs):
         embeded = self.embed(inputs)
-        hidden, _ = self._rnn(embeded)
-        return self._output(hidden)
+        lstm_outputs, _ = self._rnn(embeded)
+        return self._output(lstm_outputs[-1])
 
     def embed(self, inputs):
         return self._embedding(inputs)
@@ -87,7 +87,7 @@ class CharClassifier(BaseEstimator, ClassifierMixin):
                  activation=None,
                  batch_size=128,
                  epochs_count=50,
-                 print_frequency=10):
+                 print_frequency=1):
 
         self.hidden_size = hidden_size
         self.emb_dim = emb_dim
@@ -187,6 +187,7 @@ def main():
 
     model = build_model()
     model.fit(X_tr, y_tr)
+
     print("Train score", model.score(X_tr, y_tr))
     print("Test score", model.score(X_te, y_te))
 
