@@ -1,4 +1,5 @@
 import torch
+import numpy as np
 
 
 class ConvLM(torch.nn.Module):
@@ -12,7 +13,7 @@ class ConvLM(torch.nn.Module):
 
         self._relu = torch.nn.ReLU()
         self._max_pooling = torch.nn.MaxPool2d(
-            kernel_size=(seq_length + padding - window_size + 1, 1))
+            kernel_size=(window_size - 1, 1))
         self._out_layer = torch.nn.Linear(emb_dim, vocab_size)
 
     def forward(self, inputs):
@@ -34,6 +35,27 @@ class ConvLM(torch.nn.Module):
             self._max_pooling,
         )
         return model(embs.unsqueeze(dim=1))
+
+
+def sample(probs, temp):
+    probs = torch.nn.functional.log_softmax(probs.squeeze(), dim=0)
+    probs = (probs / temp).exp()
+    probs /= probs.sum()
+    probs = probs.cpu().numpy()
+
+    return np.random.choice(np.arange(len(probs)), p=probs)
+
+
+def generate(model, temp=0.7, start_character=0):
+    model.eval()
+
+    history = [start_character]
+
+    with torch.no_grad():
+        for _ in range(150):
+            inputs = torch.LongTensor([history[-1]]).view(1, 1)
+            outputs, hidden = model(inputs)
+            yield sample(outputs, temp)
 
 
 class RnnLM(torch.nn.Module):
