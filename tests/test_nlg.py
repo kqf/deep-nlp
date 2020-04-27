@@ -15,7 +15,7 @@ def batch(vocab_size, seq_length, batch_size):
 @pytest.mark.parametrize("vocab_size", [26])
 def test_cnn_lm(batch, vocab_size, seq_length, batch_size):
     model = ConvLM(vocab_size, seq_length=seq_length)
-    # assert model(batch)[0].shape == (batch_size, vocab_size)
+    assert model(batch)[0].shape == (batch_size, vocab_size)
 
     assert len(list(generate(model))) == 150
 

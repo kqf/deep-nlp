@@ -13,7 +13,7 @@ class ConvLM(torch.nn.Module):
 
         self._relu = torch.nn.ReLU()
         self._max_pooling = torch.nn.MaxPool2d(
-            kernel_size=(window_size - 1, 1))
+            kernel_size=(window_size + padding - 1, 1))
         self._out_layer = torch.nn.Linear(emb_dim, vocab_size)
 
     def forward(self, inputs):
@@ -21,8 +21,8 @@ class ConvLM(torch.nn.Module):
         inputs - LongTensor with shape (batch_size, max_word_len)
         outputs - FloatTensor with shape (batch_size,)
         '''
-        outputs = self.embed(inputs.T)
-        return self._out_layer(outputs).squeeze(1).squeeze(1), None
+        output = self.embed(inputs.T).max(dim=2)[0].squeeze(dim=1)
+        return self._out_layer(output), None
 
     def embed(self, inputs):
 
@@ -32,7 +32,6 @@ class ConvLM(torch.nn.Module):
             self._conv,
             # torch.nn.Dropout(0.2),
             self._relu,
-            self._max_pooling,
         )
         return model(embs.unsqueeze(dim=1))
 
