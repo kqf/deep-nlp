@@ -34,3 +34,17 @@ class ConvLM(torch.nn.Module):
             self._max_pooling,
         )
         return model(embs.unsqueeze(dim=1))
+
+
+class RnnLM(torch.nn.Module):
+    def __init__(self, vocab_size, emb_dim=16, lstm_hidden_dim=128):
+        super().__init__()
+
+        self.vocab_size = vocab_size
+        self._emb = torch.nn.Embedding(vocab_size, emb_dim)
+        self._rnn = torch.nn.LSTM(
+            input_size=emb_dim, hidden_size=lstm_hidden_dim)
+        self._out_layer = torch.nn.Linear(lstm_hidden_dim, vocab_size)
+
+    def forward(self, inputs, hidden=None):
+        return torch.rand(inputs.shape[1], self.vocab_size)

@@ -2,7 +2,7 @@ import pytest
 
 import torch
 
-from models.nlg import ConvLM
+from models.nlg import ConvLM, RnnLM
 
 
 @pytest.fixture
@@ -15,4 +15,12 @@ def batch(vocab_size, seq_length, batch_size):
 @pytest.mark.parametrize("vocab_size", [26])
 def test_cnn_lm(batch, vocab_size, seq_length, batch_size):
     model = ConvLM(vocab_size, seq_length=seq_length)
+    assert model(batch).shape == (batch_size, vocab_size)
+
+
+@pytest.mark.parametrize("seq_length", [120])
+@pytest.mark.parametrize("batch_size", [128, 512])
+@pytest.mark.parametrize("vocab_size", [26])
+def test_rnn_lm(batch, vocab_size, batch_size):
+    model = RnnLM(vocab_size)
     assert model(batch).shape == (batch_size, vocab_size)
