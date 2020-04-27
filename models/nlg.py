@@ -21,7 +21,7 @@ class ConvLM(torch.nn.Module):
         outputs - FloatTensor with shape (batch_size,)
         '''
         outputs = self.embed(inputs.T)
-        return self._out_layer(outputs).squeeze(1).squeeze(1)
+        return self._out_layer(outputs).squeeze(1).squeeze(1), None
 
     def embed(self, inputs):
 
@@ -47,4 +47,4 @@ class RnnLM(torch.nn.Module):
         self._out_layer = torch.nn.Linear(lstm_hidden_dim, vocab_size)
 
     def forward(self, inputs, hidden=None):
-        return torch.rand(inputs.shape[1], self.vocab_size)
+        return torch.rand(inputs.shape[1], self.vocab_size), hidden
