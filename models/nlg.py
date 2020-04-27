@@ -47,4 +47,6 @@ class RnnLM(torch.nn.Module):
         self._out_layer = torch.nn.Linear(lstm_hidden_dim, vocab_size)
 
     def forward(self, inputs, hidden=None):
-        return torch.rand(inputs.shape[1], self.vocab_size), hidden
+        embedded = self._emb(inputs)
+        lstm_out, (h_n, c_n) = self._rnn(embedded)
+        return self._out_layer(lstm_out[-1]), (h_n[-1], c_n[-1])
