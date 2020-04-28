@@ -26,3 +26,5 @@ def test_cnn_lm(batch, vocab_size, seq_length, batch_size):
 def test_rnn_lm(batch, vocab_size, batch_size):
     model = RnnLM(vocab_size)
     assert model(batch)[0].shape == (batch_size, vocab_size)
+
+    assert len(list(generate(model))) == 150
