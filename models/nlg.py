@@ -1,10 +1,25 @@
 import torch
 import numpy as np
+import pandas as pd
+
+
+def data(filename="data/tweets.csv.zip"):
+    df = pd.read_csv(filename)
+    valid = df[df["text"].str.len() >= 50].reset_index()
+    return valid["text"]
+
+
+def sample(probs, temp):
+    probs = torch.nn.functional.log_softmax(probs.squeeze(), dim=0)
+    probs = (probs / temp).exp()
+    probs /= probs.sum()
+    probs = probs.cpu().numpy()
+
+    return np.random.choice(np.arange(len(probs)), p=probs)
 
 
 def generate(model, temp=0.7, start_character=0, end_char=-1):
     model.eval()
-
     previous_char = start_character
     hidden = None
     with torch.no_grad():
@@ -51,15 +66,6 @@ class ConvLM(torch.nn.Module):
         return model(embs.unsqueeze(dim=1))
 
 
-def sample(probs, temp):
-    probs = torch.nn.functional.log_softmax(probs.squeeze(), dim=0)
-    probs = (probs / temp).exp()
-    probs /= probs.sum()
-    probs = probs.cpu().numpy()
-
-    return np.random.choice(np.arange(len(probs)), p=probs)
-
-
 class RnnLM(torch.nn.Module):
     def __init__(self, vocab_size, emb_dim=16, lstm_hidden_dim=128):
         super().__init__()
@@ -74,3 +80,11 @@ class RnnLM(torch.nn.Module):
         embedded = self._emb(inputs)
         lstm_out, hidden = self._rnn(embedded, hidden)
         return self._out_layer(lstm_out[-1]), hidden
+
+
+def main():
+    print(data())
+
+
+if __name__ == '__main__':
+    main()
