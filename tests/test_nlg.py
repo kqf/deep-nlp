@@ -2,7 +2,7 @@ import pytest
 import torch
 import pandas as pd
 
-from models.nlg import ConvLM, RnnLM, generate, TextTransformer
+from models.nlg import ConvLM, RnnLM, generate, TextTransformer, build_model
 
 
 @pytest.fixture
@@ -14,10 +14,8 @@ def batch(vocab_size, seq_length, batch_size):
 @pytest.mark.parametrize("batch_size", [128])
 @pytest.mark.parametrize("vocab_size", [26])
 def test_cnn_lm(batch, vocab_size, seq_length, batch_size):
-    model = ConvLM(vocab_size, seq_length=seq_length)
-    assert model(batch)[0].shape == (batch_size, vocab_size)
-
-    assert len(list(generate(model))) == 150
+    model = ConvLM(vocab_size)
+    assert model(batch)[0].shape == (seq_length, batch_size, vocab_size)
 
 
 @pytest.mark.parametrize("seq_length", [120])
@@ -42,3 +40,8 @@ def corpus():
 def test_text_transformer(corpus):
     tt = TextTransformer().fit(corpus)
     assert len(tt.transform(corpus)) == len(corpus)
+
+
+def test_nlg_training_loop(corpus):
+    model = build_model()
+    model.fit(corpus, None)
