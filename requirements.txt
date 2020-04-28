@@ -10,3 +10,4 @@ bokeh
 matplotlib
 ipython
 seaborn
+torchtext

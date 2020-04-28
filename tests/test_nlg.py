@@ -1,8 +1,8 @@
 import pytest
-
 import torch
+import pandas as pd
 
-from models.nlg import ConvLM, RnnLM, generate
+from models.nlg import ConvLM, RnnLM, generate, TextTransformer
 
 
 @pytest.fixture
@@ -28,3 +28,17 @@ def test_rnn_lm(batch, vocab_size, batch_size):
     assert model(batch)[0].shape == (batch_size, vocab_size)
 
     assert len(list(generate(model))) == 150
+
+
+@pytest.fixture
+def corpus():
+    sample = (
+        "All work and no play makes Jack a dull boy,"
+        "All play and no work makes Jack a mere toy."
+    )
+    return pd.Series([sample] * 1000)
+
+
+def test_text_transformer(corpus):
+    tt = TextTransformer().fit(corpus)
+    assert len(tt.transform(corpus)) == len(corpus)

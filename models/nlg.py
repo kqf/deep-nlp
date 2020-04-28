@@ -1,6 +1,10 @@
 import torch
 import numpy as np
 import pandas as pd
+import torchtext
+
+from sklearn.base import BaseEstimator, TransformerMixin
+from torchtext.data import Field
 
 
 def data(filename="data/tweets.csv.zip"):
@@ -82,8 +86,32 @@ class RnnLM(torch.nn.Module):
         return self._out_layer(lstm_out[-1]), hidden
 
 
+class TextTransformer(BaseEstimator, TransformerMixin):
+    def __init__(self):
+        self.text_field = torchtext.data.Field(
+            init_token='<s>',
+            eos_token='</s>',
+            lower=True,
+            tokenize=list
+        )
+
+    def fit(self, X, y=None):
+        return self
+
+    def transform(self, X, y=None):
+        tt = X.apply(self.text_field.preprocess)
+        tokenized = tt[tt.str.len() > 50]
+        fields = [("text", self.text_field)]
+        examples = [
+            torchtext.data.Example.fromlist([l], fields)
+            for l in tokenized
+        ]
+        return torchtext.data.Dataset(examples, fields)
+
+
 def main():
-    print(data())
+    df = data()
+    TextTransformer().fit(df)
 
 
 if __name__ == '__main__':
