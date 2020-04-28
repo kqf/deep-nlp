@@ -2,9 +2,12 @@ import torch
 import numpy as np
 import pandas as pd
 import torchtext
+import math
+
 
 from sklearn.base import BaseEstimator, TransformerMixin
 from torchtext.data import Field
+from tqdm import tqdm
 
 
 def data(filename="data/tweets.csv.zip"):
@@ -107,6 +110,50 @@ class TextTransformer(BaseEstimator, TransformerMixin):
             for l in tokenized
         ]
         return torchtext.data.Dataset(examples, fields)
+
+
+def shift(seq, by):
+    return torch.cat([seq[by:], seq[:by]])
+
+
+class MLTrainer(BaseEstimator, TransformerMixin):
+
+    def fit(self, X):
+        vocabulary = X.dataset.fields['text'].vocab
+        self.model = RnnLM(vocab_size=len(vocabulary))
+        name = self.model.__class__.__name__
+
+        batches_count = len(X)
+        device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+        criterion = torch.nn.CrossEntropyLoss(reduction='none').to(device)
+        optimizer = torch.optim.Adam(self.model.parameters())
+        for epoch in range(10):
+            epoch_loss = 0
+            with tqdm(total=batches_count) as progress_bar:
+                for i, batch in enumerate(X):
+                    logits, _ = self.model(batch.text)
+                    loss = criterion(logits, shift(batch, by=1))
+
+                    epoch_loss += loss.item()
+
+                    optimizer.zero_grad()
+                    loss.backward()
+                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.)
+                    optimizer.step()
+
+                    progress_bar.update()
+                    progress_bar.set_description(
+                        '{:>5s} Loss = {:.5f}, PPX = {:.2f}'.format(
+                            name, loss.item(),
+                            math.exp(loss.item())))
+
+                progress_bar.set_description(
+                    '{:>5s} Loss = {:.5f}, PPX = {:.2f}'.format(
+                        name,
+                        epoch_loss / batches_count,
+                        math.exp(epoch_loss / batches_count))
+                )
+        return self
 
 
 def main():
