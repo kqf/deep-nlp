@@ -123,10 +123,13 @@ def shift(seq, by):
 
 class MLTrainer(BaseEstimator, TransformerMixin):
 
+    def __init__(self, n_epochs=1):
+        self.n_epochs = n_epochs
+
     def fit(self, X, y=None):
         device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
         vocabulary = X.fields['text'].vocab
-        self.model = ConvLM(vocab_size=len(vocabulary))
+        self.model = RnnLM(vocab_size=len(vocabulary))
         name = self.model.__class__.__name__
 
         batches_count = len(X)
@@ -141,7 +144,7 @@ class MLTrainer(BaseEstimator, TransformerMixin):
             sort=False
         )
 
-        for epoch in range(1):
+        for epoch in range(self.n_epochs):
             epoch_loss = 0
             with tqdm(total=batches_count) as progress_bar:
                 for i, batch in enumerate(X_iter):
