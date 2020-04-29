@@ -130,7 +130,7 @@ class MLTrainer(BaseEstimator, TransformerMixin):
         name = self.model.__class__.__name__
 
         batches_count = len(X)
-        criterion = torch.nn.CrossEntropyLoss(reduction='none').to(device)
+        criterion = torch.nn.CrossEntropyLoss().to(device)
         optimizer = torch.optim.Adam(self.model.parameters())
 
         X_iter, X_iter = torchtext.data.BucketIterator.splits(
@@ -150,18 +150,18 @@ class MLTrainer(BaseEstimator, TransformerMixin):
                     loss = criterion(
                         logits.reshape(-1, logits.shape[-1]), targets)
 
-                    epoch_loss += loss.mean().item()
+                    epoch_loss += loss.item()
 
                     optimizer.zero_grad()
-                    loss.mean().backward()
+                    loss.backward()
                     torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.)
                     optimizer.step()
 
                     progress_bar.update()
                     progress_bar.set_description(
                         '{:>5s} Loss = {:.5f}, PPX = {:.2f}'.format(
-                            name, loss.mean().item(),
-                            math.exp(loss.mean().item())))
+                            name, loss.item(),
+                            math.exp(loss.item())))
 
                 progress_bar.set_description(
                     '{:>5s} Loss = {:.5f}, PPX = {:.2f}'.format(
