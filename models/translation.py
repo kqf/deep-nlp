@@ -163,6 +163,37 @@ def epoch(model, criterion, data_iter, optimizer=None, name=None):
     return epoch_loss / batches_count
 
 
+class Translator():
+    def __init__(self, mtype=TranslationModel, batch_size=64, epochs_count=20):
+        self.epochs_count = epochs_count
+        self.batch_size = batch_size
+        self.mtype = mtype
+
+    def fit(self, X, y=None):
+        device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+        self.model = self.mtype(
+            source_vocab_size=len(X.source_field.vocab),
+            target_vocab_size=len(X.target_field.vocab)
+        ).to(device)
+
+        pi = X.target_field.vocab.stoi['<pad>']
+        self.criterion = torch.nn.CrossEntropyLoss(ignore_index=pi).to(device)
+        self.optimizer = torch.optim.Adam(self.model.parameters())
+
+        for i in range(self.epochs_count):
+            name_prefix = '[{} / {}] '.format(i + 1, self.epochs_count)
+            epoch(
+                self.model,
+                self.criterion,
+                X,
+                self.batch_size,
+                self.optimizer,
+                name_prefix,
+            )
+
+        return self
+
+
 def main():
     df = data()
     print(df.head())
