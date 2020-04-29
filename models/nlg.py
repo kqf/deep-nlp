@@ -89,7 +89,7 @@ class RnnLM(torch.nn.Module):
     def forward(self, inputs, hidden=None):
         embedded = self._emb(inputs)
         lstm_out, hidden = self._rnn(embedded, hidden)
-        return self._out_layer(lstm_out[-1]), hidden
+        return self._out_layer(lstm_out), hidden
 
 
 class TextTransformer(BaseEstimator, TransformerMixin):
