@@ -9,6 +9,22 @@ from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.pipeline import make_pipeline
 from tqdm import tqdm
 
+"""
+Problems:
+
+- [x] Fixed window CNN based language model
+- [x] Text generation from the language model
+- [x] Implement language model targets and loss function
+- [ ] Mask the unknown words and pad them
+- [x] Recurrent language model
+- [x] Add sampling from the recurrent model
+- [ ] Try different optimizer:
+        optim.SGD(model.parameters(), lr=20., weight_decay=1e-6)
+- [x] Variational (Locked) dropout
+- [ ] Conditional text generation
+- [ ] Try another dataset
+"""
+
 
 def data(filename="data/tweets.csv.zip"):
     df = pd.read_csv(filename)
@@ -40,7 +56,8 @@ def generate(model, temp=0.7, start_character=0, end_char=-1):
 
 
 class ConvLM(torch.nn.Module):
-    def __init__(self, vocab_size, window_size=5, emb_dim=16, filters_count=128):
+    def __init__(self, vocab_size, window_size=5,
+                 emb_dim=16, filters_count=128):
         super().__init__()
 
         self._window_size = window_size
@@ -147,7 +164,7 @@ class MLTrainer(BaseEstimator, TransformerMixin):
         name = self.model.__class__.__name__
 
         batches_count = len(X)
-        criterion = torch.nn.CrossEntropyLoss().to(device)
+        criterion = torch.nn.CrossEntropyLoss(reduction="none").to(device)
         optimizer = torch.optim.Adam(self.model.parameters())
 
         X_iter, X_iter = torchtext.data.BucketIterator.splits(
@@ -157,6 +174,8 @@ class MLTrainer(BaseEstimator, TransformerMixin):
             device=device,
             sort=False
         )
+        pad_token = X_iter.dataset.fields["text"].vocab.stoi['<pad>']
+        unk_token = X_iter.dataset.fields["text"].vocab.stoi['<unk>']
 
         for epoch in range(self.n_epochs):
             epoch_loss = 0
@@ -164,8 +183,14 @@ class MLTrainer(BaseEstimator, TransformerMixin):
                 for i, batch in enumerate(X_iter):
                     logits, _ = self.model(batch.text)
                     targets = shift(batch.text.reshape(-1), by=1)
-                    loss = criterion(
+                    loss_vectors = criterion(
                         logits.reshape(-1, logits.shape[-1]), targets)
+
+                    idx = ((targets != pad_token) & (targets != unk_token))
+                    # Average: sum of all divided by number of unmasked
+                    loss = (loss_vectors * idx).sum() / (
+                        targets.shape[0] - (~idx).sum() + 1
+                    )
 
                     epoch_loss += loss.item()
 
