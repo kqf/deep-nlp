@@ -2,6 +2,7 @@ import pytest
 import torch
 import pandas as pd
 
+from models.nlg import LockedDropout
 from models.nlg import ConvLM, RnnLM, generate, TextTransformer, build_model
 
 
@@ -26,6 +27,15 @@ def test_rnn_lm(batch, vocab_size, seq_length, batch_size):
     assert model(batch)[0].shape == (seq_length, batch_size, vocab_size)
 
     assert len(list(generate(model))) == 150
+
+
+@pytest.mark.parametrize("seq_length", [120])
+@pytest.mark.parametrize("batch_size", [128, 512])
+@pytest.mark.parametrize("vocab_size", [26])
+def test_locked_dropout(batch, vocab_size, seq_length, batch_size):
+    embedded = torch.nn.Embedding(vocab_size, 12)(batch)
+    model = LockedDropout()
+    assert model(embedded).shape == embedded.shape
 
 
 @pytest.fixture

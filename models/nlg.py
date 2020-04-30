@@ -92,6 +92,20 @@ class RnnLM(torch.nn.Module):
         return self._out_layer(lstm_out), hidden
 
 
+class LockedDropout(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, inputs, dropout=0.5):
+        if not self.training or not dropout:
+            return inputs
+
+        _, batch_size, in_dim = inputs.shape
+        masks = torch.bernoulli(dropout * torch.ones((1, batch_size, in_dim)))
+        masks *= 1. / (.1 - dropout)
+        return inputs * masks
+
+
 class TextTransformer(BaseEstimator, TransformerMixin):
     def __init__(self):
         self.text_field = torchtext.data.Field(
