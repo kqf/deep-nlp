@@ -162,13 +162,15 @@ def shift(seq, by):
 
 class MLTrainer(BaseEstimator, TransformerMixin):
 
-    def __init__(self, n_epochs=1):
+    def __init__(self, mtype=None, n_epochs=1, batch_sizes=(32, 128)):
         self.n_epochs = n_epochs
+        self.mtype = mtype or RnnLM
+        self.batch_sizes = batch_sizes
 
     def fit(self, X, y=None):
         device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
         vocabulary = X.fields['text'].vocab
-        self.model = RnnLM(vocab_size=len(vocabulary))
+        self.model = self.mtype(vocab_size=len(vocabulary))
         name = self.model.__class__.__name__
 
         batches_count = len(X)
@@ -177,7 +179,7 @@ class MLTrainer(BaseEstimator, TransformerMixin):
 
         X_iter, X_iter = torchtext.data.BucketIterator.splits(
             (X, X),
-            batch_sizes=(32, 128),
+            batch_sizes=self.batch_sizes,
             # shuffle=True,
             device=device,
             sort=False
@@ -229,17 +231,20 @@ class MLTrainer(BaseEstimator, TransformerMixin):
         return np.array(output)
 
 
-def build_model():
+def build_model(**kwargs):
     model = make_pipeline(
         TextTransformer(),
-        MLTrainer(),
+        MLTrainer(**kwargs),
     )
     return model
 
 
 def main():
     df = data()
-    TextTransformer().fit(df)
+    model = build_model()
+    model.fit(df, None)
+    generated = model.inverse_transform([[0.7, 100]])
+    print(generated)
 
 
 if __name__ == '__main__':
