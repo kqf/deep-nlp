@@ -177,20 +177,21 @@ class MLTrainer(BaseEstimator, TransformerMixin):
         criterion = torch.nn.CrossEntropyLoss(reduction="none").to(device)
         optimizer = torch.optim.Adam(self.model.parameters())
 
-        X_iter, X_iter = torchtext.data.BucketIterator.splits(
-            (X, X),
+        train, test = X.split(split_ratio=0.75)
+        X_train, X_test = torchtext.data.BucketIterator.splits(
+            (train, test),
             batch_sizes=self.batch_sizes,
             # shuffle=True,
             device=device,
             sort=False
         )
-        pad_token = X_iter.dataset.fields["text"].vocab.stoi['<pad>']
-        unk_token = X_iter.dataset.fields["text"].vocab.stoi['<unk>']
+        pad_token = X_train.dataset.fields["text"].vocab.stoi['<pad>']
+        unk_token = X_train.dataset.fields["text"].vocab.stoi['<unk>']
 
         for epoch in range(self.n_epochs):
             epoch_loss = 0
             with tqdm(total=batches_count) as progress_bar:
-                for i, batch in enumerate(X_iter):
+                for i, batch in enumerate(X_train):
                     if i > 5:
                         break
                     logits, _ = self.model(batch.text)
