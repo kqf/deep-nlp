@@ -42,12 +42,12 @@ def sample(probs, temp):
     return np.random.choice(np.arange(len(probs)), p=probs)
 
 
-def generate(model, temp=0.7, start_character=0, end_char=-1):
+def generate(model, temp=0.7, ssize=150, start_character=0, end_char=-1):
     model.eval()
     previous_char = start_character
     hidden = None
     with torch.no_grad():
-        for _ in range(150):
+        for _ in range(ssize):
             inputs = torch.LongTensor([previous_char]).view(1, 1)
             outputs, hidden = model(inputs, hidden)
             sampled = sample(outputs, temp)
@@ -223,8 +223,8 @@ class MLTrainer(BaseEstimator, TransformerMixin):
 
     def inverse_transform(self, X):
         output = []
-        for i, (seqsize, temp) in enumerate(X):
-            symbols = list(generate(self.model, temp))
+        for temp, seqsize in X:
+            symbols = list(generate(self.model, temp, seqsize))
             output.append(np.squeeze(symbols))
         return np.array(output)
 
