@@ -15,11 +15,12 @@ Problems:
 - [x] Fixed window CNN based language model
 - [x] Text generation from the language model
 - [x] Implement language model targets and loss function
-- [ ] Mask the unknown words and pad them
+- [x] Mask the unknown words and pad them
 - [x] Recurrent language model
 - [x] Add sampling from the recurrent model
 - [ ] Try different optimizer:
         optim.SGD(model.parameters(), lr=20., weight_decay=1e-6)
+- [ ] Add inverse transform
 - [x] Variational (Locked) dropout
 - [ ] Conditional text generation
 - [ ] Try another dataset
@@ -147,6 +148,13 @@ class TextTransformer(BaseEstimator, TransformerMixin):
         self.text_field.build_vocab(dataset)
         return dataset
 
+    def inverse_transform(self, X):
+        strings = np.take(self.text_field.vocab.itos, X)
+        output = []
+        for seq in strings:
+            output.append("".join(seq))
+        return output
+
 
 def shift(seq, by):
     return torch.cat([seq[by:], seq[:by]])
@@ -212,6 +220,13 @@ class MLTrainer(BaseEstimator, TransformerMixin):
                         math.exp(epoch_loss / batches_count))
                 )
         return self
+
+    def inverse_transform(self, X):
+        output = []
+        for i, (seqsize, temp) in enumerate(X):
+            symbols = list(generate(self.model, temp))
+            output.append(np.squeeze(symbols))
+        return np.array(output)
 
 
 def build_model():

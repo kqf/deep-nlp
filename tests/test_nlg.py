@@ -55,4 +55,5 @@ def test_text_transformer(corpus):
 def test_nlg_training_loop(corpus):
     model = build_model()
     model.fit(corpus, None)
-    print(str(list(generate(model[-1].model)))) == 150
+
+    print(model.inverse_transform([[100, 0.7]]))
