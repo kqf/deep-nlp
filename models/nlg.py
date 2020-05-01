@@ -72,7 +72,7 @@ class ConvLM(torch.nn.Module):
         )
         self._output = torch.nn.Linear(filters_count, vocab_size)
 
-    def forward(self, inputs):
+    def forward(self, inputs, hidden=None):
         # Left-side paddings
         padding = inputs.new_zeros((self._window_size - 1, inputs.shape[1]))
 
@@ -191,6 +191,8 @@ class MLTrainer(BaseEstimator, TransformerMixin):
             epoch_loss = 0
             with tqdm(total=batches_count) as progress_bar:
                 for i, batch in enumerate(X_iter):
+                    if i > 5:
+                        break
                     logits, _ = self.model(batch.text)
                     targets = shift(batch.text.reshape(-1), by=1)
                     loss_vectors = criterion(
@@ -241,10 +243,16 @@ def build_model(**kwargs):
 
 def main():
     df = data()
-    model = build_model()
-    model.fit(df, None)
-    generated = model.inverse_transform([[0.7, 100]])
-    print(generated)
+
+    cnn_model = build_model(mtype=ConvLM)
+    cnn_model.fit(df, None)
+    cnn_generated = cnn_model.inverse_transform([[0.7, 100]])
+    print(cnn_generated)
+
+    rnn_model = build_model()
+    rnn_model.fit(df, None)
+    rnn_generated = rnn_model.inverse_transform([[0.7, 100]])
+    print(rnn_generated)
 
 
 if __name__ == '__main__':
