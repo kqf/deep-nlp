@@ -48,19 +48,18 @@ def sample(probs, temp):
     return np.random.choice(np.arange(len(probs)), p=probs)
 
 
-def generate(model, temp=0.7, ssize=150, start_character=0, end_char=-1):
+def generate(model, temp=0.8, size=150, prev_token=1, end_token=2):
     model.eval()
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-    previous_char = start_character
-    hidden = None
     with torch.no_grad():
-        for _ in range(ssize):
-            inputs = torch.LongTensor([previous_char]).to(device).view(1, 1)
-            outputs, hidden = model(inputs, hidden)
-            sampled = sample(outputs, temp)
-            if sampled == end_char:
-                return
-            yield sampled
+        hidden = None
+        for _ in range(size):
+            inputs = torch.LongTensor([[prev_token]]).to(device)
+            probs, hidden = model(inputs, hidden)
+            prev_token = sample(probs, temp)
+            if prev_token == end_token:
+                return prev_token
+            yield prev_token
 
 
 class ConvLM(torch.nn.Module):
@@ -164,15 +163,15 @@ class TextTransformer(BaseEstimator, TransformerMixin):
 
 
 def shift(seq, by):
-    return torch.cat([seq[by:], seq[:by]])
+    return torch.cat([seq[by:], seq.new_ones((by, seq.shape[1]))])
 
 
 class MLTrainer(BaseEstimator, TransformerMixin):
 
-    def __init__(self, mtype=None, n_epochs=10, batch_sizes=(32, 128)):
+    def __init__(self, mtype=None, n_epochs=5, batch_size=32):
         self.n_epochs = n_epochs
         self.mtype = mtype or RnnLM
-        self.batch_sizes = batch_sizes
+        self.batch_size = batch_size
 
     def fit(self, X, y=None):
         device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
@@ -183,23 +182,23 @@ class MLTrainer(BaseEstimator, TransformerMixin):
         criterion = torch.nn.CrossEntropyLoss(reduction="none").to(device)
         optimizer = torch.optim.Adam(self.model.parameters())
 
-        train, test = X.split(split_ratio=0.75)
-        X_train, X_test = torchtext.data.BucketIterator.splits(
-            (train, test),
-            batch_sizes=self.batch_sizes,
-            # shuffle=True,
+        X_iter = torchtext.data.BucketIterator(
+            X,
+            batch_size=self.batch_size,
             device=device,
             sort=False
         )
-        pad_token = X_train.dataset.fields["text"].vocab.stoi['<pad>']
-        unk_token = X_train.dataset.fields["text"].vocab.stoi['<unk>']
+
+        pad_token = X_iter.dataset.fields["text"].vocab.stoi['<pad>']
+        unk_token = X_iter.dataset.fields["text"].vocab.stoi['<unk>']
 
         for epoch in range(self.n_epochs):
-            epoch_loss, batch_size = 0, len(X_train)
-            t = tqdm(X_train, total=batch_size)
+            epoch_loss, batch_size = 0, len(X_iter)
+            t = tqdm(X_iter, total=batch_size)
             for i, batch in enumerate(t):
                 logits, _ = self.model(batch.text)
-                targets = shift(batch.text.reshape(-1), by=1)
+                # import ipdb; ipdb.set_trace(); import IPython; IPython.embed() # noqa
+                targets = shift(batch.text, by=1).view(-1)
                 loss_vectors = criterion(
                     logits.reshape(-1, logits.shape[-1]), targets)
 
@@ -229,8 +228,8 @@ class MLTrainer(BaseEstimator, TransformerMixin):
 
     def inverse_transform(self, X):
         output = []
-        for temp, seqsize in X:
-            symbols = list(generate(self.model, temp, seqsize))
+        for temp, seqsize, tstart, tend in X:
+            symbols = list(generate(self.model, temp, seqsize, tstart, tend))
             output.append(np.squeeze(symbols))
         return np.array(output)
 
@@ -248,12 +247,16 @@ def main():
 
     cnn_model = build_model(mtype=ConvLM, n_epochs=30)
     cnn_model.fit(df, None)
-    cnn_generated = cnn_model.inverse_transform([[0.7, 100]])
+
+    tstart = cnn_model[0].text_field.vocab["<s>"]
+    tend = cnn_model[0].text_field.vocab["</s>"]
+
+    cnn_generated = cnn_model.inverse_transform([[0.7, 100, tstart, tend]])
     print(cnn_generated)
 
     rnn_model = build_model(n_epochs=30)
     rnn_model.fit(df, None)
-    rnn_generated = rnn_model.inverse_transform([[0.7, 100]])
+    rnn_generated = rnn_model.inverse_transform([[0.7, 100, tstart, tend]])
     print(rnn_generated)
 
 

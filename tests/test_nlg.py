@@ -18,6 +18,8 @@ def test_cnn_lm(batch, vocab_size, seq_length, batch_size):
     model = ConvLM(vocab_size)
     assert model(batch)[0].shape == (seq_length, batch_size, vocab_size)
 
+    assert len(list(generate(model))) < 150
+
 
 @pytest.mark.parametrize("seq_length", [120])
 @pytest.mark.parametrize("batch_size", [128, 512])
@@ -26,7 +28,7 @@ def test_rnn_lm(batch, vocab_size, seq_length, batch_size):
     model = RnnLM(vocab_size)
     assert model(batch)[0].shape == (seq_length, batch_size, vocab_size)
 
-    assert len(list(generate(model))) == 150
+    assert len(list(generate(model))) < 150
 
 
 @pytest.mark.parametrize("seq_length", [120])
@@ -56,7 +58,10 @@ def test_nlg_training_loop(corpus):
     model = build_model()
     model.fit(corpus, None)
 
-    generated = model.inverse_transform([[0.7, 100]])
+    tstart = model[0].text_field.vocab["<s>"]
+    tend = model[0].text_field.vocab["</s>"]
+
+    generated = model.inverse_transform([[0.1, 100, tstart, tend]])
     print()
     print(generated)
     assert len(generated) == 1, "generating just a phrase"
