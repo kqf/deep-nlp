@@ -180,7 +180,6 @@ class MLTrainer(BaseEstimator, TransformerMixin):
         self.model = self.mtype(vocab_size=len(vocabulary)).to(device)
         name = self.model.__class__.__name__
 
-        batches_count = len(X)
         criterion = torch.nn.CrossEntropyLoss(reduction="none").to(device)
         optimizer = torch.optim.Adam(self.model.parameters())
 
@@ -197,38 +196,30 @@ class MLTrainer(BaseEstimator, TransformerMixin):
 
         for epoch in range(self.n_epochs):
             epoch_loss = 0
-            with tqdm(total=batches_count) as progress_bar:
-                for i, batch in enumerate(X_train):
-                    logits, _ = self.model(batch.text)
-                    targets = shift(batch.text.reshape(-1), by=1)
-                    loss_vectors = criterion(
-                        logits.reshape(-1, logits.shape[-1]), targets)
+            t = tqdm(X_train, total=len(X_train))
+            for i, batch in enumerate(t):
+                logits, _ = self.model(batch.text)
+                targets = shift(batch.text.reshape(-1), by=1)
+                loss_vectors = criterion(
+                    logits.reshape(-1, logits.shape[-1]), targets)
 
-                    idx = ((targets != pad_token) & (targets != unk_token))
-                    # Average: sum of all divided by number of unmasked
-                    loss = (loss_vectors * idx).sum() / (
-                        targets.shape[0] - (~idx).sum() + 1
-                    )
-
-                    epoch_loss += loss.item()
-
-                    optimizer.zero_grad()
-                    loss.backward()
-                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.)
-                    optimizer.step()
-
-                    progress_bar.update()
-                    progress_bar.set_description(
-                        '{:>5s} Loss = {:.5f}, PPX = {:.2f}'.format(
-                            name, loss.item(),
-                            math.exp(loss.item())))
-
-                progress_bar.set_description(
-                    '{:>5s} Loss = {:.5f}, PPX = {:.2f}'.format(
-                        name,
-                        epoch_loss / batches_count,
-                        math.exp(epoch_loss / batches_count))
+                idx = ((targets != pad_token) & (targets != unk_token))
+                # Average: sum of all divided by number of unmasked
+                loss = (loss_vectors * idx).sum() / (
+                    targets.shape[0] - (~idx).sum() + 1
                 )
+
+                epoch_loss += loss.item()
+
+                optimizer.zero_grad()
+                loss.backward()
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.)
+                optimizer.step()
+
+                t.set_description(
+                    '{:>5s} Loss = {:.5f}, PPX = {:.2f}'.format(
+                        name, loss.item(),
+                        math.exp(loss.item())))
         return self
 
     def inverse_transform(self, X):
