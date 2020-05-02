@@ -10,6 +10,12 @@ from sklearn.pipeline import make_pipeline
 from tqdm import tqdm
 
 """
+# Setup
+!curl -k -L "https://drive.google.com/uc?export=download&id=1Pq4aklVdj-sOnQw68e1ZZ_ImMiC8IR1V" -o data/tweets.csv.zip
+!pip install -r numpy torch pandas sklearn tqdm
+"""  # noqa
+
+"""
 Problems:
 
 - [x] Fixed window CNN based language model
@@ -245,12 +251,12 @@ def build_model(**kwargs):
 def main():
     df = data()
 
-    cnn_model = build_model(mtype=ConvLM)
+    cnn_model = build_model(mtype=ConvLM, n_epochs=30)
     cnn_model.fit(df, None)
     cnn_generated = cnn_model.inverse_transform([[0.7, 100]])
     print(cnn_generated)
 
-    rnn_model = build_model()
+    rnn_model = build_model(n_epochs=30)
     rnn_model.fit(df, None)
     rnn_generated = rnn_model.inverse_transform([[0.7, 100]])
     print(rnn_generated)
