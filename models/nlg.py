@@ -26,7 +26,7 @@ Problems:
 - [x] Add sampling from the recurrent model
 - [ ] Try different optimizer:
         optim.SGD(model.parameters(), lr=20., weight_decay=1e-6)
-- [ ] Add inverse transform
+- [x] Add inverse transform
 - [x] Variational (Locked) dropout
 - [ ] Conditional text generation
 - [ ] Try another dataset
@@ -148,8 +148,8 @@ class TextTransformer(BaseEstimator, TransformerMixin):
         tokenized = tt[tt.str.len() > 50]
         fields = [("text", self.text_field)]
         examples = [
-            torchtext.data.Example.fromlist([l], fields)
-            for l in tokenized
+            torchtext.data.Example.fromlist([lst], fields)
+            for lst in tokenized
         ]
         dataset = torchtext.data.Dataset(examples, fields)
         self.text_field.build_vocab(dataset)
@@ -169,7 +169,7 @@ def shift(seq, by):
 
 class MLTrainer(BaseEstimator, TransformerMixin):
 
-    def __init__(self, mtype=None, n_epochs=1, batch_sizes=(32, 128)):
+    def __init__(self, mtype=None, n_epochs=10, batch_sizes=(32, 128)):
         self.n_epochs = n_epochs
         self.mtype = mtype or RnnLM
         self.batch_sizes = batch_sizes
@@ -195,8 +195,8 @@ class MLTrainer(BaseEstimator, TransformerMixin):
         unk_token = X_train.dataset.fields["text"].vocab.stoi['<unk>']
 
         for epoch in range(self.n_epochs):
-            epoch_loss = 0
-            t = tqdm(X_train, total=len(X_train))
+            epoch_loss, batch_size = 0, len(X_train)
+            t = tqdm(X_train, total=batch_size)
             for i, batch in enumerate(t):
                 logits, _ = self.model(batch.text)
                 targets = shift(batch.text.reshape(-1), by=1)
@@ -220,6 +220,11 @@ class MLTrainer(BaseEstimator, TransformerMixin):
                     '{:>5s} Loss = {:.5f}, PPX = {:.2f}'.format(
                         name, loss.item(),
                         math.exp(loss.item())))
+
+            t.set_description(
+                '{:>5s} Loss = {:.5f}, PPX = {:.2f}'.format(
+                    name, epoch_loss / batch_size,
+                    math.exp(epoch_loss / batch_size)))
         return self
 
     def inverse_transform(self, X):

@@ -57,4 +57,6 @@ def test_nlg_training_loop(corpus):
     model.fit(corpus, None)
 
     generated = model.inverse_transform([[0.7, 100]])
+    print()
+    print(generated)
     assert len(generated) == 1, "generating just a phrase"
