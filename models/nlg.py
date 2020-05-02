@@ -50,11 +50,12 @@ def sample(probs, temp):
 
 def generate(model, temp=0.7, ssize=150, start_character=0, end_char=-1):
     model.eval()
+    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     previous_char = start_character
     hidden = None
     with torch.no_grad():
         for _ in range(ssize):
-            inputs = torch.LongTensor([previous_char]).view(1, 1)
+            inputs = torch.LongTensor([previous_char]).to(device).view(1, 1)
             outputs, hidden = model(inputs, hidden)
             sampled = sample(outputs, temp)
             if sampled == end_char:
@@ -176,7 +177,7 @@ class MLTrainer(BaseEstimator, TransformerMixin):
     def fit(self, X, y=None):
         device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
         vocabulary = X.fields['text'].vocab
-        self.model = self.mtype(vocab_size=len(vocabulary))
+        self.model = self.mtype(vocab_size=len(vocabulary)).to(device)
         name = self.model.__class__.__name__
 
         batches_count = len(X)
@@ -198,8 +199,6 @@ class MLTrainer(BaseEstimator, TransformerMixin):
             epoch_loss = 0
             with tqdm(total=batches_count) as progress_bar:
                 for i, batch in enumerate(X_train):
-                    if i > 5:
-                        break
                     logits, _ = self.model(batch.text)
                     targets = shift(batch.text.reshape(-1), by=1)
                     loss_vectors = criterion(
