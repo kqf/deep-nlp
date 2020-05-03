@@ -5,7 +5,7 @@ from models.tagging import Tokenizer
 
 @pytest.fixture
 def raw_data(size=100):
-    return [
+    return [[
         ('The', 'DET'),
         ('grand', 'ADJ'),
         ('jury', 'NOUN'),
@@ -17,7 +17,7 @@ def raw_data(size=100):
         ('other', 'ADJ'),
         ('topics', 'NOUN'),
         ('.', '.')
-    ]
+    ]] * size
 
 
 @pytest.fixture

@@ -25,11 +25,11 @@ class Tokenizer():
         self.tag2ind['<pad>'] = 0
         return self
 
-    def transform(self, X, none):
-        X = [[self.word2ind.get(word, 0) for word, _ in sample]
-             for sample in X]
-        y = [[self.tag2ind[tag] for _, tag in sample] for sample in X]
-        return X, y
+    def transform(self, X, y=None):
+        X_ = [[self.word2ind.get(word, 0) for word, _ in sample]
+              for sample in X]
+        y_ = [[self.tag2ind[tag] for _, tag in sample] for sample in X]
+        return X_, y_
 
 
 def main():
