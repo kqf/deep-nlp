@@ -1,11 +1,7 @@
+import nltk
+import torch
 import numpy as np
 
-# import torch
-# import torch.nn as nn
-# import torch.nn.functional as F
-# import torch.optim as optim
-
-import nltk
 np.random.seed(42)
 
 
@@ -56,6 +52,20 @@ def iterate_batches(data, batch_size):
             y_batch[:len(y[sample_ind]), batch_ind] = y[sample_ind]
 
         yield X_batch, y_batch
+
+
+class LSTMTagger(torch.nn.Module):
+    def __init__(self, vocab_size, tagset_size, word_emb_dim=100,
+                 lstm_hidden_dim=128, lstm_layers_count=1):
+        super().__init__()
+
+        self._emb = torch.nn.Embedding(vocab_size, word_emb_dim)
+        self._lstm = torch.nn.LSTM(
+            word_emb_dim, lstm_hidden_dim, lstm_layers_count)
+        self._out_layer = torch.nn.Linear(lstm_hidden_dim, tagset_size)
+
+    def forward(self, inputs):
+        return self._out_layer(self._lstm(self._emb(inputs))[0])
 
 
 def main():
