@@ -32,6 +32,32 @@ class Tokenizer():
         return X_, y_
 
 
+def iterate_batches(data, batch_size):
+    """
+        Return batches in the form [seq_len, batch_size]
+    """
+    X, y = data
+    n_samples = len(X)
+
+    indices = np.arange(n_samples)
+    np.random.shuffle(indices)
+
+    for start in range(0, n_samples, batch_size):
+        end = min(start + batch_size, n_samples)
+
+        batch_indices = indices[start:end]
+
+        max_sent_len = max(len(X[ind]) for ind in batch_indices)
+        X_batch = np.zeros((max_sent_len, len(batch_indices)))
+        y_batch = np.zeros((max_sent_len, len(batch_indices)))
+
+        for batch_ind, sample_ind in enumerate(batch_indices):
+            X_batch[:len(X[sample_ind]), batch_ind] = X[sample_ind]
+            y_batch[:len(y[sample_ind]), batch_ind] = y[sample_ind]
+
+        yield X_batch, y_batch
+
+
 def main():
     nltk.download('brown')
     nltk.download('universal_tagset')

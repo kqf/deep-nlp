@@ -1,6 +1,6 @@
 import pytest
 
-from models.tagging import Tokenizer
+from models.tagging import Tokenizer, iterate_batches
 
 
 @pytest.fixture
@@ -26,5 +26,8 @@ def data(raw_data):
     return tokenizer.transform(raw_data)
 
 
-def test_data(data):
-    print(data)
+def test_iterates_the_batches(data, batch_size=4):
+    batches = iterate_batches(data, batch_size=batch_size)
+    for X, y in batches:
+        assert X.shape[1] == batch_size
+        assert y.shape[1] == batch_size
