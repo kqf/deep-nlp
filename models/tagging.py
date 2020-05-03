@@ -1,6 +1,9 @@
+import math
 import nltk
 import torch
 import numpy as np
+from tqdm import tqdm
+from sklearn.pipeline import make_pipeline
 
 np.random.seed(42)
 
@@ -54,6 +57,55 @@ def iterate_batches(data, batch_size):
         yield X_batch, y_batch
 
 
+def epoch(model, criterion, data, batch_size, optimizer=None, name=None):
+    epoch_loss = 0
+    correct_count = 0
+    sum_count = 0
+
+    is_train = optimizer is not None
+    name = name or ''
+    model.train(is_train)
+
+    batches_count = math.ceil(len(data[0]) / batch_size)
+
+    with torch.autograd.set_grad_enabled(is_train):
+        bar = tqdm(iterate_batches(data, batch_size), total=batches_count)
+        for i, (X_batch, y_batch) in enumerate(bar):
+            X_batch = torch.LongTensor(X_batch)
+            y_batch = torch.LongTensor(y_batch)
+            logits = model(X_batch)
+
+            loss = criterion(
+                logits.view(-1, logits.shape[-1]), y_batch.view(-1))
+
+            epoch_loss += loss.item()
+
+            if optimizer:
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+
+            preds = torch.argmax(logits, dim=-1)
+            cur_correct_count = (preds == y_batch).float().sum().item()
+            cur_sum_count = np.prod(y_batch.shape).astype('float')
+
+            correct_count += cur_correct_count
+            sum_count += cur_sum_count
+
+            bar.update()
+            bar.set_description(
+                '{:>5s} Loss = {:.5f}, Accuracy = {:.2%}'.format(
+                    name, loss.item(), cur_correct_count / cur_sum_count)
+            )
+
+        bar.set_description(
+            '{:>5s} Loss = {:.5f}, Accuracy = {:.2%}'.format(
+                name, epoch_loss / batches_count, correct_count / sum_count)
+        )
+
+    return epoch_loss / batches_count, correct_count / sum_count
+
+
 class LSTMTagger(torch.nn.Module):
     def __init__(self, vocab_size, tagset_size, word_emb_dim=100,
                  lstm_hidden_dim=128, lstm_layers_count=1):
@@ -68,15 +120,46 @@ class LSTMTagger(torch.nn.Module):
         return self._out_layer(self._lstm(self._emb(inputs))[0])
 
 
+class TaggerModel():
+    def __init__(self, tokenizer, batch_size=64, epochs_count=20):
+        self.epochs_count = epochs_count
+        self.batch_size = batch_size
+        self.tokenizer = tokenizer
+
+    def fit(self, X, y=None):
+        device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+        self.model = LSTMTagger(
+            len(self.tokenizer.word2ind),
+            len(self.tokenizer.tag2ind)).to(device)
+        self.criterion = torch.nn.CrossEntropyLoss().to(device)
+        self.optimizer = torch.optim.Adam(self.model.parameters())
+
+        for i in range(self.epochs_count):
+            name_prefix = '[{} / {}] '.format(i + 1, self.epochs_count)
+            epoch(
+                self.model,
+                self.criterion,
+                X,
+                self.batch_size,
+                self.optimizer,
+                name_prefix
+            )
+
+        return self
+
+
+def build_model():
+    tokenizer = Tokenizer()
+    return make_pipeline(tokenizer, TaggerModel(tokenizer))
+
+
 def main():
     nltk.download('brown')
     nltk.download('universal_tagset')
 
     data = nltk.corpus.brown.tagged_sents(tagset='universal')
-    for i, d in enumerate(data):
-        print(i, d)
-        if i > 5:
-            break
+    model = build_model()
+    model.fit(data)
 
 
 if __name__ == '__main__':

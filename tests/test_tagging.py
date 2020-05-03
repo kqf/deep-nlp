@@ -2,7 +2,7 @@ import torch
 import pytest
 
 from models.tagging import Tokenizer, iterate_batches
-from models.tagging import LSTMTagger
+from models.tagging import LSTMTagger, build_model
 
 
 @pytest.fixture
@@ -43,3 +43,8 @@ def test_lstm_tagger(raw_data, batch_size=4):
         logits = model(torch.LongTensor(X))
         seq_len, batch_size = X.shape
         assert logits.shape == (seq_len, batch_size, len(tt.tag2ind))
+
+
+def test_tagger_model(raw_data):
+    model = build_model()
+    model.fit(raw_data)
