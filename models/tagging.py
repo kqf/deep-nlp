@@ -61,7 +61,8 @@ def iterate_batches(data, batch_size):
         yield X_batch, y_batch
 
 
-def epoch(model, criterion, data, batch_size, optimizer=None, name=None):
+def epoch(model, criterion, data, batch_size, optimizer=None,
+          name=None, pi=None):
     epoch_loss = 0
     correct_count = 0
     sum_count = 0
@@ -89,9 +90,11 @@ def epoch(model, criterion, data, batch_size, optimizer=None, name=None):
                 loss.backward()
                 optimizer.step()
 
+            mask = (y_batch != pi) if pi is not None else torch.ones_like(y_batch)
+
             preds = torch.argmax(logits, dim=-1)
-            cur_correct_count = (preds == y_batch).float().sum().item()
-            cur_sum_count = np.prod(y_batch.shape).astype('float')
+            cur_correct_count = ((preds == y_batch) * mask).sum().item()
+            cur_sum_count = mask.sum().item()
 
             correct_count += cur_correct_count
             sum_count += cur_sum_count
@@ -148,7 +151,8 @@ class TaggerModel():
                 X,
                 self.batch_size,
                 self.optimizer,
-                name_prefix
+                name_prefix,
+                pi=pi, # padding index
             )
 
         return self
