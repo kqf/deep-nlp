@@ -30,6 +30,10 @@ class Tokenizer():
         y_ = [[self.tag2ind[tag] for _, tag in sample] for sample in X]
         return X_, y_
 
+    @property
+    def padding(self):
+        return self.word2ind["<pad>"]
+
 
 def iterate_batches(data, batch_size):
     """
@@ -131,7 +135,9 @@ class TaggerModel():
         self.model = LSTMTagger(
             len(self.tokenizer.word2ind),
             len(self.tokenizer.tag2ind)).to(device)
-        self.criterion = torch.nn.CrossEntropyLoss().to(device)
+
+        pi = self.tokenizer.padding
+        self.criterion = torch.nn.CrossEntropyLoss(ignore_index=pi).to(device)
         self.optimizer = torch.optim.Adam(self.model.parameters())
 
         for i in range(self.epochs_count):
