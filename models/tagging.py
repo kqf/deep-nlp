@@ -2,6 +2,8 @@ import math
 import nltk
 import torch
 import numpy as np
+import gensim.downloader as gapi
+
 from tqdm import tqdm
 from sklearn.pipeline import make_pipeline
 
@@ -155,6 +157,20 @@ class LSTMTagger(torch.nn.Module):
         return self._out_layer(self._lstm(self._emb(inputs))[0])
 
 
+class PretrainedEmbLSTMTagger(torch.nn.Module):
+    def __init__(self, embeddings, tagset_size, word_emb_dim=100,
+                 lstm_hidden_dim=128, lstm_layers_count=1):
+        super().__init__()
+
+        self._emb = torch.nn.Embedding.from_pretrained(embeddings)
+        self._lstm = torch.nn.LSTM(
+            word_emb_dim, lstm_hidden_dim, lstm_layers_count)
+        self._out_layer = torch.nn.Linear(lstm_hidden_dim, tagset_size)
+
+    def forward(self, inputs):
+        return self._out_layer(self._lstm(self._emb(inputs))[0])
+
+
 class BiLSTMTagger(torch.nn.Module):
     def __init__(self, vocab_size, tagset_size, word_emb_dim=100,
                  lstm_hidden_dim=128, lstm_layers_count=1):
@@ -206,13 +222,22 @@ def build_model():
     return make_pipeline(tokenizer, TaggerModel(tokenizer))
 
 
+def build_embedding_model():
+    tokenizer = EmbeddingsTokenizer(w2v=gapi.load('glove-wiki-gigaword-100'))
+    return make_pipeline(tokenizer, PretrainedEmbLSTMTagger(tokenizer))
+
+
 def main():
     nltk.download('brown')
     nltk.download('universal_tagset')
 
     data = nltk.corpus.brown.tagged_sents(tagset='universal')
+
     model = build_model()
     model.fit(data)
+
+    emodel = build_embedding_model()
+    emodel.fit(data)
 
 
 if __name__ == '__main__':

@@ -36,7 +36,7 @@ def w2v():
 
 def test_embedding_tokenizer(w2v, raw_data):
     tokenizer = EmbeddingsTokenizer(w2v).fit(raw_data)
-    print(tokenizer.emb_size.shape)
+    tokenizer.emb_size.shape[1] == 100
 
 
 def test_iterates_the_batches(data, batch_size=4):
