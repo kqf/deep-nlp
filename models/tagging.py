@@ -127,6 +127,21 @@ class LSTMTagger(torch.nn.Module):
         return self._out_layer(self._lstm(self._emb(inputs))[0])
 
 
+class BiLSTMTagger(torch.nn.Module):
+    def __init__(self, vocab_size, tagset_size, word_emb_dim=100,
+                 lstm_hidden_dim=128, lstm_layers_count=1):
+        super().__init__()
+
+        self._emb = torch.nn.Embedding(vocab_size, word_emb_dim)
+        self._lstm = torch.nn.LSTM(
+            word_emb_dim, lstm_hidden_dim, lstm_layers_count,
+            bidirectional=True)
+        self._out_layer = torch.nn.Linear(lstm_hidden_dim * 2, tagset_size)
+
+    def forward(self, inputs):
+        return self._out_layer(self._lstm(self._emb(inputs))[0])
+
+
 class TaggerModel():
     def __init__(self, tokenizer, batch_size=64, epochs_count=20):
         self.epochs_count = epochs_count
