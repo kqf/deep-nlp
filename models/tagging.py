@@ -34,6 +34,33 @@ class Tokenizer():
     def padding(self):
         return self.word2ind["<pad>"]
 
+    @property
+    def emb_size(self):
+        return len(self.word2ind)
+
+
+class EmbeddingsTokenizer(Tokenizer):
+
+    def __init__(self, w2v):
+        self.w2v = w2v
+        self.embeddings = None
+
+    def fit(self, X, y=None):
+        super().fit(X, y)
+
+        self.embeddings = np.zeros(
+            (len(self.word2ind), self.w2v.vectors.shape[1]))
+
+        for word, ind in self.word2ind.items():
+            word = word.lower()
+            if word in self.w2v.vocab:
+                self.embeddings[ind] = self.w2v.get_vector(word)
+        return self
+
+    @property
+    def emb_size(self):
+        return self.embeddings
+
 
 def iterate_batches(data, batch_size):
     """
@@ -90,7 +117,8 @@ def epoch(model, criterion, data, batch_size, optimizer=None,
                 loss.backward()
                 optimizer.step()
 
-            mask = (y_batch != pi) if pi is not None else torch.ones_like(y_batch)
+            mask = (y_batch != pi) if pi is not None else torch.ones_like(
+                y_batch)
 
             preds = torch.argmax(logits, dim=-1)
             cur_correct_count = ((preds == y_batch) * mask).sum().item()
@@ -151,7 +179,7 @@ class TaggerModel():
     def fit(self, X, y=None):
         device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
         self.model = LSTMTagger(
-            len(self.tokenizer.word2ind),
+            self.tokenizer.emb_size,
             len(self.tokenizer.tag2ind)).to(device)
 
         pi = self.tokenizer.padding
@@ -167,7 +195,7 @@ class TaggerModel():
                 self.batch_size,
                 self.optimizer,
                 name_prefix,
-                pi=pi, # padding index
+                pi=pi,  # padding index
             )
 
         return self

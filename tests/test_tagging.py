@@ -1,8 +1,9 @@
 import torch
 import pytest
-
-from models.tagging import Tokenizer, iterate_batches
+import gensim.downloader as gapi
+from models.tagging import iterate_batches
 from models.tagging import LSTMTagger, build_model, BiLSTMTagger
+from models.tagging import EmbeddingsTokenizer, Tokenizer
 
 
 @pytest.fixture
@@ -26,6 +27,16 @@ def raw_data(size=100):
 def data(raw_data):
     tokenizer = Tokenizer().fit(raw_data)
     return tokenizer.transform(raw_data)
+
+
+@pytest.fixture
+def w2v():
+    return gapi.load('glove-wiki-gigaword-100')
+
+
+def test_embedding_tokenizer(w2v, raw_data):
+    tokenizer = EmbeddingsTokenizer(w2v).fit(raw_data)
+    print(tokenizer.emb_size.shape)
 
 
 def test_iterates_the_batches(data, batch_size=4):
