@@ -25,6 +25,7 @@ Takeaways:
     - Beware to use the same embeddings on train and test set
     - use loss += torch.dist(trainable, original)
 - [ ] It is possible to make char embeddings (accuracy 95%)
+- [ ] TODO: BERT, no tortext?
 
 """
 
