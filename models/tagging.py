@@ -10,6 +10,25 @@ from sklearn.pipeline import make_pipeline
 np.random.seed(42)
 
 
+"""
+Takeaways:
+
+- [ ] Sequence tagging can be achieved by making use of LSTM output
+- [ ] Input [seq_size, batch_size] -> [batch_size, seq_size, n_targets]
+- [ ] It is possible to mask the padding tokens:
+    - Use `ignore_index` in criterion
+    - Calculate `mask = y_batch != pad_index` to evaluate the model
+- [ ] Masking should give more accurate evaluation (accuracy 95.3%)
+- [ ] The bidirectional LSTM improves the result (accuracy 96.8%)
+- [ ] Pretrained embeddings (accuracy 96%)
+- [ ] Unfreeze the pretrained embeddings (accuracy 96%):
+    - Beware to use the same embeddings on train and test set
+    - use loss += torch.dist(trainable, original)
+- [ ] It is possible to make char embeddings (accuracy 95%)
+
+"""
+
+
 class Tokenizer():
 
     def __init__(self):
