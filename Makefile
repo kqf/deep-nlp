@@ -12,6 +12,7 @@ data:
 	curl -k -L "https://drive.google.com/uc?export=download&id=1Pq4aklVdj-sOnQw68e1ZZ_ImMiC8IR1V" -o data/tweets.csv.zip
 	curl http://www.manythings.org/anki/rus-eng.zip -o data/rus-eng.zip
 	unzip data/rus-eng.zip -d data/
+	python -m spacy download en
 
 	python -c "import gensim.downloader as gapi; gapi.load('glove-wiki-gigaword-100')"
 

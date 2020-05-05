@@ -12,3 +12,5 @@ ipython
 seaborn
 torchtext
 gensim
+spacy
+sacremoses
