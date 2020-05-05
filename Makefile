@@ -11,4 +11,6 @@ data:
 	curl -k -L "https://drive.google.com/uc?export=download&id=1ji7dhr9FojPeV51dDlKRERIqr3vdZfhu" -o data/surnames-multilang.txt
 	curl -k -L "https://drive.google.com/uc?export=download&id=1Pq4aklVdj-sOnQw68e1ZZ_ImMiC8IR1V" -o data/tweets.csv.zip
 
+	python -c "import gensim.downloader as gapi; gapi.load('glove-wiki-gigaword-100')"
+
 .PHONY: data
