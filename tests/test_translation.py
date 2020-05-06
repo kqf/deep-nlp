@@ -21,26 +21,35 @@ def test_textpreprocessor(data):
 
 
 @pytest.fixture
-def batch(vocab_size, seq_length, batch_size):
-    return torch.randint(0, vocab_size, (seq_length, batch_size))
+def source(source_vocab_size, source_seq_size, batch_size):
+    return torch.randint(0, source_vocab_size, (source_seq_size, batch_size))
 
 
-@pytest.mark.parametrize("seq_length", [120])
+@pytest.fixture
+def target(target_vocab_size, target_seq_size, batch_size):
+    return torch.randint(0, target_vocab_size, (target_seq_size, batch_size))
+
+
+@pytest.mark.parametrize("source_seq_size", [120])
 @pytest.mark.parametrize("batch_size", [128, 512])
-@pytest.mark.parametrize("vocab_size", [26])
+@pytest.mark.parametrize("source_vocab_size", [26])
 @pytest.mark.parametrize("rnn_hidden_dim", [256])
-def test_encoder(batch, vocab_size, batch_size, rnn_hidden_dim):
-    enc = Encoder(vocab_size, rnn_hidden_dim)
-    # Return the last hidden state seq_length -> 1
-    assert enc(batch).shape == (1, batch_size, rnn_hidden_dim)
+def test_encoder(source, source_vocab_size, batch_size, rnn_hidden_dim):
+    enc = Encoder(source_vocab_size, rnn_hidden_dim)
+    # Return the last hidden state source_seq_size -> 1
+    assert enc(source).shape == (1, batch_size, rnn_hidden_dim)
 
 
-@pytest.mark.parametrize("seq_length", [120])
 @pytest.mark.parametrize("batch_size", [128, 512])
-@pytest.mark.parametrize("vocab_size", [26])
-@pytest.mark.parametrize("rnn_hidden_dim", [256])
-def test_decoder(batch, vocab_size, batch_size, rnn_hidden_dim, seq_length):
-    enc = Encoder(vocab_size, rnn_hidden_dim)
-    dec = Decoder(vocab_size, rnn_hidden_dim)
-    output, hidden = dec(batch, enc(batch))
-    assert output.shape == (seq_length, batch_size, vocab_size)
+@pytest.mark.parametrize("source_seq_size", [121])
+@pytest.mark.parametrize("target_seq_size", [122])
+@pytest.mark.parametrize("source_vocab_size", [26])
+@pytest.mark.parametrize("target_vocab_size", [33])
+def test_decoder(
+        source, target,
+        source_vocab_size, target_vocab_size,
+        batch_size, target_seq_size):
+    encode = Encoder(source_vocab_size)
+    decode = Decoder(target_vocab_size)
+    output, hidden = decode(target, encode(source))
+    assert output.shape == (target_seq_size, batch_size, target_vocab_size)
