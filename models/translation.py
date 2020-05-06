@@ -55,12 +55,6 @@ class TextPreprocessor:
         return dataset
 
 
-def main():
-    df = data()
-    print(df.head())
-    print(TextPreprocessor().fit(df))
-
-
 class Encoder(torch.nn.Module):
     def __init__(self, vocab_size, emb_dim=128, rnn_hidden_dim=256,
                  num_layers=1, bidirectional=False):
@@ -93,6 +87,33 @@ class Decoder(torch.nn.Module):
     def forward(self, inputs, encoder_output, hidden=None):
         outputs, hidden = self._rnn(self._emb(inputs), encoder_output)
         return self._out(outputs), hidden
+
+
+class TranslationModel(torch.nn.Module):
+    def __init__(self,
+                 source_vocab_size, target_vocab_size, emb_dim=128,
+                 rnn_hidden_dim=256, num_layers=1,
+                 bidirectional_encoder=False):
+
+        super().__init__()
+
+        self.encoder = Encoder(
+            source_vocab_size, emb_dim,
+            rnn_hidden_dim, num_layers, bidirectional_encoder)
+
+        self.decoder = Decoder(
+            target_vocab_size, emb_dim,
+            rnn_hidden_dim, num_layers)
+
+    def forward(self, source_inputs, target_inputs):
+        encoder_hidden = self.encoder(source_inputs)
+        return self.decoder(target_inputs, encoder_hidden, encoder_hidden)
+
+
+def main():
+    df = data()
+    print(df.head())
+    print(TextPreprocessor().fit(df))
 
 
 if __name__ == '__main__':
