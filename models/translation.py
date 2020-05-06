@@ -74,7 +74,7 @@ class Encoder(torch.nn.Module):
             bidirectional=bidirectional)
 
     def forward(self, inputs, hidden=None):
-        return self._rnn(self._emb(inputs))[0]
+        return self._rnn(self._emb(inputs))[-1]
 
 
 if __name__ == '__main__':

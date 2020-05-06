@@ -29,6 +29,7 @@ def batch(vocab_size, seq_length, batch_size):
 @pytest.mark.parametrize("batch_size", [128, 512])
 @pytest.mark.parametrize("vocab_size", [26])
 @pytest.mark.parametrize("rnn_hidden_dim", [256])
-def test_encoder(batch, seq_length, vocab_size, batch_size, rnn_hidden_dim):
+def test_encoder(batch, vocab_size, batch_size, rnn_hidden_dim):
     enc = Encoder(vocab_size, rnn_hidden_dim)
-    assert enc(batch).shape == (seq_length, batch_size, rnn_hidden_dim)
+    # Return the last hidden state seq_length -> 1
+    assert enc(batch).shape == (1, batch_size, rnn_hidden_dim)
