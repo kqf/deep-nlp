@@ -1,3 +1,4 @@
+import torch
 import pandas as pd
 from torchtext.data import Field, Example, Dataset
 
@@ -58,6 +59,22 @@ def main():
     df = data()
     print(df.head())
     print(TextPreprocessor().fit(df))
+
+
+class Encoder(torch.nn.Module):
+    def __init__(self, vocab_size, emb_dim=128, rnn_hidden_dim=256,
+                 num_layers=1, bidirectional=False):
+        super().__init__()
+
+        self._emb = torch.nn.Embedding(vocab_size, emb_dim)
+        self._rnn = torch.nn.GRU(
+            input_size=emb_dim,
+            hidden_size=rnn_hidden_dim,
+            num_layers=num_layers,
+            bidirectional=bidirectional)
+
+    def forward(self, inputs, hidden=None):
+        return self._rnn(self._emb(inputs))[0]
 
 
 if __name__ == '__main__':
