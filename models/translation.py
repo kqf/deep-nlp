@@ -27,11 +27,11 @@ class TextPreprocessor(BaseEstimator, TransformerMixin):
         self.max_tokens = max_tokens
         self.source_name = "source"
         self.source = Field(
-            tokenize='spacy', init_token=None, eos_token=eos_token)
+            tokenize="spacy", init_token=None, eos_token=eos_token)
 
         self.target_name = "target"
         self.target = Field(
-            tokenize='moses', init_token=init_token, eos_token=eos_token)
+            tokenize="moses", init_token=init_token, eos_token=eos_token)
 
         self.fields = [
             (self.source_name, self.source),
@@ -94,10 +94,14 @@ class Decoder(torch.nn.Module):
 
 
 class TranslationModel(torch.nn.Module):
-    def __init__(self,
-                 source_vocab_size, target_vocab_size, emb_dim=128,
-                 rnn_hidden_dim=256, num_layers=1,
-                 bidirectional_encoder=False):
+    def __init__(
+            self,
+            source_vocab_size,
+            target_vocab_size,
+            emb_dim=128,
+            rnn_hidden_dim=256,
+            num_layers=1,
+            bidirectional_encoder=False):
 
         super().__init__()
 
@@ -122,7 +126,7 @@ def epoch(model, criterion, data_iter, optimizer=None, name=None):
     epoch_loss = 0
 
     is_train = optimizer is not None
-    name = name or ''
+    name = name or ""
     model.train(is_train)
 
     batches_count = len(data_iter)
@@ -153,11 +157,11 @@ def epoch(model, criterion, data_iter, optimizer=None, name=None):
 
             bar.update()
             bar.set_description(
-                '{:>5s} Loss = {:.5f}, PPX = {:.2f}'.format(
+                "{:>5s} Loss = {:.5f}, PPX = {:.2f}".format(
                     name, loss.item(), math.exp(loss.item())))
 
         bar.set_description(
-            '{:>5s} Loss = {:.5f}, PPX = {:.2f}'.format(
+            "{:>5s} Loss = {:.5f}, PPX = {:.2f}".format(
                 name, epoch_loss / batches_count,
                 math.exp(epoch_loss / batches_count))
         )
@@ -173,13 +177,13 @@ class Translator():
         self.mtype = mtype
 
     def fit(self, X, y=None):
-        device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.model = self.mtype(
             source_vocab_size=len(X.fields["source"].vocab),
             target_vocab_size=len(X.fields["target"].vocab),
         ).to(device)
 
-        pi = X.fields["target"].vocab.stoi['<pad>']
+        pi = X.fields["target"].vocab.stoi["<pad>"]
         self.criterion = torch.nn.CrossEntropyLoss(ignore_index=pi).to(device)
         self.optimizer = torch.optim.Adam(self.model.parameters())
 
@@ -190,7 +194,7 @@ class Translator():
             device=device,
         )
         for i in range(self.epochs_count):
-            name_prefix = '[{} / {}] '.format(i + 1, self.epochs_count)
+            name_prefix = "[{} / {}] ".format(i + 1, self.epochs_count)
             epoch(
                 model=self.model,
                 criterion=self.criterion,
@@ -201,9 +205,9 @@ class Translator():
         return self
 
     def transform(self, X):
-        device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-        bos_index = X.fields['target'].vocab.stoi["<s>"]
-        eos_index = X.fields['target'].vocab.stoi["</s>"]
+        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        bos_index = X.fields["target"].vocab.stoi["<s>"]
+        eos_index = X.fields["target"].vocab.stoi["</s>"]
 
         itos = X.fields["target"].vocab.itos
         outputs = []
@@ -222,7 +226,7 @@ class Translator():
                     break
 
                 result.append(step)
-                return ' '.join(itos[ind.squeeze().item()] for ind in result)
+                return " ".join(itos[ind.squeeze().item()] for ind in result)
             outputs.append
         return outputs
 
@@ -237,9 +241,12 @@ def build_model(**kwargs):
 
 def main():
     df = data()
-    print(df.head())
-    print(TextPreprocessor().fit(df))
+    model = build_model()
+    model.fit(df, None)
+    subsample = df.sample(10)
+    subsample["translation"] = model.transform(df.head())
+    print(subsample[["source", "target", "translation"]])
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
