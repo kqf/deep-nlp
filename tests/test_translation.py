@@ -3,7 +3,7 @@ import torch
 import pandas as pd
 
 from models.translation import TextPreprocessor
-from models.translation import Encoder, Decoder, TranslationModel
+from models.translation import Encoder, Decoder, TranslationModel, build_model
 
 
 @pytest.fixture
@@ -68,3 +68,8 @@ def test_translation_model(
     translate = TranslationModel(source_vocab_size, target_vocab_size)
     output, hidden = translate(source, target)
     assert output.shape == (target_seq_size, batch_size, target_vocab_size)
+
+
+def test_translation(data):
+    model = build_model()
+    model.fit(data, None)

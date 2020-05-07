@@ -2,7 +2,9 @@ import math
 import torch
 import pandas as pd
 from tqdm import tqdm
-from torchtext.data import Field, Example, Dataset
+from torchtext.data import Field, Example, Dataset, BucketIterator
+from sklearn.pipeline import make_pipeline
+from sklearn.base import BaseEstimator, TransformerMixin
 
 """
 !curl http://www.manythings.org/anki/rus-eng.zip -o data/rus-eng.zip
@@ -17,7 +19,7 @@ def data():
     return pd.read_table("data/rus.txt", names=["source", "target", "caption"])
 
 
-class TextPreprocessor:
+class TextPreprocessor(BaseEstimator, TransformerMixin):
     def __init__(self, min_freq=3, corpus_fraction=0.3, max_tokens=16,
                  init_token="<s>", eos_token="</s>"):
         self.min_freq = min_freq
@@ -128,6 +130,7 @@ def epoch(model, criterion, data_iter, optimizer=None, name=None):
     with torch.autograd.set_grad_enabled(is_train):
         bar = tqdm(enumerate(data_iter), total=batches_count)
         for i, batch in bar:
+            print(batch.source.shape, batch.target.shape)
             logits, _ = model(batch.source, batch.target)
 
             # [target_seq_size, batch] -> [target_seq_size, batch]
@@ -164,7 +167,7 @@ def epoch(model, criterion, data_iter, optimizer=None, name=None):
 
 
 class Translator():
-    def __init__(self, mtype=TranslationModel, batch_size=64, epochs_count=20):
+    def __init__(self, mtype=TranslationModel, batch_size=32, epochs_count=20):
         self.epochs_count = epochs_count
         self.batch_size = batch_size
         self.mtype = mtype
@@ -172,26 +175,39 @@ class Translator():
     def fit(self, X, y=None):
         device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
         self.model = self.mtype(
-            source_vocab_size=len(X.source_field.vocab),
-            target_vocab_size=len(X.target_field.vocab)
+            source_vocab_size=len(X.fields["source"].vocab),
+            target_vocab_size=len(X.fields["target"].vocab),
         ).to(device)
 
-        pi = X.target_field.vocab.stoi['<pad>']
+        pi = X.fields["target"].vocab.stoi['<pad>']
         self.criterion = torch.nn.CrossEntropyLoss(ignore_index=pi).to(device)
         self.optimizer = torch.optim.Adam(self.model.parameters())
 
+        data_iter = BucketIterator(
+            X,
+            batch_size=self.batch_size,
+            shuffle=True,
+            device=device,
+        )
         for i in range(self.epochs_count):
             name_prefix = '[{} / {}] '.format(i + 1, self.epochs_count)
             epoch(
-                self.model,
-                self.criterion,
-                X,
-                self.batch_size,
-                self.optimizer,
-                name_prefix,
+                model=self.model,
+                criterion=self.criterion,
+                data_iter=data_iter,
+                optimizer=self.optimizer,
+                name=name_prefix,
             )
 
         return self
+
+
+def build_model(**kwargs):
+    steps = make_pipeline(
+        TextPreprocessor(),
+        Translator(**kwargs),
+    )
+    return steps
 
 
 def main():
