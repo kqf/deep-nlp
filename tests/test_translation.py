@@ -70,6 +70,18 @@ def test_translation_model(
     assert output.shape == (target_seq_size, batch_size, target_vocab_size)
 
 
-def test_translation(data):
+@pytest.fixture
+def examples():
+    data = {
+        "source": ["All work"],
+        "target": ["Tout le"],
+    }
+    return pd.DataFrame(data)
+
+
+def test_translates(data, examples):
     model = build_model()
     model.fit(data, None)
+
+    model[0].corpus_fraction = 1
+    print(model.transform(examples))

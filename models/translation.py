@@ -198,8 +198,33 @@ class Translator():
                 optimizer=self.optimizer,
                 name=name_prefix,
             )
-
         return self
+
+    def transform(self, X):
+        device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+        bos_index = X.fields['target'].vocab.stoi["<s>"]
+        eos_index = X.fields['target'].vocab.stoi["</s>"]
+
+        itos = X.fields["target"].vocab.itos
+        outputs = []
+        for example in X:
+            inputs = X.fields["source"].process(example.source).to(device)
+            encoder_hidden = self.model.encoder(inputs.reshape(-1, 1))
+            result = []
+
+            step = torch.LongTensor([[bos_index]]).to(device)
+            hidden = None
+            for _ in range(30):
+                step, hidden = self.model.decoder(step, encoder_hidden)
+                step = step.argmax(-1)
+
+                if step.item() == eos_index:
+                    break
+
+                result.append(step)
+                return ' '.join(itos[ind.squeeze().item()] for ind in result)
+            outputs.append
+        return outputs
 
 
 def build_model(**kwargs):
