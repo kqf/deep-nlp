@@ -1,5 +1,7 @@
+import math
 import torch
 import pandas as pd
+from tqdm import tqdm
 from torchtext.data import Field, Example, Dataset
 
 """
@@ -108,6 +110,57 @@ class TranslationModel(torch.nn.Module):
     def forward(self, source_inputs, target_inputs):
         encoder_hidden = self.encoder(source_inputs)
         return self.decoder(target_inputs, encoder_hidden, encoder_hidden)
+
+
+def shift(seq, by, batch_dim=1):
+    return torch.cat((seq[by:], seq.new_ones(by, seq.shape[batch_dim])))
+
+
+def epoch(model, criterion, data_iter, optimizer=None, name=None):
+    epoch_loss = 0
+
+    is_train = optimizer is not None
+    name = name or ''
+    model.train(is_train)
+
+    batches_count = len(data_iter)
+
+    with torch.autograd.set_grad_enabled(is_train):
+        bar = tqdm(enumerate(data_iter), total=batches_count)
+        for i, batch in bar:
+            logits, _ = model(batch.source, batch.target)
+
+            # [target_seq_size, batch] -> [target_seq_size, batch]
+            target = shift(batch.target, by=1)
+
+            loss = criterion(
+                # [target_seq_size * batch, target_vocab_size]
+                logits.view(-1, logits.shape[-1]),
+                # [target_seq_size * batch]
+                target.view(-1)
+            )
+
+            epoch_loss += loss.item()
+
+            if optimizer:
+                optimizer.zero_grad()
+                loss.backward()
+                torch.nn.utils.clip_grad_norm_(model.parameters(), 1.)
+                optimizer.step()
+
+            bar.update()
+            bar.set_description(
+                '{:>5s} Loss = {:.5f}, PPX = {:.2f}'.format(
+                    name, loss.item(), math.exp(loss.item())))
+
+        bar.set_description(
+            '{:>5s} Loss = {:.5f}, PPX = {:.2f}'.format(
+                name, epoch_loss / batches_count,
+                math.exp(epoch_loss / batches_count))
+        )
+        bar.refresh()
+
+    return epoch_loss / batches_count
 
 
 def main():
