@@ -19,6 +19,17 @@ from nltk.translate.bleu_score import corpus_bleu
 """
 
 
+"""
+- [x] Simple encoder-decoder architecture
+- [x] Add greedy translation
+- [x] Evaluate the model (BLEU)
+- [ ] Beam search
+- [ ] Scheduled sampling
+- [ ] More layers
+
+"""
+
+
 def data():
     return pd.read_table("data/rus.txt", names=["source", "target", "caption"])
 
@@ -94,6 +105,7 @@ class Decoder(torch.nn.Module):
         return self._out(outputs), hidden
 
 
+# TODO: Add the init token and the eos token as the parameters
 class TranslationModel(torch.nn.Module):
     def __init__(
             self,
@@ -206,28 +218,30 @@ class Translator():
         return self
 
     def transform(self, X):
+        self.model.eval()
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         bos_index = X.fields["target"].vocab.stoi["<s>"]
         eos_index = X.fields["target"].vocab.stoi["</s>"]
 
         itos = X.fields["target"].vocab.itos
         outputs = []
-        for example in X:
-            inputs = X.fields["source"].process(example.source).to(device)
-            result = []
+        with torch.no_grad():
+            for example in X:
+                inputs = X.fields["source"].process(example.source).to(device)
+                result = []
 
-            step = torch.LongTensor([[bos_index]]).to(device)
-            hidden = self.model.encoder(inputs.reshape(-1, 1))
-            for _ in range(30):
-                step, hidden = self.model.decoder(step, hidden)
-                step = step.argmax(-1)
+                step = torch.LongTensor([[bos_index]]).to(device)
+                hidden = self.model.encoder(inputs.reshape(-1, 1))
+                for _ in range(30):
+                    step, hidden = self.model.decoder(step, hidden)
+                    step = step.argmax(-1)
 
-                if step.item() == eos_index:
-                    break
+                    if step.item() == eos_index:
+                        break
 
-                result.append(step)
-            outputs.append(
-                " ".join(itos[ind.squeeze().item()] for ind in result))
+                    result.append(step)
+                outputs.append(
+                    " ".join(itos[ind.squeeze().item()] for ind in result))
         return outputs
 
     def score(self, data, y=None):
