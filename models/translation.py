@@ -1,15 +1,19 @@
 import math
 import torch
+import numpy as np
 import pandas as pd
 from tqdm import tqdm
 from torchtext.data import Field, Example, Dataset, BucketIterator
 from sklearn.pipeline import make_pipeline
 from sklearn.base import BaseEstimator, TransformerMixin
+from nltk.translate.bleu_score import corpus_bleu
 
 """
+!mdkir -p data
+!unzip data/rus-eng.zip -d data/
 !curl http://www.manythings.org/anki/rus-eng.zip -o data/rus-eng.zip
 !
-!pip install pandas torch, torchtext
+!pip install pandas torch torchtext sacremoses
 !pip install spacy
 !python -m spacy download en
 """
@@ -198,6 +202,7 @@ class Translator():
                 optimizer=self.optimizer,
                 name=name_prefix,
             )
+        print(f"Blue score: {self.score(X):.3g} %")
         return self
 
     def transform(self, X):
@@ -225,6 +230,52 @@ class Translator():
                 " ".join(itos[ind.squeeze().item()] for ind in result))
         return outputs
 
+    def score(self, data, y=None):
+        self.model.eval()
+        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        refs, hyps = [], []
+
+        bos_index = data.fields['target'].vocab.stoi["<s>"]
+        eos_index = data.fields['target'].vocab.stoi["</s>"]
+
+        data_iter = BucketIterator(
+            data,
+            batch_size=self.batch_size,
+            shuffle=True,
+            device=device,
+        )
+        with torch.no_grad():
+            for i, batch in enumerate(data_iter):
+                encoder_hidden = self.model.encoder(batch.source)
+                hidden = encoder_hidden
+                # if self.model._bidirectional:
+                #     hidden = None
+                result = [torch.LongTensor([bos_index]).expand(
+                    1, batch.target.shape[1])]
+
+                for _ in range(30):
+                    step, hidden = self.model.decoder(
+                        result[-1], hidden)
+                    step = step.argmax(-1)
+                    result.append(step)
+
+                targets = batch.target.data.cpu().numpy().T
+                _, eos_indices = np.where(targets == eos_index)
+
+                targets = [target[:eos_ind]
+                           for eos_ind, target in zip(eos_indices, targets)]
+                refs.extend(targets)
+
+                result = torch.cat(result)
+                result = result.data.cpu().numpy().T
+                _, eos_indices = np.where(result == eos_index)
+
+                result = [res[:eos_ind]
+                          for eos_ind, res in zip(eos_indices, result)]
+                hyps.extend(result)
+
+        return corpus_bleu([[ref] for ref in refs], hyps) * 100
+
 
 def build_model(**kwargs):
     steps = make_pipeline(
@@ -239,7 +290,7 @@ def main():
     model = build_model()
     model.fit(df, None)
     subsample = df.sample(10)
-    subsample["translation"] = model.transform(df.head())
+    subsample["translation"] = model.transform(subsample)
     print(subsample[["source", "target", "translation"]])
 
 
