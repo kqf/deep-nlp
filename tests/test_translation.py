@@ -74,7 +74,7 @@ def test_translation_model(
 def examples():
     data = {
         "source": ["All work"],
-        "target": ["Tout"],
+        "target": [""],
     }
     return pd.DataFrame(data)
 

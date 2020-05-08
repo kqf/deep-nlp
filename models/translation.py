@@ -85,7 +85,7 @@ class Decoder(torch.nn.Module):
         )
         self._out = torch.nn.Linear(rnn_hidden_dim, vocab_size)
 
-    def forward(self, inputs, encoder_output, hidden=None):
+    def forward(self, inputs, encoder_output):
         outputs, hidden = self._rnn(self._emb(inputs), encoder_output)
         return self._out(outputs), hidden
 
@@ -112,7 +112,7 @@ class TranslationModel(torch.nn.Module):
 
     def forward(self, source_inputs, target_inputs):
         encoder_hidden = self.encoder(source_inputs)
-        return self.decoder(target_inputs, encoder_hidden, encoder_hidden)
+        return self.decoder(target_inputs, encoder_hidden)
 
 
 def shift(seq, by, batch_dim=1):
@@ -131,7 +131,6 @@ def epoch(model, criterion, data_iter, optimizer=None, name=None):
     with torch.autograd.set_grad_enabled(is_train):
         bar = tqdm(enumerate(data_iter), total=batches_count)
         for i, batch in bar:
-            print(batch.source.shape, batch.target.shape)
             logits, _ = model(batch.source, batch.target)
 
             # [target_seq_size, batch] -> [target_seq_size, batch]
@@ -168,7 +167,7 @@ def epoch(model, criterion, data_iter, optimizer=None, name=None):
 
 
 class Translator():
-    def __init__(self, mtype=TranslationModel, batch_size=32, epochs_count=20):
+    def __init__(self, mtype=TranslationModel, batch_size=32, epochs_count=5):
         self.epochs_count = epochs_count
         self.batch_size = batch_size
         self.mtype = mtype
@@ -210,21 +209,20 @@ class Translator():
         outputs = []
         for example in X:
             inputs = X.fields["source"].process(example.source).to(device)
-            encoder_hidden = self.model.encoder(inputs.reshape(-1, 1))
             result = []
 
             step = torch.LongTensor([[bos_index]]).to(device)
-            hidden = None
+            hidden = self.model.encoder(inputs.reshape(-1, 1))
             for _ in range(30):
-                step, hidden = self.model.decoder(step, encoder_hidden)
+                step, hidden = self.model.decoder(step, hidden)
                 step = step.argmax(-1)
 
                 if step.item() == eos_index:
                     break
 
                 result.append(step)
-                return " ".join(itos[ind.squeeze().item()] for ind in result)
-            outputs.append
+            outputs.append(
+                " ".join(itos[ind.squeeze().item()] for ind in result))
         return outputs
 
 
