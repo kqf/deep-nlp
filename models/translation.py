@@ -20,10 +20,9 @@ def data():
 
 
 class TextPreprocessor(BaseEstimator, TransformerMixin):
-    def __init__(self, min_freq=3, corpus_fraction=0.3, max_tokens=16,
+    def __init__(self, min_freq=3, max_tokens=16,
                  init_token="<s>", eos_token="</s>"):
         self.min_freq = min_freq
-        self.corpus_fraction = corpus_fraction
         self.max_tokens = max_tokens
         self.source_name = "source"
         self.source = Field(
@@ -51,10 +50,8 @@ class TextPreprocessor(BaseEstimator, TransformerMixin):
             (sources.str.len() < self.max_tokens) & (
                 targets.str.len() < self.max_tokens)
         )
-        out = pd.DataFrame([sources[valid_idx], targets[valid_idx]])
-        out = out.sample(frac=self.corpus_fraction)
         examples = [Example.fromlist(pair, self.fields)
-                    for pair in out.values]
+                    for pair in zip(sources[valid_idx], targets[valid_idx])]
         dataset = Dataset(examples, self.fields)
         return dataset
 

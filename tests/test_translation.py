@@ -82,6 +82,4 @@ def examples():
 def test_translates(data, examples):
     model = build_model()
     model.fit(data, None)
-
-    model[0].corpus_fraction = 1
     print(model.transform(examples))
