@@ -1,5 +1,6 @@
 import math
 import torch
+import torch.functional as F
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
@@ -23,7 +24,7 @@ from nltk.translate.bleu_score import corpus_bleu
 - [x] Simple encoder-decoder architecture
 - [x] Add greedy translation
 - [x] Evaluate the model (BLEU)
-- [ ] Beam search
+- [x] Beam search
 - [ ] Scheduled sampling
 - [ ] More layers
 
@@ -187,6 +188,7 @@ class Translator():
         self.epochs_count = epochs_count
         self.batch_size = batch_size
         self.mtype = mtype
+        self.n_beams = None
 
     def fit(self, X, y=None):
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -217,40 +219,13 @@ class Translator():
         print(f"Blue score: {self.score(X):.3g} %")
         return self
 
-    def transform(self, X):
-        self.model.eval()
-        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-        bos_index = X.fields["target"].vocab.stoi["<s>"]
-        eos_index = X.fields["target"].vocab.stoi["</s>"]
-
-        itos = X.fields["target"].vocab.itos
-        outputs = []
-        with torch.no_grad():
-            for example in X:
-                inputs = X.fields["source"].process(example.source).to(device)
-                result = []
-
-                step = torch.LongTensor([[bos_index]]).to(device)
-                hidden = self.model.encoder(inputs.reshape(-1, 1))
-                for _ in range(30):
-                    step, hidden = self.model.decoder(step, hidden)
-                    step = step.argmax(-1)
-
-                    if step.item() == eos_index:
-                        break
-
-                    result.append(step)
-                outputs.append(
-                    " ".join(itos[ind.squeeze().item()] for ind in result))
-        return outputs
-
     def score(self, data, y=None):
         self.model.eval()
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         refs, hyps = [], []
 
-        bos_index = data.fields['target'].vocab.stoi["<s>"]
-        eos_index = data.fields['target'].vocab.stoi["</s>"]
+        bos_index = data.fields["target"].vocab.stoi["<s>"]
+        eos_index = data.fields["target"].vocab.stoi["</s>"]
 
         data_iter = BucketIterator(
             data,
@@ -289,6 +264,76 @@ class Translator():
                 hyps.extend(result)
 
         return corpus_bleu([[ref] for ref in refs], hyps) * 100
+
+    def transform(self, X):
+        if self.n_beams is not None:
+            return self._beam_search_decode(X)
+        return self._greedy_decode(X)
+
+    def _greedy_decode(self, X):
+        self.model.eval()
+        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        bos_index = X.fields["target"].vocab.stoi["<s>"]
+        eos_index = X.fields["target"].vocab.stoi["</s>"]
+
+        itos = X.fields["target"].vocab.itos
+        outputs = []
+        with torch.no_grad():
+            for example in X:
+                inputs = X.fields["source"].process(example.source).to(device)
+                result = []
+
+                step = torch.LongTensor([[bos_index]]).to(device)
+                hidden = self.model.encoder(inputs.reshape(-1, 1))
+                for _ in range(30):
+                    step, hidden = self.model.decoder(step, hidden)
+                    step = step.argmax(-1)
+
+                    if step.item() == eos_index:
+                        break
+
+                    result.append(step)
+                outputs.append(
+                    " ".join(itos[ind.squeeze().item()] for ind in result))
+        return outputs
+
+    def _beam_search_decode(self, X, beam_size=5):
+        self.model.eval()
+        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+        bos_index = X.fields["target"].vocab.stoi["<s>"]
+        eos_index = X.fields["target"].vocab.stoi["</s>"]
+
+        with torch.no_grad():
+            for example in X:
+                inputs = X.fields["source"].process(example.source).to(device)
+                encoder_hidden = self.model.encoder(inputs)
+                hidden = encoder_hidden
+                # if self.model._bidirectional:
+                #     hidden = None
+                beams = [([bos_index], 0, hidden)]
+
+                for _ in range(30):
+                    _beams = []
+                    for beam in beams:
+                        inputs = torch.LongTensor([[beam[0][-1]]])
+                        step, hidden = self.model.decoder(inputs, hidden)
+                        step = F.log_softmax(step, -1)
+                        positions = torch.topk(step, beam_size, dim=-1)[1]
+
+                        for i in range(beam_size):
+                            seq = beam[0] + [positions[0, 0, i].item()]
+                            score = beam[1] - step[0, 0, positions[0, 0, i]].item()  # noqa
+                            _beams.append((seq, score, hidden))
+
+                    beams = sorted(_beams, key=lambda x: x[1])[:beam_size]
+
+                result = sorted(beams, key=lambda x: x[1])[0][0][1:]
+
+                end_index = np.where(np.array(result) == eos_index)
+
+        final = result[:end_index[0][0]]
+        return " ".join(X.fields["target"].vocab.itos[ind] for ind in final)
 
 
 def build_model(**kwargs):

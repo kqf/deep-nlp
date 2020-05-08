@@ -83,4 +83,6 @@ def test_translates(data, examples):
     model = build_model()
     model.fit(data, None)
     print(model.transform(examples))
+    model.n_beams = 5
+    print(model.transform(examples))
     assert model.score(examples) > -1
