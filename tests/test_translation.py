@@ -4,6 +4,7 @@ import pandas as pd
 
 from models.translation import TextPreprocessor
 from models.translation import Encoder, Decoder, TranslationModel, build_model
+from models.translation import ScheduledSamplingDecoder
 
 
 @pytest.fixture
@@ -32,7 +33,7 @@ def target(target_vocab_size, target_seq_size, batch_size):
 
 
 @pytest.mark.parametrize("source_seq_size", [120])
-@pytest.mark.parametrize("batch_size", [128, 512])
+@pytest.mark.parametrize("batch_size", [512])
 @pytest.mark.parametrize("source_vocab_size", [26])
 @pytest.mark.parametrize("rnn_hidden_dim", [256])
 def test_encoder(source, source_vocab_size, batch_size, rnn_hidden_dim):
@@ -41,17 +42,21 @@ def test_encoder(source, source_vocab_size, batch_size, rnn_hidden_dim):
     assert enc(source).shape == (1, batch_size, rnn_hidden_dim)
 
 
-@pytest.mark.parametrize("batch_size", [128, 512])
+@pytest.mark.parametrize("batch_size", [32, 512])
 @pytest.mark.parametrize("source_seq_size", [121])
 @pytest.mark.parametrize("target_seq_size", [122])
 @pytest.mark.parametrize("source_vocab_size", [26])
 @pytest.mark.parametrize("target_vocab_size", [33])
+@pytest.mark.parametrize("decodertype", [
+    Decoder,
+    ScheduledSamplingDecoder,
+])
 def test_decoder(
         source, target,
         source_vocab_size, target_vocab_size,
-        batch_size, target_seq_size):
+        batch_size, target_seq_size, decodertype):
     encode = Encoder(source_vocab_size)
-    decode = Decoder(target_vocab_size)
+    decode = decodertype(target_vocab_size)
     output, hidden = decode(target, encode(source))
     assert output.shape == (target_seq_size, batch_size, target_vocab_size)
 

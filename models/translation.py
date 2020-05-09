@@ -114,6 +114,39 @@ class Decoder(torch.nn.Module):
         return self._out(outputs), hidden
 
 
+class ScheduledSamplingDecoder(torch.nn.Module):
+    def __init__(self, vocab_size, emb_dim=128,
+                 rnn_hidden_dim=256, num_layers=1, sampling_rate=0.5):
+        super().__init__()
+
+        # self.p = sampling_rate
+        self._emb = torch.nn.Embedding(vocab_size, emb_dim)
+        self._rnn = torch.nn.GRU(
+            input_size=emb_dim,
+            hidden_size=rnn_hidden_dim,
+            num_layers=num_layers
+        )
+        self._out = torch.nn.Linear(rnn_hidden_dim, vocab_size)
+
+    def forward(self, inputs, encoder_output):
+        hidden = encoder_output
+
+        embeddings = inputs
+        step = inputs[0]
+        result = []
+        for original in embeddings:
+            output, hidden = self._rnn(self._emb(step).unsqueeze(0), hidden)
+            result.append(output)
+
+            step = original
+            if self.training and bool(np.random.binomial(n=1, p=0.5)):
+                with torch.no_grad():
+                    step = self._out(output.detach()).argmax(-1).squeeze(0)
+
+        outputs = torch.cat(result)
+        return self._out(outputs), hidden
+
+
 # TODO: Add the init token and the eos token as the parameters
 class TranslationModel(torch.nn.Module):
     def __init__(
@@ -123,15 +156,18 @@ class TranslationModel(torch.nn.Module):
             emb_dim=128,
             rnn_hidden_dim=256,
             num_layers=1,
-            bidirectional_encoder=False):
+            bidirectional_encoder=False,
+            encodertype=Encoder,
+            decodertype=Decoder,
+    ):
 
         super().__init__()
 
-        self.encoder = Encoder(
+        self.encoder = encodertype(
             source_vocab_size, emb_dim,
             rnn_hidden_dim, num_layers, bidirectional_encoder)
 
-        self.decoder = Decoder(
+        self.decoder = decodertype(
             target_vocab_size, emb_dim,
             rnn_hidden_dim, num_layers)
 
@@ -368,7 +404,7 @@ def main():
     model.fit(df, None)
     subsample = df.sample(10)
     subsample["translation"] = model.transform(subsample)
-    print(subsample[["source", "target", "translation"]])
+    print(subsample[["source", "target", "sampe"]])
 
 
 if __name__ == "__main__":
