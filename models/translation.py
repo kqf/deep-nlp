@@ -19,10 +19,9 @@ torch.cuda.manual_seed(SEED)
 torch.backends.cudnn.deterministic = True
 
 """
-!mdkir -p data
-!unzip data/rus-eng.zip -d data/
+!mkdir -p data/
 !curl http://www.manythings.org/anki/rus-eng.zip -o data/rus-eng.zip
-!
+!!unzip data/rus-eng.zip -d data/
 !pip install pandas torch torchtext sacremoses
 !pip install spacy
 !python -m spacy download en
@@ -193,7 +192,7 @@ def epoch(model, criterion, data_iter, optimizer=None, name=None):
 
 
 class Translator():
-    def __init__(self, mtype=TranslationModel, batch_size=32, epochs_count=5):
+    def __init__(self, mtype=TranslationModel, batch_size=32, epochs_count=8):
         self.epochs_count = epochs_count
         self.batch_size = batch_size
         self.mtype = mtype
@@ -258,7 +257,7 @@ class Translator():
                 # if self.model._bidirectional:
                 #     hidden = None
                 result = [torch.LongTensor([bos_index]).expand(
-                    1, batch.target.shape[1])]
+                    1, batch.target.shape[1]).to(device)]
 
                 for _ in range(30):
                     step, hidden = self.model.decoder(result[-1], hidden)
@@ -335,7 +334,7 @@ class Translator():
                 for _ in range(30):
                     _beams = []
                     for beam in beams:
-                        inputs = torch.LongTensor([[beam[0][-1]]])
+                        inputs = torch.LongTensor([[beam[0][-1]]]).to(device)
                         step, hidden = self.model.decoder(inputs, hidden)
                         step = F.log_softmax(step, -1)
                         positions = torch.topk(step, beam_size, dim=-1)[1]
