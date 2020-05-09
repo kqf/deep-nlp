@@ -216,7 +216,7 @@ class Translator():
                 optimizer=self.optimizer,
                 name=name_prefix,
             )
-        print(f"Blue score: {self.score(X):.3g} %")
+            print(f"Blue score: {self.score(X):.3g} %")
         return self
 
     def score(self, data, y=None):
@@ -243,8 +243,7 @@ class Translator():
                     1, batch.target.shape[1])]
 
                 for _ in range(30):
-                    step, hidden = self.model.decoder(
-                        result[-1], hidden)
+                    step, hidden = self.model.decoder(result[-1], hidden)
                     step = step.argmax(-1)
                     result.append(step)
 
@@ -280,11 +279,12 @@ class Translator():
         outputs = []
         with torch.no_grad():
             for example in X:
-                inputs = X.fields["source"].process(example.source).to(device)
-                result = []
+                inputs = X.fields["source"].process(
+                    [example.source]).to(device)
+                hidden = self.model.encoder(inputs)
 
                 step = torch.LongTensor([[bos_index]]).to(device)
-                hidden = self.model.encoder(inputs.reshape(-1, 1))
+                result = []
                 for _ in range(30):
                     step, hidden = self.model.decoder(step, hidden)
                     step = step.argmax(-1)
@@ -306,7 +306,8 @@ class Translator():
 
         with torch.no_grad():
             for example in X:
-                inputs = X.fields["source"].process(example.source).to(device)
+                inputs = X.fields["source"].process(
+                    [example.source]).to(device)
                 encoder_hidden = self.model.encoder(inputs)
                 hidden = encoder_hidden
                 # if self.model._bidirectional:
