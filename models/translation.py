@@ -1,5 +1,6 @@
 import math
 import torch
+import random
 import torch.functional as F
 import numpy as np
 import pandas as pd
@@ -8,6 +9,14 @@ from torchtext.data import Field, Example, Dataset, BucketIterator
 from sklearn.pipeline import make_pipeline
 from sklearn.base import BaseEstimator, TransformerMixin
 from nltk.translate.bleu_score import corpus_bleu
+
+SEED = 137
+
+random.seed(SEED)
+np.random.seed(SEED)
+torch.manual_seed(SEED)
+torch.cuda.manual_seed(SEED)
+torch.backends.cudnn.deterministic = True
 
 """
 !mdkir -p data
