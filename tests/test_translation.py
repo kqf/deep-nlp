@@ -81,8 +81,21 @@ def examples():
 
 def test_translates(data, examples):
     model = build_model()
+    # First fit the text pipeline
+    model[0].fit(data, None)
+    # Then use to initialize the model
+    model[-1].model_init(
+        source_vocab_size=len(model[0].source.vocab),
+        target_vocab_size=len(model[0].target.vocab),
+    )
+    # Now we are able to generate from the untrained model
+    print("Before training")
+    print(model.transform(examples))
+
     model.fit(data, None)
+    print("After training")
     print(model.transform(examples))
     model.n_beams = 5
+    print("After training, beam search")
     print(model.transform(examples))
     assert model.score(examples) > -1

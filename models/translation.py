@@ -198,10 +198,19 @@ class Translator():
         self.batch_size = batch_size
         self.mtype = mtype
         self.n_beams = None
+        self.model = None
+
+    def model_init(self, source_vocab_size, target_vocab_size):
+        if self.model is None:
+            self.model = self.mtype(
+                source_vocab_size=source_vocab_size,
+                target_vocab_size=target_vocab_size
+            )
+        return self.model
 
     def fit(self, X, y=None):
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-        self.model = self.mtype(
+        self.model = self.model_init(
             source_vocab_size=len(X.fields["source"].vocab),
             target_vocab_size=len(X.fields["target"].vocab),
         ).to(device)
