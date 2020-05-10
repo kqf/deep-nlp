@@ -51,8 +51,14 @@ def data():
     return pd.read_table("data/rus.txt", names=["source", "target", "caption"])
 
 
+def fit_bpe(data, num_symbols):
+    outfile = io.StringIO()
+    learn_bpe(data, outfile, num_symbols)
+    return BPE(outfile)
+
+
 class SubwordTransformer(BaseEstimator, TransformerMixin):
-    def __init__(self, cols=["source", "target"], out="pbe", num_symbols=3000):
+    def __init__(self, cols=["source", "target"], out="bpe", num_symbols=3000):
         self.num_symbols = num_symbols
         self.out = out
         self.cols = cols
@@ -61,9 +67,7 @@ class SubwordTransformer(BaseEstimator, TransformerMixin):
     def fit(self, X, y=None):
         for c in self.cols:
             # Since the dataset is small -- do this in memory
-            outfile = io.StringIO()
-            learn_bpe(X[c].values, outfile, self.num_symbols)
-            self._rules[c] = BPE(outfile)
+            self._rules[c] = fit_bpe(X[c].values, self.num_symbols)
         return self
 
     def transform(self, X, y=None):
@@ -73,8 +77,9 @@ class SubwordTransformer(BaseEstimator, TransformerMixin):
 
 
 class TextPreprocessor(BaseEstimator, TransformerMixin):
-    def __init__(self, min_freq=3, max_tokens=16,
+    def __init__(self, min_freq=3, max_tokens=16, bpe_col_prefix=None,
                  init_token="<s>", eos_token="</s>"):
+        self.bpe_col_prefix = bpe_col_prefix
         self.min_freq = min_freq
         self.max_tokens = max_tokens
         self.source_name = "source"
@@ -99,6 +104,14 @@ class TextPreprocessor(BaseEstimator, TransformerMixin):
     def transform(self, X, y=None):
         sources = X[self.source_name].apply(self.source.preprocess)
         targets = X[self.target_name].apply(self.target.preprocess)
+
+        if self.bpe_col_prefix is not None:
+            source_bpe = X[f"{self.source_name}_{self.bpe_col_prefix}"].iloc[0]
+            sources = sources.apply(source_bpe.segment_tokens)
+
+            target_bpe = X[f"{self.target_name}_{self.bpe_col_prefix}"].iloc[0]
+            targets = targets.apply(target_bpe.segment_tokens)
+
         valid_idx = (
             (sources.str.len() < self.max_tokens) & (
                 targets.str.len() < self.max_tokens)
@@ -431,6 +444,15 @@ class Translator():
 def build_model(**kwargs):
     steps = make_pipeline(
         TextPreprocessor(),
+        Translator(**kwargs),
+    )
+    return steps
+
+
+def build_model_bpe(**kwargs):
+    steps = make_pipeline(
+        SubwordTransformer(),
+        TextPreprocessor(bpe_col_prefix="bpe"),
         Translator(**kwargs),
     )
     return steps

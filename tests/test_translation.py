@@ -3,7 +3,8 @@ import torch
 import pandas as pd
 
 from models.translation import TextPreprocessor, SubwordTransformer
-from models.translation import Encoder, Decoder, TranslationModel, build_model
+from models.translation import Encoder, Decoder, TranslationModel
+from models.translation import build_model, build_model_bpe
 from models.translation import ScheduledSamplingDecoder
 
 
@@ -89,14 +90,19 @@ def examples():
     return pd.DataFrame(data)
 
 
-def test_translates(data, examples):
-    model = build_model()
+@pytest.mark.parametrize("create_model", [
+    build_model,
+    build_model_bpe,
+])
+def test_translates(create_model, data, examples):
+    model = create_model()
     # First fit the text pipeline
-    model[0].fit(data, None)
+    text = model.named_steps["textpreprocessor"]
+    text.fit(data, None)
     # Then use to initialize the model
     model[-1].model_init(
-        source_vocab_size=len(model[0].source.vocab),
-        target_vocab_size=len(model[0].target.vocab),
+        source_vocab_size=len(text.source.vocab),
+        target_vocab_size=len(text.target.vocab),
     )
     # Now we are able to generate from the untrained model
     print("Before training")
