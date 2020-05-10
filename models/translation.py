@@ -254,11 +254,14 @@ class Translator():
         self.criterion = torch.nn.CrossEntropyLoss(ignore_index=pi).to(device)
         self.optimizer = torch.optim.Adam(self.model.parameters())
 
-        data_iter = BucketIterator(
-            X,
-            batch_size=self.batch_size,
+        train_dataset, test_dataset = X.split(split_ratio=0.7)
+
+        data_iter, test_iter = BucketIterator.splits(
+            (train_dataset, test_dataset),
+            batch_sizes=(self.batch_size, self.batch_size * 4),
             shuffle=True,
             device=device,
+            sort=False,
         )
         for i in range(self.epochs_count):
             name_prefix = "[{} / {}] ".format(i + 1, self.epochs_count)
@@ -267,9 +270,15 @@ class Translator():
                 criterion=self.criterion,
                 data_iter=data_iter,
                 optimizer=self.optimizer,
-                name=name_prefix,
+                name=f"Train {name_prefix}",
             )
-            print(f"Blue score: {self.score(X):.3g} %")
+            epoch(
+                model=self.model,
+                criterion=self.criterion,
+                data_iter=test_iter,
+                name=f"Valid {name_prefix}",
+            )
+            print(f"Blue score: {self.score(test_dataset):.3g} %")
         return self
 
     def score(self, data, y=None):
