@@ -41,7 +41,7 @@ torch.backends.cudnn.deterministic = True
 - [x] Beam search
 - [X] Scheduled sampling?
 - [ ] More layers
-- [ ] Byte-pair decoding
+- [X] Byte-pair decoding
 - [ ] Attention
 
 """
@@ -442,17 +442,25 @@ class Translator():
 
 
 def build_model(**kwargs):
-    steps = make_pipeline(
+    text = make_pipeline(
         TextPreprocessor(),
+    )
+
+    steps = make_pipeline(
+        text,
         Translator(**kwargs),
     )
     return steps
 
 
 def build_model_bpe(**kwargs):
-    steps = make_pipeline(
+    text = make_pipeline(
         SubwordTransformer(),
         TextPreprocessor(bpe_col_prefix="bpe"),
+    )
+    # Keep the two-level pipeline for uniform tests
+    steps = make_pipeline(
+        text,
         Translator(**kwargs),
     )
     return steps
@@ -481,6 +489,17 @@ def main():
 
     scheduled = pd.DataFrame(sample)
     scheduled["translation"] = smodel.transform(scheduled)
+    print(scheduled[["source", "translation"]])
+    print("\n--------------------\n")
+
+    print("\n--------------------\n")
+    print("BPE segmentation model")
+    bpe_model = build_model_bpe()
+    bpe_model.fit(train, None)
+    print(f"Test set BLEU {bpe_model.score(test)} %")
+
+    scheduled = pd.DataFrame(sample)
+    scheduled["translation"] = bpe_model.transform(scheduled)
     print(scheduled[["source", "translation"]])
     print("\n--------------------\n")
 

@@ -97,12 +97,12 @@ def examples():
 def test_translates(create_model, data, examples):
     model = create_model()
     # First fit the text pipeline
-    text = model.named_steps["textpreprocessor"]
+    text = model[0]
     text.fit(data, None)
     # Then use to initialize the model
     model[-1].model_init(
-        source_vocab_size=len(text.source.vocab),
-        target_vocab_size=len(text.target.vocab),
+        source_vocab_size=len(text[-1].source.vocab),
+        target_vocab_size=len(text[-1].target.vocab),
     )
     # Now we are able to generate from the untrained model
     print("Before training")
