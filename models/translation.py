@@ -5,9 +5,12 @@ import torch.functional as F
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
+
+from functools import partial
 from torchtext.data import Field, Example, Dataset, BucketIterator
 from sklearn.pipeline import make_pipeline
 from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.model_selection import train_test_split
 from nltk.translate.bleu_score import corpus_bleu
 
 SEED = 137
@@ -35,6 +38,8 @@ torch.backends.cudnn.deterministic = True
 - [x] Beam search
 - [ ] Scheduled sampling
 - [ ] More layers
+- [ ]  
+- [ ] Attention
 
 """
 
@@ -409,11 +414,29 @@ def build_model(**kwargs):
 
 def main():
     df = data()
+    train, test = train_test_split(df)
+    sample = test.sample(10)
+
+    print("Basic encoder-decoder model")
     model = build_model()
-    model.fit(df, None)
-    subsample = df.sample(10)
-    subsample["translation"] = model.transform(subsample)
-    print(subsample[["source", "target", "sampe"]])
+    model.fit(train, None)
+    print(f"Test set BLEU {model.score(test)} %")
+
+    basic = pd.DataFrame(sample)
+    basic["translation"] = model.transform(basic)
+    print(basic[["source", "translation"]])
+
+    print("\n--------------------\n")
+    print("Scheduled sampling model")
+    stype = partial(TranslationModel, decodertype=ScheduledSamplingDecoder)
+    smodel = build_model(mtype=stype)
+    smodel.fit(train, None)
+    print(f"Test set BLEU {smodel.score(test)} %")
+
+    scheduled = pd.DataFrame(sample)
+    scheduled["translation"] = smodel.transform(scheduled)
+    print(scheduled[["source", "translation"]])
+    print("\n--------------------\n")
 
 
 if __name__ == "__main__":
