@@ -14,3 +14,4 @@ torchtext
 gensim
 spacy
 sacremoses
+subword_nmt

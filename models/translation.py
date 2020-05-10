@@ -1,3 +1,4 @@
+import io
 import math
 import torch
 import random
@@ -12,6 +13,8 @@ from sklearn.pipeline import make_pipeline
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.model_selection import train_test_split
 from nltk.translate.bleu_score import corpus_bleu
+from subword_nmt.learn_bpe import learn_bpe
+from subword_nmt.apply_bpe import BPE
 
 SEED = 137
 
@@ -36,9 +39,9 @@ torch.backends.cudnn.deterministic = True
 - [x] Add greedy translation
 - [x] Evaluate the model (BLEU)
 - [x] Beam search
-- [ ] Scheduled sampling
+- [X] Scheduled sampling?
 - [ ] More layers
-- [ ]  
+- [ ] Byte-pair decoding
 - [ ] Attention
 
 """
@@ -46,6 +49,27 @@ torch.backends.cudnn.deterministic = True
 
 def data():
     return pd.read_table("data/rus.txt", names=["source", "target", "caption"])
+
+
+class SubwordTransformer(BaseEstimator, TransformerMixin):
+    def __init__(self, cols=["source", "target"], out="pbe", num_symbols=3000):
+        self.num_symbols = num_symbols
+        self.out = out
+        self.cols = cols
+        self._rules = {}
+
+    def fit(self, X, y=None):
+        for c in self.cols:
+            # Since the dataset is small -- do this in memory
+            outfile = io.StringIO()
+            learn_bpe(X[c].values, outfile, self.num_symbols)
+            self._rules[c] = BPE(outfile)
+        return self
+
+    def transform(self, X, y=None):
+        for c in self.cols:
+            X[f"{c}_{self.out}"] = self._rules[c]
+        return X
 
 
 class TextPreprocessor(BaseEstimator, TransformerMixin):

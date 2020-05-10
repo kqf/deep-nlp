@@ -2,7 +2,7 @@ import pytest
 import torch
 import pandas as pd
 
-from models.translation import TextPreprocessor
+from models.translation import TextPreprocessor, SubwordTransformer
 from models.translation import Encoder, Decoder, TranslationModel, build_model
 from models.translation import ScheduledSamplingDecoder
 
@@ -19,6 +19,11 @@ def data(size=100):
 
 def test_textpreprocessor(data):
     tp = TextPreprocessor().fit(data)
+    assert tp.transform(data) is not None
+
+
+def test_subwordtransformer(data):
+    tp = SubwordTransformer(num_symbols=4).fit(data)
     assert tp.transform(data) is not None
 
 
