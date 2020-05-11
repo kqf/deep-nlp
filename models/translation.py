@@ -2,7 +2,6 @@ import io
 import math
 import torch
 import random
-import torch.functional as F
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
@@ -186,6 +185,34 @@ class ScheduledSamplingDecoder(torch.nn.Module):
 
         outputs = torch.cat(result)
         return self._out(outputs), hidden
+
+
+class AdditiveAttention(torch.nn.Module):
+    def __init__(self, query_size, key_size, hidden_dim):
+        super().__init__()
+
+        self._query_layer = torch.nn.Linear(query_size, hidden_dim)
+        self._key_layer = torch.nn.Linear(key_size, hidden_dim)
+        self._energy_layer = torch.nn.Linear(hidden_dim, 1)
+
+    def forward(self, query, key, value, mask):
+        """
+        query: FloatTensor with shape (batch_size, query_size) (h_i)
+        key: FloatTensor with shape (encoder_seq_len, batch_size, key_size) (sequence of s_1, ..., s_m)
+        value: FloatTensor with shape (encoder_seq_len, batch_size, key_size) (sequence of s_1, ..., s_m)
+        mask: ByteTensor with shape (encoder_seq_len, batch_size) (ones in positions of <pad> tokens, zeros everywhere else)
+        """  # noqa
+
+        f_att = torch.tanh(self._query_layer(query) + self._key_layer(key))
+
+        # Mask out pads: after softmax the masked weights will be 0
+        f_att.data.masked_fill_(mask.unsqueeze(2), -float('inf'))
+
+        # softmax-normalized f_att weight
+        weights = torch.functional.softmax(f_att, 0)
+
+        # find the context vector as a weighed sum of value (s_1, ..., s_m)
+        return (weights * value).sum(0), weights
 
 
 # TODO: Add the init token and the eos token as the parameters
@@ -426,7 +453,7 @@ class Translator():
                     for beam in beams:
                         inputs = torch.LongTensor([[beam[0][-1]]]).to(device)
                         step, hidden = self.model.decoder(inputs, hidden)
-                        step = F.log_softmax(step, -1)
+                        step = torch.functional.log_softmax(step, -1)
                         positions = torch.topk(step, beam_size, dim=-1)[1]
 
                         for i in range(beam_size):
@@ -501,9 +528,9 @@ def main():
     bpe_model.fit(train, None)
     print(f"Test set BLEU {bpe_model.score(test)} %")
 
-    scheduled = pd.DataFrame(sample)
-    scheduled["translation"] = bpe_model.transform(scheduled)
-    print(scheduled[["source", "translation"]])
+    bpe = pd.DataFrame(sample)
+    bpe["translation"] = bpe_model.transform(bpe)
+    print(bpe[["source", "translation"]])
     print("\n--------------------\n")
 
 
