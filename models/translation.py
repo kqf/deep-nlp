@@ -44,6 +44,9 @@ torch.backends.cudnn.deterministic = True
 - [ ] More layers
 - [X] Byte-pair decoding
 - [ ] Attention
+    - [ ] Additive
+    - [ ] Dot attention
+    - [ ] Multiplicative
 
 """
 
@@ -566,6 +569,13 @@ def main():
     bpe["translation"] = bpe_model.transform(bpe)
     print(bpe[["source", "translation"]])
     print("\n--------------------\n")
+
+    print("\n--------------------\n")
+    print("Additive attention model")
+    stype = partial(TranslationModel, decodertype=AttentionDecoder)
+    smodel = build_model(mtype=stype)
+    smodel.fit(train, None)
+    print(f"Test set BLEU {smodel.score(test)} %")
 
 
 if __name__ == "__main__":

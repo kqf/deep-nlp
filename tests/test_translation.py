@@ -60,7 +60,7 @@ def test_encoder(source, source_seq_size,
 @pytest.mark.parametrize("decodertype", [
     Decoder,
     ScheduledSamplingDecoder,
-    # AttentionDecoder,
+    AttentionDecoder,
 ])
 def test_decoder(
         source, target,
