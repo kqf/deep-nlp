@@ -154,7 +154,7 @@ class Decoder(torch.nn.Module):
 
     def forward(self, inputs, encoder_output, encoder_mask, hidden=None):
         outputs, hidden = self._rnn(self._emb(inputs), hidden)
-        return self._out(outputs), hidden
+        return self._out(outputs), hidden, None
 
 
 class ScheduledSamplingDecoder(torch.nn.Module):
@@ -185,7 +185,7 @@ class ScheduledSamplingDecoder(torch.nn.Module):
                     step = self._out(output.detach()).argmax(-1).squeeze(0)
 
         outputs = torch.cat(result)
-        return self._out(outputs), hidden
+        return self._out(outputs), hidden, None
 
 
 class AttentionDecoder(torch.nn.Module):
@@ -217,7 +217,7 @@ class AttentionDecoder(torch.nn.Module):
             attentions.append(weights)
 
         outputs = torch.cat(outputs)
-        return self._out(outputs), hidden
+        return self._out(outputs), hidden, weights
 
 
 class AdditiveAttention(torch.nn.Module):
@@ -294,7 +294,7 @@ def epoch(model, criterion, data_iter, optimizer=None, name=None):
     with torch.autograd.set_grad_enabled(is_train):
         bar = tqdm(enumerate(data_iter), total=batches_count)
         for i, batch in bar:
-            logits, _ = model(batch.source, batch.target)
+            logits, _, _ = model(batch.source, batch.target)
 
             # [target_seq_size, batch] -> [target_seq_size, batch]
             target = shift(batch.target, by=1)
@@ -407,7 +407,7 @@ class Translator():
                     1, batch.target.shape[1]).to(device)]
 
                 for _ in range(30):
-                    step, hidden = self.model.decoder(
+                    step, hidden, weights = self.model.decoder(
                         result[-1], encoded, encoder_mask, hidden)
                     step = step.argmax(-1)
                     result.append(step)
@@ -452,7 +452,7 @@ class Translator():
                 step = torch.LongTensor([[bos_index]]).to(device)
                 result = []
                 for _ in range(30):
-                    step, hidden = self.model.decoder(
+                    step, hidden, weights = self.model.decoder(
                         step, encoded, encoder_mask, hidden)
                     step = step.argmax(-1)
 
@@ -485,7 +485,8 @@ class Translator():
                     _beams = []
                     for beam in beams:
                         inputs = torch.LongTensor([[beam[0][-1]]]).to(device)
-                        step, hidden = self.model.decoder(inputs, hidden)
+                        step, hidden, weights = self.model.decoder(
+                            inputs, hidden)
                         step = F.log_softmax(step, -1)
                         positions = torch.topk(step, beam_size, dim=-1)[1]
 

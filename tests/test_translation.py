@@ -60,7 +60,7 @@ def test_encoder(source, source_seq_size,
 @pytest.mark.parametrize("decodertype", [
     Decoder,
     ScheduledSamplingDecoder,
-    AttentionDecoder,
+    # AttentionDecoder,
 ])
 def test_decoder(
         source, target,
@@ -72,7 +72,7 @@ def test_decoder(
     encoded, hidden = encode(source)
     mask = (source == 1)
 
-    output, hidden = decode(target, encoded, mask, hidden)
+    output, hidden, weights = decode(target, encoded, mask, hidden)
     assert output.shape == (target_seq_size, batch_size, target_vocab_size)
 
 
@@ -86,7 +86,7 @@ def test_translation_model(
         source_vocab_size, target_vocab_size,
         batch_size, target_seq_size):
     translate = TranslationModel(source_vocab_size, target_vocab_size)
-    output, hidden = translate(source, target)
+    output, hidden, weights = translate(source, target)
     assert output.shape == (target_seq_size, batch_size, target_vocab_size)
 
 
