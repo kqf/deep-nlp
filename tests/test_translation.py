@@ -42,10 +42,13 @@ def target(target_vocab_size, target_seq_size, batch_size):
 @pytest.mark.parametrize("batch_size", [512])
 @pytest.mark.parametrize("source_vocab_size", [26])
 @pytest.mark.parametrize("rnn_hidden_dim", [256])
-def test_encoder(source, source_vocab_size, batch_size, rnn_hidden_dim):
+def test_encoder(source, source_seq_size,
+                 source_vocab_size, batch_size, rnn_hidden_dim):
     enc = Encoder(source_vocab_size, rnn_hidden_dim)
     # Return the last hidden state source_seq_size -> 1
-    assert enc(source).shape == (1, batch_size, rnn_hidden_dim)
+    encoded, hidden = enc(source)
+    assert hidden.shape == (1, batch_size, rnn_hidden_dim)
+    assert encoded.shape == (source_seq_size, batch_size, rnn_hidden_dim)
 
 
 @pytest.mark.parametrize("batch_size", [32, 512])
@@ -63,7 +66,11 @@ def test_decoder(
         batch_size, target_seq_size, decodertype):
     encode = Encoder(source_vocab_size)
     decode = decodertype(target_vocab_size)
-    output, hidden = decode(target, encode(source))
+
+    encoded, hidden = encode(source)
+    mask = (source == 1)
+
+    output, hidden = decode(target, encoded, mask, hidden)
     assert output.shape == (target_seq_size, batch_size, target_vocab_size)
 
 

@@ -40,6 +40,7 @@ torch.backends.cudnn.deterministic = True
 - [x] Evaluate the model (BLEU)
 - [x] Beam search
 - [X] Scheduled sampling?
+- [ ] Dropout
 - [ ] More layers
 - [X] Byte-pair decoding
 - [ ] Attention
@@ -135,7 +136,7 @@ class Encoder(torch.nn.Module):
             bidirectional=bidirectional)
 
     def forward(self, inputs, hidden=None):
-        return self._rnn(self._emb(inputs))[-1]
+        return self._rnn(self._emb(inputs))
 
 
 class Decoder(torch.nn.Module):
@@ -151,8 +152,8 @@ class Decoder(torch.nn.Module):
         )
         self._out = torch.nn.Linear(rnn_hidden_dim, vocab_size)
 
-    def forward(self, inputs, encoder_output):
-        outputs, hidden = self._rnn(self._emb(inputs), encoder_output)
+    def forward(self, inputs, encoder_output, encoder_mask, hidden=None):
+        outputs, hidden = self._rnn(self._emb(inputs), hidden)
         return self._out(outputs), hidden
 
 
@@ -170,9 +171,7 @@ class ScheduledSamplingDecoder(torch.nn.Module):
         )
         self._out = torch.nn.Linear(rnn_hidden_dim, vocab_size)
 
-    def forward(self, inputs, encoder_output):
-        hidden = encoder_output
-
+    def forward(self, inputs, encoder_output, encoder_mask, hidden=None):
         embeddings = inputs
         step = inputs[0]
         result = []
@@ -214,8 +213,9 @@ class TranslationModel(torch.nn.Module):
             rnn_hidden_dim, num_layers)
 
     def forward(self, source_inputs, target_inputs):
-        encoder_hidden = self.encoder(source_inputs)
-        return self.decoder(target_inputs, encoder_hidden)
+        encoder_mask = (source_inputs == 1.)  # find mask for padding inputs
+        output, hidden = self.encoder(source_inputs)
+        return self.decoder(target_inputs, output, encoder_mask, hidden)
 
 
 def shift(seq, by, batch_dim=1):
@@ -339,15 +339,16 @@ class Translator():
         )
         with torch.no_grad():
             for i, batch in enumerate(data_iter):
-                encoder_hidden = self.model.encoder(batch.source)
-                hidden = encoder_hidden
+                encoder_mask = (batch.source == 1)
+                encoded, hidden = self.model.encoder(batch.source)
                 # if self.model._bidirectional:
                 #     hidden = None
                 result = [torch.LongTensor([bos_index]).expand(
                     1, batch.target.shape[1]).to(device)]
 
                 for _ in range(30):
-                    step, hidden = self.model.decoder(result[-1], hidden)
+                    step, hidden = self.model.decoder(
+                        result[-1], encoded, encoder_mask, hidden)
                     step = step.argmax(-1)
                     result.append(step)
 
@@ -383,14 +384,16 @@ class Translator():
         outputs = []
         with torch.no_grad():
             for example in X:
+                encoder_mask = (example.source == 1)
                 inputs = X.fields["source"].process(
                     [example.source]).to(device)
-                hidden = self.model.encoder(inputs)
+                encoded, hidden = self.model.encoder(inputs)
 
                 step = torch.LongTensor([[bos_index]]).to(device)
                 result = []
                 for _ in range(30):
-                    step, hidden = self.model.decoder(step, hidden)
+                    step, hidden = self.model.decoder(
+                        step, encoded, encoder_mask, hidden)
                     step = step.argmax(-1)
 
                     if step.item() == eos_index:
