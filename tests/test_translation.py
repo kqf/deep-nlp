@@ -3,7 +3,8 @@ import torch
 import pandas as pd
 
 from models.translation import TextPreprocessor, SubwordTransformer
-from models.translation import Encoder, Decoder, TranslationModel
+from models.translation import Encoder, Decoder, AttentionDecoder
+from models.translation import TranslationModel
 from models.translation import build_model, build_model_bpe
 from models.translation import ScheduledSamplingDecoder
 
@@ -59,6 +60,7 @@ def test_encoder(source, source_seq_size,
 @pytest.mark.parametrize("decodertype", [
     Decoder,
     ScheduledSamplingDecoder,
+    AttentionDecoder,
 ])
 def test_decoder(
         source, target,

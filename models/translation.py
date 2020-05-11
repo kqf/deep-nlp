@@ -1,6 +1,7 @@
 import io
 import math
 import torch
+import torch.nn.functional as F
 import random
 import numpy as np
 import pandas as pd
@@ -187,6 +188,38 @@ class ScheduledSamplingDecoder(torch.nn.Module):
         return self._out(outputs), hidden
 
 
+class AttentionDecoder(torch.nn.Module):
+    def __init__(self, vocab_size, emb_dim=128,
+                 rnn_hidden_dim=256, num_layers=1):
+        super().__init__()
+        self._emb = torch.nn.Embedding(vocab_size, emb_dim)
+        self._attention = AdditiveAttention(
+            rnn_hidden_dim, rnn_hidden_dim, rnn_hidden_dim)
+        self._rnn = torch.nn.GRU(
+            input_size=emb_dim + rnn_hidden_dim,
+            hidden_size=rnn_hidden_dim,
+            num_layers=num_layers
+        )
+        self._out = torch.nn.Linear(rnn_hidden_dim, vocab_size)
+
+    def forward(self, inputs, encoder_output, encoder_mask, hidden=None):
+        embeddings = self._emb(inputs)
+        outputs, attentions = [], []
+        for emb in embeddings:
+            context, weights = self._attention(
+                hidden, key=encoder_output, value=encoder_output,
+                mask=encoder_mask)
+
+            rnn_input = torch.cat([emb.unsqueeze(0), context.unsqueeze(0)], -1)
+            out, hidden = self._rnn(rnn_input, hidden)
+
+            outputs.append(out)
+            attentions.append(weights)
+
+        outputs = torch.cat(outputs)
+        return self._out(outputs), hidden
+
+
 class AdditiveAttention(torch.nn.Module):
     def __init__(self, query_size, key_size, hidden_dim):
         super().__init__()
@@ -209,7 +242,7 @@ class AdditiveAttention(torch.nn.Module):
         f_att.data.masked_fill_(mask.unsqueeze(2), -float('inf'))
 
         # softmax-normalized f_att weight
-        weights = torch.functional.softmax(f_att, 0)
+        weights = F.softmax(f_att, 0)
 
         # find the context vector as a weighed sum of value (s_1, ..., s_m)
         return (weights * value).sum(0), weights
@@ -453,7 +486,7 @@ class Translator():
                     for beam in beams:
                         inputs = torch.LongTensor([[beam[0][-1]]]).to(device)
                         step, hidden = self.model.decoder(inputs, hidden)
-                        step = torch.functional.log_softmax(step, -1)
+                        step = F.log_softmax(step, -1)
                         positions = torch.topk(step, beam_size, dim=-1)[1]
 
                         for i in range(beam_size):
