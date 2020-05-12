@@ -455,13 +455,13 @@ class Translator():
         outputs = []
         with torch.no_grad():
             for example in X:
-                encoder_mask = (example.source == 1)
                 inputs = X.fields["source"].process(
                     [example.source]).to(device)
                 encoded, hidden = self.model.encoder(inputs)
 
                 step = torch.LongTensor([[bos_index]]).to(device)
                 result = []
+                encoder_mask = (inputs == 1)
                 for _ in range(30):
                     step, hidden = self.model.decoder(
                         step, encoded, encoder_mask, hidden)
@@ -563,7 +563,6 @@ def main():
     smodel = build_model(mtype=stype)
     validate("Scheduled sampling", smodel, train, test, sample)
 
-    print("\n--------------------\n")
     bpe_model = build_model_bpe()
     validate("BPE encoding", bpe_model, train, test, sample)
 
