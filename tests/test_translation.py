@@ -4,6 +4,7 @@ import pandas as pd
 
 from models.translation import TextPreprocessor, SubwordTransformer
 from models.translation import Encoder, Decoder, AttentionDecoder
+from models.translation import AdditiveAttention
 from models.translation import TranslationModel
 from models.translation import build_model, build_model_bpe
 from models.translation import ScheduledSamplingDecoder
@@ -50,6 +51,42 @@ def test_encoder(source, source_seq_size,
     encoded, hidden = enc(source)
     assert hidden.shape == (1, batch_size, rnn_hidden_dim)
     assert encoded.shape == (source_seq_size, batch_size, rnn_hidden_dim)
+
+
+@pytest.fixture
+def attention_inputs(batch_size, query_size, key_size, seq_len):
+    query = torch.randn((batch_size, query_size))
+    key = torch.randn((seq_len, batch_size, key_size))
+    value = torch.randn((seq_len, batch_size, key_size))
+    mask = torch.randn((seq_len, batch_size)) > 0
+    return query, key, value, mask
+
+
+@pytest.fixture
+def attention_out_shapes(batch_size, query_size, key_size, seq_len):
+    context = (batch_size, key_size)
+    weights = (seq_len, batch_size, 1)
+    return context, weights
+
+
+@pytest.mark.parametrize("batch_size", [121])
+@pytest.mark.parametrize("seq_len", [122])
+@pytest.mark.parametrize("query_size", [256])
+@pytest.mark.parametrize("key_size", [32])
+@pytest.mark.parametrize("hidden_dim", [133])
+@pytest.mark.parametrize("attentionlayer", [
+    AdditiveAttention,
+])
+def test_attention(
+        attentionlayer, query_size, key_size, hidden_dim,
+        attention_inputs, attention_out_shapes):
+    attention = attentionlayer(query_size, key_size, hidden_dim)
+    output, weights = attention(*attention_inputs)
+
+    output_shape, weights_shape = attention_out_shapes
+
+    assert output.shape == output_shape
+    assert weights.shape == weights_shape
 
 
 @pytest.mark.parametrize("batch_size", [32, 512])
