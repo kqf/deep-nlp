@@ -540,49 +540,36 @@ def build_model_bpe(**kwargs):
     return steps
 
 
+def validate(title, model, train, test, sample):
+    print(title)
+    sample = pd.DataFrame(sample)
+    model.fit(train, None)
+    print(f"Test set BLEU {model.score(test)} %")
+
+    sample["translation"] = model.transform(sample)
+    print(sample[["source", "translation"]])
+    print("\n--------------------\n")
+
+
 def main():
     df = data()
     train, test = train_test_split(df)
     sample = test.sample(10)
 
-    print("Basic encoder-decoder model")
     model = build_model()
-    model.fit(train, None)
-    print(f"Test set BLEU {model.score(test)} %")
+    validate("Basic encoder-decoder", model, train, test, sample)
 
-    basic = pd.DataFrame(sample)
-    basic["translation"] = model.transform(basic)
-    print(basic[["source", "translation"]])
-
-    print("\n--------------------\n")
-    print("Scheduled sampling model")
     stype = partial(TranslationModel, decodertype=ScheduledSamplingDecoder)
     smodel = build_model(mtype=stype)
-    smodel.fit(train, None)
-    print(f"Test set BLEU {smodel.score(test)} %")
-
-    scheduled = pd.DataFrame(sample)
-    scheduled["translation"] = smodel.transform(scheduled)
-    print(scheduled[["source", "translation"]])
-    print("\n--------------------\n")
+    validate("Scheduled sampling", smodel, train, test, sample)
 
     print("\n--------------------\n")
-    print("BPE segmentation model")
     bpe_model = build_model_bpe()
-    bpe_model.fit(train, None)
-    print(f"Test set BLEU {bpe_model.score(test)} %")
+    validate("BPE encoding", bpe_model, train, test, sample)
 
-    bpe = pd.DataFrame(sample)
-    bpe["translation"] = bpe_model.transform(bpe)
-    print(bpe[["source", "translation"]])
-    print("\n--------------------\n")
-
-    print("\n--------------------\n")
-    print("Additive attention model")
     stype = partial(TranslationModel, decodertype=AttentionDecoder)
-    smodel = build_model(mtype=stype)
-    smodel.fit(train, None)
-    print(f"Test set BLEU {smodel.score(test)} %")
+    aamodel = build_model(mtype=stype)
+    validate("Additive attention", aamodel, train, test, sample)
 
 
 if __name__ == "__main__":
