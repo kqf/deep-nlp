@@ -92,7 +92,7 @@ def test_attention(
     assert weights.shape == weights_shape
 
 
-@pytest.mark.parametrize("batch_size", [32, 512])
+@pytest.mark.parametrize("batch_size", [32])
 @pytest.mark.parametrize("source_seq_size", [121])
 @pytest.mark.parametrize("target_seq_size", [122])
 @pytest.mark.parametrize("source_vocab_size", [26])
@@ -113,20 +113,6 @@ def test_decoder(
     mask = (source == 1)
 
     output, hidden = decode(target, encoded, mask, hidden)
-    assert output.shape == (target_seq_size, batch_size, target_vocab_size)
-
-
-@pytest.mark.parametrize("batch_size", [128, 512])
-@pytest.mark.parametrize("source_seq_size", [121])
-@pytest.mark.parametrize("target_seq_size", [122])
-@pytest.mark.parametrize("source_vocab_size", [26])
-@pytest.mark.parametrize("target_vocab_size", [33])
-def test_translation_model(
-        source, target,
-        source_vocab_size, target_vocab_size,
-        batch_size, target_seq_size):
-    translate = TranslationModel(source_vocab_size, target_vocab_size)
-    output, hidden = translate(source, target)
     assert output.shape == (target_seq_size, batch_size, target_vocab_size)
 
 

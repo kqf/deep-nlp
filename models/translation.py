@@ -142,6 +142,7 @@ class AdditiveAttention(torch.nn.Module):
         mask: ByteTensor with shape (encoder_seq_len, batch_size) (ones in positions of <pad> tokens, zeros everywhere else)
         """  # noqa
 
+        # tanh = [encoder_seq_len, batch_size, hidden_dim]
         tanh = torch.tanh(self._query_layer(query) + self._key_layer(key))
 
         f_att = self._energy_layer(tanh)
