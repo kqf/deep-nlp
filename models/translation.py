@@ -126,6 +126,36 @@ class TextPreprocessor(BaseEstimator, TransformerMixin):
         return dataset
 
 
+class AdditiveAttention(torch.nn.Module):
+    def __init__(self, query_size, key_size, hidden_dim):
+        super().__init__()
+
+        self._query_layer = torch.nn.Linear(query_size, hidden_dim)
+        self._key_layer = torch.nn.Linear(key_size, hidden_dim)
+        self._energy_layer = torch.nn.Linear(hidden_dim, 1)
+
+    def forward(self, query, key, value, mask):
+        """
+        query: FloatTensor with shape (batch_size, query_size) (h_i)
+        key: FloatTensor with shape (encoder_seq_len, batch_size, key_size) (sequence of s_1, ..., s_m)
+        value: FloatTensor with shape (encoder_seq_len, batch_size, key_size) (sequence of s_1, ..., s_m)
+        mask: ByteTensor with shape (encoder_seq_len, batch_size) (ones in positions of <pad> tokens, zeros everywhere else)
+        """  # noqa
+
+        tanh = torch.tanh(self._query_layer(query) + self._key_layer(key))
+
+        f_att = self._energy_layer(tanh)
+
+        # Mask out pads: after softmax the masked weights will be 0
+        f_att.data.masked_fill_(mask.unsqueeze(2), -float('inf'))
+
+        # softmax-normalized f_att weight
+        weights = F.softmax(f_att, 0)
+
+        # find the context vector as a weighed sum of value (s_1, ..., s_m)
+        return (weights * value).sum(0), weights
+
+
 class Encoder(torch.nn.Module):
     def __init__(self, vocab_size, emb_dim=128, rnn_hidden_dim=256,
                  num_layers=1, bidirectional=False):
@@ -193,11 +223,10 @@ class ScheduledSamplingDecoder(torch.nn.Module):
 
 class AttentionDecoder(torch.nn.Module):
     def __init__(self, vocab_size, emb_dim=128,
-                 rnn_hidden_dim=256, num_layers=1):
+                 rnn_hidden_dim=256, num_layers=1, atype=AdditiveAttention):
         super().__init__()
         self._emb = torch.nn.Embedding(vocab_size, emb_dim)
-        self._attention = AdditiveAttention(
-            rnn_hidden_dim, rnn_hidden_dim, rnn_hidden_dim)
+        self._attention = atype(rnn_hidden_dim, rnn_hidden_dim, rnn_hidden_dim)
         self._rnn = torch.nn.GRU(
             input_size=emb_dim + rnn_hidden_dim,
             hidden_size=rnn_hidden_dim,
@@ -227,36 +256,6 @@ class AttentionDecoder(torch.nn.Module):
         outputs, hidden, _ = self.logits_with_attention(
             inputs, encoder_output, encoder_mask, hidden)
         return outputs, hidden
-
-
-class AdditiveAttention(torch.nn.Module):
-    def __init__(self, query_size, key_size, hidden_dim):
-        super().__init__()
-
-        self._query_layer = torch.nn.Linear(query_size, hidden_dim)
-        self._key_layer = torch.nn.Linear(key_size, hidden_dim)
-        self._energy_layer = torch.nn.Linear(hidden_dim, 1)
-
-    def forward(self, query, key, value, mask):
-        """
-        query: FloatTensor with shape (batch_size, query_size) (h_i)
-        key: FloatTensor with shape (encoder_seq_len, batch_size, key_size) (sequence of s_1, ..., s_m)
-        value: FloatTensor with shape (encoder_seq_len, batch_size, key_size) (sequence of s_1, ..., s_m)
-        mask: ByteTensor with shape (encoder_seq_len, batch_size) (ones in positions of <pad> tokens, zeros everywhere else)
-        """  # noqa
-
-        tanh = torch.tanh(self._query_layer(query) + self._key_layer(key))
-
-        f_att = self._energy_layer(tanh)
-
-        # Mask out pads: after softmax the masked weights will be 0
-        f_att.data.masked_fill_(mask.unsqueeze(2), -float('inf'))
-
-        # softmax-normalized f_att weight
-        weights = F.softmax(f_att, 0)
-
-        # find the context vector as a weighed sum of value (s_1, ..., s_m)
-        return (weights * value).sum(0), weights
 
 
 # TODO: Add the init token and the eos token as the parameters
