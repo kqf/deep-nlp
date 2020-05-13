@@ -424,10 +424,9 @@ class Translator():
         )
         with torch.no_grad():
             for i, batch in enumerate(data_iter):
-                encoder_mask = (batch.source == 1)
                 encoded, hidden = self.model.encoder(batch.source)
-                # if self.model._bidirectional:
-                #     hidden = None
+                encoder_mask = (batch.source == 1)
+
                 result = [torch.LongTensor([bos_index]).expand(
                     1, batch.target.shape[1]).to(device)]
 
@@ -438,15 +437,16 @@ class Translator():
                     result.append(step)
 
                 targets = batch.target.data.cpu().numpy().T
-                _, eos_indices = np.where(targets == eos_index)
+                eos_indices = (targets == eos_index).argmax(-1)
+                eos_indices[eos_indices == 0] = targets.shape[1]
 
                 targets = [target[:eos_ind]
                            for eos_ind, target in zip(eos_indices, targets)]
                 refs.extend(targets)
 
-                result = torch.cat(result)
-                result = result.data.cpu().numpy().T
-                _, eos_indices = np.where(result == eos_index)
+                result = torch.cat(result).data.cpu().numpy().T
+                eos_indices = (result == eos_index).argmax(-1)
+                eos_indices[eos_indices == 0] = result.shape[1]
 
                 result = [res[:eos_ind]
                           for eos_ind, res in zip(eos_indices, result)]

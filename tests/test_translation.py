@@ -140,16 +140,16 @@ def examples():
 
 
 @pytest.mark.parametrize("mtype", [
-    # TranslationModel,
+    TranslationModel,
     partial(TranslationModel, decodertype=ScheduledSamplingDecoder),
     partial(TranslationModel, decodertype=AttentionDecoder),
 ])
 @pytest.mark.parametrize("create_model", [
     build_model,
-    # build_model_bpe,
+    build_model_bpe,
 ])
 def test_translates(create_model, mtype, data, examples):
-    model = create_model(mtype=mtype)
+    model = create_model(mtype=mtype, epochs_count=2)
     # First fit the text pipeline
     text = model[0]
     text.fit(data, None)
