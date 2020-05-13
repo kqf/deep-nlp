@@ -156,6 +156,21 @@ class AdditiveAttention(torch.nn.Module):
         return (weights * value).sum(0), weights
 
 
+class DotAttention(torch.nn.Module):
+    def __init__(self, query_size, key_size, hidden_dim):
+        super().__init__()
+
+        self._query_layer = torch.nn.Linear(query_size, hidden_dim)
+        self._key_layer = torch.nn.Linear(key_size, hidden_dim)
+        self._energy_layer = torch.nn.Linear(hidden_dim, 1)
+
+    def forward(self, query, key, value, mask):
+        f_att = query * key.transpose(-2, -1)
+        f_att.data.masked_fill_(mask.unsqueeze(-2), -float('inf'))
+        weights = F.softmax(f_att, -1)
+        return weights * value, weights
+
+
 class Encoder(torch.nn.Module):
     def __init__(self, vocab_size, emb_dim=128, rnn_hidden_dim=256,
                  num_layers=1, bidirectional=False):
