@@ -9,6 +9,8 @@ from models.translation import TranslationModel
 from models.translation import build_model, build_model_bpe
 from models.translation import ScheduledSamplingDecoder
 
+from functools import partial
+
 
 @pytest.fixture
 def data(size=100):
@@ -136,12 +138,17 @@ def examples():
     return pd.DataFrame(data)
 
 
+@pytest.mark.parametrize("mtype", [
+    # TranslationModel,
+    partial(TranslationModel, decodertype=ScheduledSamplingDecoder),
+    partial(TranslationModel, decodertype=AttentionDecoder),
+])
 @pytest.mark.parametrize("create_model", [
     build_model,
-    build_model_bpe,
+    # build_model_bpe,
 ])
-def test_translates(create_model, data, examples):
-    model = create_model()
+def test_translates(create_model, mtype, data, examples):
+    model = create_model(mtype=mtype)
     # First fit the text pipeline
     text = model[0]
     text.fit(data, None)
