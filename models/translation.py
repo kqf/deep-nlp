@@ -183,15 +183,13 @@ class MultiplicativeAttention(torch.nn.Module):
 
     def forward(self, query, key, value, mask):
         # assume Q = K
-        # ([B, Q] -> [B, Q, 1]) * ([T, B, K] -> [B, K, T]) = [B, 1, T]
-        f_att = torch.matmul(query, self._key(key).transpose(-2, -1))
-        import ipdb; ipdb.set_trace(); import IPython; IPython.embed() # noqa
-
-        # import ipdb; ipdb.set_trace(); import IPython; IPython.embed() # noqa
-
-        f_att.data.masked_fill_(mask.unsqueeze(-2), -float('inf'))
+        Q = query.unsqueeze(1)  # [B, Q] -> [B, 1, Q]
+        K = key.permute(1, 2, 0)  # [T, B, K] -> [B, K, T]
+        # [B, 1, Q] @ [B, K, T] -> [B, 1, T] -> [T, B, 1]
+        f_att = (Q @ K).permute(2, 0, 1)
+        f_att.data.masked_fill_(mask.unsqueeze(-1), -float('inf'))
         weights = F.softmax(f_att, -1)
-        return torch.matmul(weights, value).sum(0), weights
+        return (weights * value).sum(0), weights
 
 
 class Encoder(torch.nn.Module):
