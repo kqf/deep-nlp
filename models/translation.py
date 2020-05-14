@@ -170,11 +170,28 @@ class DotAttention(torch.nn.Module):
 
         # [B, T, 1] -> [T, B, 1]
         f_att = f_att.transpose(0, 1)
-        # import ipdb; ipdb.set_trace(); import IPython; IPython.embed() # noqa
 
         f_att.data.masked_fill_(mask.unsqueeze(-1), -float('inf'))
         weights = F.softmax(f_att, -1)
         return (weights * value).sum(0), weights
+
+
+class MultiplicativeAttention(torch.nn.Module):
+    def __init__(self, query_size, key_size, hidden_dim):
+        super().__init__()
+        self._key = torch.nn.Linear(key_size, hidden_dim)
+
+    def forward(self, query, key, value, mask):
+        # assume Q = K
+        # ([B, Q] -> [B, Q, 1]) * ([T, B, K] -> [B, K, T]) = [B, 1, T]
+        f_att = torch.matmul(query, self._key(key).transpose(-2, -1))
+        import ipdb; ipdb.set_trace(); import IPython; IPython.embed() # noqa
+
+        # import ipdb; ipdb.set_trace(); import IPython; IPython.embed() # noqa
+
+        f_att.data.masked_fill_(mask.unsqueeze(-2), -float('inf'))
+        weights = F.softmax(f_att, -1)
+        return torch.matmul(weights, value).sum(0), weights
 
 
 class Encoder(torch.nn.Module):
