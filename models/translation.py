@@ -145,6 +145,7 @@ class AdditiveAttention(torch.nn.Module):
         # tanh = [encoder_seq_len, batch_size, hidden_dim]
         tanh = torch.tanh(self._query_layer(query) + self._key_layer(key))
 
+        # f_att = [encoder_seq_len, batch_size, 1]
         f_att = self._energy_layer(tanh)
 
         # Mask out pads: after softmax the masked weights will be 0
@@ -166,10 +167,18 @@ class DotAttention(torch.nn.Module):
         self._energy_layer = torch.nn.Linear(hidden_dim, 1)
 
     def forward(self, query, key, value, mask):
-        f_att = query * key.transpose(-2, -1)
-        f_att.data.masked_fill_(mask.unsqueeze(-2), -float('inf'))
+        # assume Q = K
+        # ([B, Q] -> [B, Q, 1]) * ([T, B, K] -> [B, K, T]) = [B, 1, T]
+        f_att_s = torch.bmm(query.unsqueeze(1), key.permute(1, 2, 0))
+        f_att = f_att_s.transpose(-1, -2)
+
+        # [B, T, 1] -> [T, B, 1]
+        f_att = f_att.transpose(0, 1)
+        # import ipdb; ipdb.set_trace(); import IPython; IPython.embed() # noqa
+
+        f_att.data.masked_fill_(mask.unsqueeze(-1), -float('inf'))
         weights = F.softmax(f_att, -1)
-        return weights * value, weights
+        return (weights * value).sum(0), weights
 
 
 class Encoder(torch.nn.Module):
