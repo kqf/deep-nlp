@@ -179,13 +179,16 @@ class DotAttention(torch.nn.Module):
 class MultiplicativeAttention(torch.nn.Module):
     def __init__(self, query_size, key_size, hidden_dim):
         super().__init__()
-        self._key = torch.nn.Linear(key_size, hidden_dim)
+        self._key = torch.nn.Linear(key_size, query_size)
 
     def forward(self, query, key, value, mask):
-        # assume Q = K
-        Q = query.unsqueeze(1)  # [B, Q] -> [B, 1, Q]
-        K = key.permute(1, 2, 0)  # [T, B, K] -> [B, K, T]
-        # [B, 1, Q] @ [B, K, T] -> [B, 1, T] -> [T, B, 1]
+        # [B, Q] -> [B, 1, Q]
+        Q = query.unsqueeze(1)
+
+        # self._key([T, B, K]) -> [T, B, Q] -> [B, Q, T]
+        K = self._key(key).permute(1, 2, 0)
+
+        # [B, 1, Q] @ [B, Q, T] -> [B, 1, T] -> [T, B, 1]
         f_att = (Q @ K).permute(2, 0, 1)
         f_att.data.masked_fill_(mask.unsqueeze(-1), -float('inf'))
         weights = F.softmax(f_att, -1)
