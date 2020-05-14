@@ -77,7 +77,7 @@ def attention_out_shapes(batch_size, query_size, key_size, seq_len):
 @pytest.mark.parametrize("key_size", [32])
 @pytest.mark.parametrize("hidden_dim", [133])
 @pytest.mark.parametrize("attentionlayer", [
-    # AdditiveAttention,
+    AdditiveAttention,
     DotAttention
 ])
 def test_attention(

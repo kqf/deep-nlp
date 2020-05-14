@@ -162,10 +162,6 @@ class DotAttention(torch.nn.Module):
     def __init__(self, query_size, key_size, hidden_dim):
         super().__init__()
 
-        self._query_layer = torch.nn.Linear(query_size, hidden_dim)
-        self._key_layer = torch.nn.Linear(key_size, hidden_dim)
-        self._energy_layer = torch.nn.Linear(hidden_dim, 1)
-
     def forward(self, query, key, value, mask):
         # assume Q = K
         # ([B, Q] -> [B, Q, 1]) * ([T, B, K] -> [B, K, T]) = [B, 1, T]
