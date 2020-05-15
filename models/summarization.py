@@ -1,4 +1,5 @@
 import pandas as pd
+import math
 import torch
 import torch.nn.functional as F
 import random
@@ -64,6 +65,188 @@ class TextPreprocessor(BaseEstimator, TransformerMixin):
                     for pair in zip(sources[valid_idx], targets[valid_idx])]
         dataset = Dataset(examples, self.fields)
         return dataset
+
+
+def shift(seq, by, batch_dim=1):
+    return torch.cat((seq[by:], seq.new_ones(by, seq.shape[batch_dim])))
+
+
+def epoch(model, criterion, data_iter, optimizer=None, name=None):
+    epoch_loss = 0
+
+    is_train = optimizer is not None
+    name = name or ""
+    model.train(is_train)
+
+    batches_count = len(data_iter)
+
+    with torch.autograd.set_grad_enabled(is_train):
+        bar = tqdm(enumerate(data_iter), total=batches_count)
+        for i, batch in bar:
+            logits, _ = model(batch.source, batch.target)
+
+            # [target_seq_size, batch] -> [target_seq_size, batch]
+            target = shift(batch.target, by=1)
+
+            loss = criterion(
+                # [target_seq_size * batch, target_vocab_size]
+                logits.view(-1, logits.shape[-1]),
+                # [target_seq_size * batch]
+                target.view(-1)
+            )
+
+            epoch_loss += loss.item()
+
+            if optimizer:
+                optimizer.zero_grad()
+                loss.backward()
+                torch.nn.utils.clip_grad_norm_(model.parameters(), 1.)
+                optimizer.step()
+
+            bar.update()
+            bar.set_description(
+                "{:>5s} Loss = {:.5f}, PPX = {:.2f}".format(
+                    name, loss.item(), math.exp(loss.item())))
+
+        bar.set_description(
+            "{:>5s} Loss = {:.5f}, PPX = {:.2f}".format(
+                name, epoch_loss / batches_count,
+                math.exp(epoch_loss / batches_count))
+        )
+        bar.refresh()
+
+    return epoch_loss / batches_count
+
+
+class Translator():
+    def __init__(self, mtype, batch_size=32, epochs_count=8):
+        self.epochs_count = epochs_count
+        self.batch_size = batch_size
+        self.mtype = mtype
+        self.n_beams = None
+        self.model = None
+
+    def model_init(self, source_vocab_size, target_vocab_size):
+        if self.model is None:
+            self.model = self.mtype(
+                source_vocab_size=source_vocab_size,
+                target_vocab_size=target_vocab_size
+            )
+        return self.model
+
+    def fit(self, X, y=None):
+        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        self.model = self.model_init(
+            source_vocab_size=len(X.fields["source"].vocab),
+            target_vocab_size=len(X.fields["target"].vocab),
+        ).to(device)
+
+        pi = X.fields["target"].vocab.stoi["<pad>"]
+        self.criterion = torch.nn.CrossEntropyLoss(ignore_index=pi).to(device)
+        self.optimizer = torch.optim.Adam(self.model.parameters())
+
+        train_dataset, test_dataset = X.split(split_ratio=0.7)
+
+        data_iter, test_iter = BucketIterator.splits(
+            (train_dataset, test_dataset),
+            batch_sizes=(self.batch_size, self.batch_size * 4),
+            shuffle=True,
+            device=device,
+            sort=False,
+        )
+        for i in range(self.epochs_count):
+            name_prefix = "[{} / {}] ".format(i + 1, self.epochs_count)
+            epoch(
+                model=self.model,
+                criterion=self.criterion,
+                data_iter=data_iter,
+                optimizer=self.optimizer,
+                name=f"Train {name_prefix}",
+            )
+            epoch(
+                model=self.model,
+                criterion=self.criterion,
+                data_iter=test_iter,
+                name=f"Valid {name_prefix}",
+            )
+            print(f"Blue score: {self.score(test_dataset):.3g} %")
+        return self
+
+    def score(self, data, y=None):
+        self.model.eval()
+        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        refs, hyps = [], []
+
+        bos_index = data.fields["target"].vocab.stoi["<s>"]
+        eos_index = data.fields["target"].vocab.stoi["</s>"]
+
+        data_iter = BucketIterator(
+            data,
+            batch_size=self.batch_size,
+            shuffle=True,
+            device=device,
+        )
+        with torch.no_grad():
+            for i, batch in enumerate(data_iter):
+                encoded, hidden = self.model.encoder(batch.source)
+                encoder_mask = (batch.source == 1)
+
+                result = [torch.LongTensor([bos_index]).expand(
+                    1, batch.target.shape[1]).to(device)]
+
+                for _ in range(30):
+                    step, hidden = self.model.decoder(
+                        result[-1], encoded, encoder_mask, hidden)
+                    step = step.argmax(-1)
+                    result.append(step)
+
+                targets = batch.target.data.cpu().numpy().T
+                eos_indices = (targets == eos_index).argmax(-1)
+                eos_indices[eos_indices == 0] = targets.shape[1]
+
+                targets = [target[:eos_ind]
+                           for eos_ind, target in zip(eos_indices, targets)]
+                refs.extend(targets)
+
+                result = torch.cat(result).data.cpu().numpy().T
+                eos_indices = (result == eos_index).argmax(-1)
+                eos_indices[eos_indices == 0] = result.shape[1]
+
+                result = [res[:eos_ind]
+                          for eos_ind, res in zip(eos_indices, result)]
+                hyps.extend(result)
+
+        return corpus_bleu([[ref] for ref in refs], hyps) * 100
+
+    def transform(self, X):
+        self.model.eval()
+        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        bos_index = X.fields["target"].vocab.stoi["<s>"]
+        eos_index = X.fields["target"].vocab.stoi["</s>"]
+
+        itos = X.fields["target"].vocab.itos
+        outputs = []
+        with torch.no_grad():
+            for example in X:
+                inputs = X.fields["source"].process(
+                    [example.source]).to(device)
+                encoded, hidden = self.model.encoder(inputs)
+
+                step = torch.LongTensor([[bos_index]]).to(device)
+                result = []
+                encoder_mask = (inputs == 1)
+                for _ in range(30):
+                    step, hidden = self.model.decoder(
+                        step, encoded, encoder_mask, hidden)
+                    step = step.argmax(-1)
+
+                    if step.item() == eos_index:
+                        break
+
+                    result.append(step)
+                outputs.append(
+                    " ".join(itos[ind.squeeze().item()] for ind in result))
+        return outputs
 
 
 def main():
