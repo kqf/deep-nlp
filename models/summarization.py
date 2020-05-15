@@ -1,7 +1,6 @@
 import pandas as pd
 import math
 import torch
-import torch.nn.functional as F
 import random
 import numpy as np
 import pandas as pd
@@ -118,8 +117,71 @@ def epoch(model, criterion, data_iter, optimizer=None, name=None):
     return epoch_loss / batches_count
 
 
-class Translator():
-    def __init__(self, mtype, batch_size=32, epochs_count=8):
+class Encoder(torch.nn.Module):
+    def __init__(self, vocab_size, emb_dim=128, rnn_hidden_dim=256,
+                 num_layers=1, bidirectional=False):
+        super().__init__()
+
+        self._emb = torch.nn.Embedding(vocab_size, emb_dim)
+        self._rnn = torch.nn.GRU(
+            input_size=emb_dim,
+            hidden_size=rnn_hidden_dim,
+            num_layers=num_layers,
+            bidirectional=bidirectional)
+
+    def forward(self, inputs, hidden=None):
+        return self._rnn(self._emb(inputs))
+
+
+class Decoder(torch.nn.Module):
+    def __init__(self, vocab_size, emb_dim=128,
+                 rnn_hidden_dim=256, num_layers=1):
+        super().__init__()
+
+        self._emb = torch.nn.Embedding(vocab_size, emb_dim)
+        self._rnn = torch.nn.GRU(
+            input_size=emb_dim,
+            hidden_size=rnn_hidden_dim,
+            num_layers=num_layers
+        )
+        self._out = torch.nn.Linear(rnn_hidden_dim, vocab_size)
+
+    def forward(self, inputs, encoder_output, encoder_mask, hidden=None):
+        outputs, hidden = self._rnn(self._emb(inputs), hidden)
+        return self._out(outputs), hidden
+
+
+class SummarizationModel(torch.nn.Module):
+    def __init__(
+            self,
+            vocab_size,
+            emb_dim=128,
+            rnn_hidden_dim=256,
+            num_layers=1,
+            bidirectional_encoder=False,
+            encodertype=Encoder,
+            decodertype=Decoder,
+    ):
+
+        super().__init__()
+
+        self.encoder = encodertype(
+            vocab_size, emb_dim,
+            rnn_hidden_dim, num_layers, bidirectional_encoder)
+
+        self.decoder = decodertype(
+            vocab_size, emb_dim,
+            rnn_hidden_dim, num_layers)
+
+    def forward(self, source_inputs, target_inputs):
+        encoder_mask = (source_inputs == 1.)  # find mask for padding inputs
+        output, hidden = self.encoder(source_inputs)
+        return self.decoder(target_inputs, output, encoder_mask, hidden)
+
+
+class Summarizer():
+    def __init__(self, mtype=SummarizationModel,
+                 batch_size=32, epochs_count=8):
         self.epochs_count = epochs_count
         self.batch_size = batch_size
         self.mtype = mtype
@@ -137,7 +199,7 @@ class Translator():
     def fit(self, X, y=None):
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.model = self.model_init(
-            source_vocab_size=len(X.fields["source"].vocab),
+            source_vocab_size=len(X.fields["text"].vocab),
             target_vocab_size=len(X.fields["target"].vocab),
         ).to(device)
 
