@@ -165,7 +165,7 @@ class DotAttention(torch.nn.Module):
     def forward(self, query, key, value, mask):
         # assume Q = K
         # ([B, Q] -> [B, Q, 1]) * ([T, B, K] -> [B, K, T]) = [B, 1, T]
-        f_att_s = torch.bmm(query.unsqueeze(1), key.permute(1, 2, 0))
+        f_att_s = query.unsqueeze(1) @ key.permute(1, 2, 0)
         f_att = f_att_s.transpose(-1, -2)
 
         # [B, T, 1] -> [T, B, 1]
@@ -258,6 +258,10 @@ class ScheduledSamplingDecoder(torch.nn.Module):
 
         outputs = torch.cat(result)
         return self._out(outputs), hidden
+
+
+def attentiondecoder(atype):
+    return partial(AttentionDecoder, atype=atype)
 
 
 class AttentionDecoder(torch.nn.Module):
@@ -607,6 +611,16 @@ def main():
     stype = partial(TranslationModel, decodertype=AttentionDecoder)
     aamodel = build_model(mtype=stype)
     validate("Additive attention", aamodel, train, test, sample)
+
+    stype = partial(TranslationModel,
+                    decodertype=attentiondecoder(DotAttention))
+    aamodel = build_model(mtype=stype)
+    validate("Dot attention", aamodel, train, test, sample)
+
+    stype = partial(TranslationModel,
+                    decodertype=attentiondecoder(MultiplicativeAttention))
+    aamodel = build_model(mtype=stype)
+    validate("Multiplicative attention", aamodel, train, test, sample)
 
 
 if __name__ == "__main__":
