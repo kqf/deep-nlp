@@ -43,10 +43,10 @@ torch.backends.cudnn.deterministic = True
 - [ ] Dropout
 - [ ] More layers
 - [X] Byte-pair decoding
-- [ ] Attention
+- [x] Attention
     - [x] Additive
-    - [ ] Dot attention
-    - [ ] Multiplicative
+    - [x] Dot attention
+    - [x] Multiplicative
 
 """
 
