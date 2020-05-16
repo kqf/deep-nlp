@@ -179,7 +179,7 @@ class SummarizationModel(torch.nn.Module):
         return self.decoder(target_inputs, output, encoder_mask, hidden)
 
 
-class Summarizer():
+class Summarizer(BaseEstimator, TransformerMixin):
     def __init__(self, mtype=SummarizationModel,
                  batch_size=32, epochs_count=8):
         self.epochs_count = epochs_count
@@ -309,6 +309,14 @@ class Summarizer():
                 outputs.append(
                     " ".join(itos[ind.squeeze().item()] for ind in result))
         return outputs
+
+
+def build_model(**kwargs):
+    model = make_pipeline(
+        make_pipeline(TextPreprocessor()),
+        Summarizer(**kwargs),
+    )
+    return model
 
 
 def main():
