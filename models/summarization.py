@@ -1,4 +1,3 @@
-import pandas as pd
 import math
 import torch
 import random
@@ -6,14 +5,10 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
-from functools import partial
 from torchtext.data import Field, Example, Dataset, BucketIterator
 from sklearn.pipeline import make_pipeline
 from sklearn.base import BaseEstimator, TransformerMixin
-from sklearn.model_selection import train_test_split
 from nltk.translate.bleu_score import corpus_bleu
-from subword_nmt.learn_bpe import learn_bpe
-from subword_nmt.apply_bpe import BPE
 
 
 """
@@ -31,7 +26,9 @@ from subword_nmt.apply_bpe import BPE
 
 
 def data():
-    return pd.read_csv("data/news.zip")
+    raw = pd.read_csv("data/news.zip")
+    df = raw.rename(columns={"text": "source", "title": "target"})
+    return df[["source", "target"]]
 
 
 class TextPreprocessor(BaseEstimator, TransformerMixin):
@@ -318,6 +315,12 @@ def build_model(**kwargs):
 def main():
     df = data()
     print(df.head())
+    model = build_model()
+    model.fit(df, None)
+
+    samples = df.sample(10)
+    samples["generated"] = model.transform(samples)
+    print(samples["source", "target", "generated"])
 
 
 if __name__ == '__main__':
