@@ -11,7 +11,16 @@ from sklearn.base import BaseEstimator, TransformerMixin
 from nltk.translate.bleu_score import corpus_bleu
 
 
+SEED = 137
+
+random.seed(SEED)
+np.random.seed(SEED)
+torch.manual_seed(SEED)
+torch.cuda.manual_seed(SEED)
+torch.backends.cudnn.deterministic = True
+
 """
+!mkdir -p data/
 !curl -k -L "https://drive.google.com/uc?export=download&id=1hIVVpBqM6VU4n3ERkKq4tFaH4sKN0Hab" -o data/news.zip
 !pip install torch
 !pip install torchtext
