@@ -24,8 +24,8 @@ from subword_nmt.apply_bpe import BPE
 """  # noqa
 
 """
-    - [ ] Boilerplate
-    - [ ] Decoder encoder
+    - [x] Boilerplate
+    - [x] Decoder encoder
     - [ ] Transformer
 """
 
@@ -188,19 +188,15 @@ class Summarizer(BaseEstimator, TransformerMixin):
         self.n_beams = None
         self.model = None
 
-    def model_init(self, source_vocab_size, target_vocab_size):
+    def model_init(self, vocab_size):
         if self.model is None:
-            self.model = self.mtype(
-                source_vocab_size=source_vocab_size,
-                target_vocab_size=target_vocab_size
-            )
+            self.model = self.mtype(vocab_size=vocab_size)
         return self.model
 
     def fit(self, X, y=None):
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.model = self.model_init(
-            source_vocab_size=len(X.fields["text"].vocab),
-            target_vocab_size=len(X.fields["target"].vocab),
+            vocab_size=len(X.fields["source"].vocab)
         ).to(device)
 
         pi = X.fields["target"].vocab.stoi["<pad>"]

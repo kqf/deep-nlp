@@ -19,7 +19,7 @@ def test_textpreprocessor(data):
     assert tp.transform(data) is not None
 
 
-def test_translates(data):
+def test_summarizes(data):
     model = build_model(epochs_count=2)
     # First fit the text pipeline
     text = model[0]
