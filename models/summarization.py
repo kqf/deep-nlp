@@ -41,11 +41,10 @@ def data():
 
 
 class TextPreprocessor(BaseEstimator, TransformerMixin):
-    def __init__(self, min_freq=3, max_tokens=16, bpe_col_prefix=None,
+    def __init__(self, min_freq=3, bpe_col_prefix=None,
                  init_token="<s>", eos_token="</s>"):
         self.bpe_col_prefix = bpe_col_prefix
         self.min_freq = min_freq
-        self.max_tokens = max_tokens
         self.source = "source"
         self.target = "target"
         self.text = Field(
@@ -61,13 +60,8 @@ class TextPreprocessor(BaseEstimator, TransformerMixin):
     def transform(self, X, y=None):
         sources = X[self.source].apply(self.text.preprocess)
         targets = X[self.target].apply(self.text.preprocess)
-
-        valid_idx = (
-            (sources.str.len() < self.max_tokens) & (
-                targets.str.len() < self.max_tokens)
-        )
         examples = [Example.fromlist(pair, self.fields)
-                    for pair in zip(sources[valid_idx], targets[valid_idx])]
+                    for pair in zip(sources, targets)]
         dataset = Dataset(examples, self.fields)
         return dataset
 
