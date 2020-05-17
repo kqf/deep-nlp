@@ -35,25 +35,24 @@ def data():
 
 
 class TextPreprocessor(BaseEstimator, TransformerMixin):
-    def __init__(self, fields, min_freq=3):
-        self.min_freq = min_freq
+    def __init__(self, fields):
         self.fields = fields
 
     def fit(self, X, y=None):
         dataset = self.transform(X, y)
-        for (_, field) in self.fields:
-            field.build_vocab(dataset, min_freq=self.min_freq)
+        for (name, field) in self.fields:
+            field.build_vocab(dataset)
         return self
 
     def transform(self, X, y=None):
         cols = [X[col].apply(field.preprocess) for col, field in self.fields]
-        examples = [Example.fromlist(c, self.fields) for c in zip(cols)]
+        examples = [Example.fromlist(c, self.fields) for c in zip(*cols)]
         return Dataset(examples, self.fields)
 
 
 def build_preprocessor():
     fields = [
-        ('tokens', Field()),
+        ('words', Field()),
         ('tags', Field(unk_token=None)),
         ('intent', LabelField()),
     ]
