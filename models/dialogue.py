@@ -1,3 +1,4 @@
+import os
 import pandas as pd
 
 
@@ -8,12 +9,30 @@ import pandas as pd
 """
 
 
+def read_single(path):
+    with open(os.path.join(path, 'seq.in')) as fwords, \
+            open(os.path.join(path, 'seq.out')) as ftags, \
+            open(os.path.join(path, 'label')) as fintents:
+
+        df = pd.DataFrame({
+            "words": [w.strip().split() for w in fwords],
+            "tags": [t.strip().split() for t in ftags],
+            "intent": [i.strip() for i in fintents],
+        })
+    return df
+
+
 def data():
-    pass
+    return (
+        read_single("data/SlotGated-SLU/data/atis/train/"),
+        read_single("data/SlotGated-SLU/data/atis/test/"),
+        read_single("data/SlotGated-SLU/data/atis/valid/"),
+    )
 
 
 def main():
-    pass
+    train, test, valid = data()
+    print(train.head())
 
 
 if __name__ == '__main__':
