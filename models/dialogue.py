@@ -1,16 +1,27 @@
 import os
+import random
+import numpy as np
 import pandas as pd
+
+import torch
 from torchtext.data import LabelField, Field, Example, Dataset
 from sklearn.base import BaseEstimator, TransformerMixin
-
 # from torchtext.data import Dataset, BucketIterator
+
+SEED = 137
+
+random.seed(SEED)
+np.random.seed(SEED)
+torch.manual_seed(SEED)
+torch.cuda.manual_seed(SEED)
+torch.backends.cudnn.deterministic = True
 
 
 """
 !mkdir -p data
 !git clone https://github.com/MiuLab/SlotGated-SLU.git
 !mv SlotGated-SLU data
-"""
+""" # noqa
 
 
 def read_single(path):
