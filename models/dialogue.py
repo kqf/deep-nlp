@@ -5,9 +5,8 @@ import numpy as np
 import pandas as pd
 
 from tqdm import tqdm
-from torchtext.data import LabelField, Field, Example, Dataset
+from torchtext.data import LabelField, Field, Example, Dataset, BucketIterator
 from sklearn.base import BaseEstimator, TransformerMixin
-# from torchtext.data import Dataset, BucketIterator
 
 SEED = 137
 
@@ -145,6 +144,43 @@ class ModelTrainer():
                 epoch_progress = self.on_epoch_end()
                 progress_bar.set_description(epoch_progress)
                 progress_bar.refresh()
+
+
+class IntentClassifier(BaseEstimator, TransformerMixin):
+    def __init__(self, model=None):
+        self.model = model
+        self.trainer = None
+
+    def _init_trainer(self, X, y):
+        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        if self.trainer is None:
+            self.model = self.model or IntentClassifierModel(
+                vocab_size=len(X.fields["tokens"].vocab),
+                intents_count=len(X.fields["intent"].vocab)).to(device)
+            criterion = torch.nn.CrossEntropyLoss().to(device)
+            optimizer = torch.optim.Adam(self.model.parameters())
+            self.trainer = ModelTrainer(self.model, criterion, optimizer)
+
+    def fit(self, X, y=None):
+        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        self._init_trainer(X, y)
+        train_dataset, test_dataset = X.split(split_ratio=0.7)
+
+        train, val = BucketIterator.splits(
+            (train_dataset, test_dataset),
+            batch_sizes=(self.batch_size, self.batch_size * 4),
+            shuffle=True,
+            device=device,
+            sort=False,
+        )
+
+        pad_idx = X.fields["tokens"].vocab.stoi["<pad>"]
+        for epoch in range(self.epochs_count):
+            name = '[{} / {}] Train'.format(epoch + 1, self.epochs_count)
+            self.trainer.epoch(train, pad_idx, is_train=True, name=name)
+            name = '[{} / {}] Val'.format(epoch + 1, self.epochs_count)
+            self.trainer.epoch(val, pad_idx, is_train=False, name=name)
+        return self
 
 
 def main():
