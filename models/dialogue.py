@@ -7,6 +7,7 @@ import pandas as pd
 from tqdm import tqdm
 from torchtext.data import LabelField, Field, Example, Dataset, BucketIterator
 from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.pipeline import make_pipeline
 
 SEED = 137
 
@@ -30,7 +31,7 @@ def read_single(path):
             open(os.path.join(path, 'label')) as fintents:
 
         df = pd.DataFrame({
-            "words": [w.strip().split() for w in fwords],
+            "toekns": [w.strip().split() for w in fwords],
             "tags": [t.strip().split() for t in ftags],
             "intent": [i.strip() for i in fintents],
         })
@@ -63,7 +64,7 @@ class TextPreprocessor(BaseEstimator, TransformerMixin):
 
 def build_preprocessor():
     fields = [
-        ('words', Field()),
+        ('tokens', Field()),
         ('tags', Field(unk_token=None)),
         ('intent', LabelField()),
     ]
@@ -147,8 +148,10 @@ class ModelTrainer():
 
 
 class IntentClassifier(BaseEstimator, TransformerMixin):
-    def __init__(self, model=None):
+    def __init__(self, model=None, batch_size=32, epochs_count=30):
         self.model = model
+        self.batch_size = batch_size
+        self.epochs_count = epochs_count
         self.trainer = None
 
     def _init_trainer(self, X, y):
@@ -181,6 +184,14 @@ class IntentClassifier(BaseEstimator, TransformerMixin):
             name = '[{} / {}] Val'.format(epoch + 1, self.epochs_count)
             self.trainer.epoch(val, pad_idx, is_train=False, name=name)
         return self
+
+
+def build_model():
+    model = make_pipeline(
+        build_preprocessor(),
+        IntentClassifier(),
+    )
+    return model
 
 
 def main():

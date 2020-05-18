@@ -3,7 +3,7 @@ import pytest
 import pandas as pd
 
 from models.dialogue import build_preprocessor
-from models.dialogue import IntentClassifierModel
+from models.dialogue import IntentClassifierModel, build_model
 
 
 @pytest.fixture
@@ -15,7 +15,7 @@ def data(size=100):
     atagged = "O   O     name O   O      O O     O  O".split()
 
     corpus = {
-        "words": [isource, asource] * size,
+        "tokens": [isource, asource] * size,
         "tags": [itagged, atagged] * size,
         "intent": ["inform", "answer"] * size,
     }
@@ -31,7 +31,12 @@ def test_preprocessor(data):
 @pytest.mark.parametrize("seq_size", [100])
 @pytest.mark.parametrize("vocab_size", [1000])
 @pytest.mark.parametrize("intents", [2])
-def test_intent_classifier(batch_size, seq_size, vocab_size, intents):
+def test_intent_classifier_model(batch_size, seq_size, vocab_size, intents):
     batch = torch.randint(0, vocab_size, (seq_size, batch_size))
     model = IntentClassifierModel(vocab_size, intents)
     assert model(batch).shape == (batch_size, intents)
+
+
+def test_intent_classifier(data):
+    model = build_model()
+    model.fit(data, None)
