@@ -1,4 +1,5 @@
 import os
+import torch
 import random
 import numpy as np
 import pandas as pd
@@ -21,7 +22,7 @@ torch.backends.cudnn.deterministic = True
 !mkdir -p data
 !git clone https://github.com/MiuLab/SlotGated-SLU.git
 !mv SlotGated-SLU data
-""" # noqa
+"""  # noqa
 
 
 def read_single(path):
@@ -68,6 +69,20 @@ def build_preprocessor():
         ('intent', LabelField()),
     ]
     return TextPreprocessor(fields)
+
+
+class IntentClassifierModel(torch.nn.Module):
+    def __init__(self, vocab_size, intents_count, emb_dim=64,
+                 lstm_hidden_dim=128, num_layers=1):
+        super().__init__()
+        self._emb = torch.nn.Embedding(vocab_size, emb_dim)
+        self._rnn = torch.nn.LSTM(
+            emb_dim, lstm_hidden_dim, num_layers=num_layers)
+        self._out = torch.nn.Linear(lstm_hidden_dim, intents_count)
+
+    def forward(self, inputs):
+        rnn_output = self._rnn(self._emb(inputs))[0]
+        return self._out(rnn_output[-1])
 
 
 def main():
