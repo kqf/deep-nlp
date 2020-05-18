@@ -85,6 +85,53 @@ class IntentClassifierModel(torch.nn.Module):
         return self._out(rnn_output[-1])
 
 
+class ModelTrainer():
+    def __init__(self, model, criterion, optimizer):
+        self.model = model
+        self.criterion = criterion
+        self.optimizer = optimizer
+
+    def on_epoch_begin(self, is_train, name, batches_count):
+        """
+        Initialize metrics
+        """
+        self.epoch_loss = 0
+        self.correct_count = 0
+        self.total_count = 0
+        self.is_train = is_train
+        self.name = name
+        self.batches_count = batches_count
+        self.model.train(is_train)
+
+    def on_epoch_end(self):
+        msg = '{:>5s} Loss = {:.5f}, Accuracy = {:.2%}'
+        return msg.format(
+            self.name,
+            self.epoch_loss / self.batches_count,
+            self.correct_count / self.total_count
+        )
+
+    def on_batch(self, batch):
+        logits = self.model(batch.tokens)
+        pred = logits.argmax(-1)
+
+        self.correct_count += (pred == batch.intent).float().sum()
+        self.total_count += len(batch.intent)
+
+        loss = self.criterion(logits, batch.intent)
+
+        if self.is_train:
+            self.optimizer.zero_grad()
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.)
+            self.optimizer.step()
+        self.epoch_loss += loss.item()
+
+        return '{:>5s} Loss = {:.5f}, Accuracy = {:.2%}'.format(
+            self.name, loss.item(), self.correct_count / self.total_count
+        )
+
+
 def main():
     train, test, valid = data()
     print(train.head())
