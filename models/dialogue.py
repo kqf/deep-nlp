@@ -189,14 +189,17 @@ class IntentClassifier(BaseEstimator, TransformerMixin):
 class TokenTaggerModel(torch.nn.Module):
     def __init__(self, vocab_size, tags_count,
                  emb_dim=64, lstm_hidden_dim=128,
-                 num_layers=1):
+                 num_layers=1, bidirectional=True):
         super().__init__()
 
         self._emb = torch.nn.Embedding(vocab_size, emb_dim)
-        self._rnn = torch.nn.LSTM(emb_dim, lstm_hidden_dim,
-                                  num_layers=num_layers, bidirectional=True)
+        self._rnn = torch.nn.LSTM(
+            emb_dim, lstm_hidden_dim,
+            num_layers=num_layers,
+            bidirectional=bidirectional)
+
         self._out = torch.nn.Linear(
-            2 * lstm_hidden_dim * num_layers, tags_count)
+            (1 + bidirectional) * lstm_hidden_dim * num_layers, tags_count)
 
     def forward(self, inputs):
         embs = self._emb(inputs)
