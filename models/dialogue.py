@@ -210,6 +210,21 @@ class TokenTaggerModel(torch.nn.Module):
         return self._out(outputs)
 
 
+class TaggerTrainer(ModelTrainer):
+    def _loss(self, batch):
+        target = batch.tags
+        logits = self.model(batch.tokens)
+
+        mask = (target != self.pad_idx).float()
+        pred = logits.argmax(-1)
+
+        self.correct_count += ((pred == batch.tags).float() * mask).sum()
+        self.total_count += mask.sum()
+
+        return self.criterion(
+            logits.view(-1, logits.shape[-1]), target.view(-1))
+
+
 def build_model():
     model = make_pipeline(
         build_preprocessor(),
