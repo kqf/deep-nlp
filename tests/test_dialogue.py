@@ -2,8 +2,8 @@ import torch
 import pytest
 import pandas as pd
 
-from models.dialogue import build_preprocessor
-from models.dialogue import IntentClassifierModel, build_model
+from models.dialogue import build_preprocessor, build_model
+from models.dialogue import IntentClassifierModel, TokenTaggerModel
 
 
 @pytest.fixture
@@ -35,6 +35,16 @@ def test_intent_classifier_model(batch_size, seq_size, vocab_size, intents):
     batch = torch.randint(0, vocab_size, (seq_size, batch_size))
     model = IntentClassifierModel(vocab_size, intents)
     assert model(batch).shape == (batch_size, intents)
+
+
+@pytest.mark.parametrize("batch_size", [128])
+@pytest.mark.parametrize("seq_size", [100])
+@pytest.mark.parametrize("vocab_size", [1000])
+@pytest.mark.parametrize("tags_count", [100])
+def test_ner(batch_size, seq_size, vocab_size, tags_count):
+    batch = torch.randint(0, vocab_size, (seq_size, batch_size))
+    model = TokenTaggerModel(vocab_size, tags_count)
+    assert model(batch).shape == (seq_size, batch_size, tags_count)
 
 
 def test_intent_classifier(data):
