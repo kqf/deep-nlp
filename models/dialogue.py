@@ -111,14 +111,17 @@ class ModelTrainer():
             self.correct_count / self.total_count
         )
 
-    def on_batch(self, batch):
+    def _loss(self, batch):
         logits = self.model(batch.tokens)
         pred = logits.argmax(-1)
 
         self.correct_count += (pred == batch.intent).float().sum()
         self.total_count += len(batch.intent)
 
-        loss = self.criterion(logits, batch.intent)
+        return self.criterion(logits, batch.intent)
+
+    def on_batch(self, batch):
+        loss = self._loss(batch)
 
         if self.is_train:
             self.optimizer.zero_grad()
