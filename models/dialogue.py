@@ -187,21 +187,40 @@ class TaggerTrainer(ModelTrainer):
 
 
 class UnifiedClassifier(BaseEstimator, TransformerMixin):
-    def __init__(self, model=None, batch_size=32, epochs_count=30):
-        self.model = model
+    _modeltypes = {
+        "intent": IntentClassifierModel,
+        "tagger": TaggerModel,
+    }
+
+    _trainertypes = {
+        "intent": ModelTrainer,
+        "tagger": TaggerTrainer,
+    }
+
+    _targets = {
+        "intent": "intent",
+        "tagger": "tags"
+    }
+
+    def __init__(self, modelname="intent", batch_size=32,
+                 epochs_count=30, model=None):
+        self.model = None
         self.batch_size = batch_size
         self.epochs_count = epochs_count
         self.trainer = None
+        self._target = self._targets[modelname]
+        self._modeltype = self._modeltypes[modelname]
+        self._trainertype = self._trainertypes[modelname]
 
     def _init_trainer(self, X, y):
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         if self.trainer is None:
-            self.model = self.model or IntentClassifierModel(
+            self.model = self._modeltype(
                 vocab_size=len(X.fields["tokens"].vocab),
-                intents_count=len(X.fields["intent"].vocab)).to(device)
+                intents_count=len(X.fields[self._target].vocab)).to(device)
             criterion = torch.nn.CrossEntropyLoss().to(device)
             optimizer = torch.optim.Adam(self.model.parameters())
-            self.trainer = ModelTrainer(self.model, criterion, optimizer)
+            self.trainer = self._trainertype(self.model, criterion, optimizer)
 
     def fit(self, X, y=None):
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
