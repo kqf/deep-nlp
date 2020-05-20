@@ -72,13 +72,13 @@ def build_preprocessor():
 
 
 class IntentClassifierModel(torch.nn.Module):
-    def __init__(self, vocab_size, intents_count, emb_dim=64,
+    def __init__(self, vocab_size, output_count, emb_dim=64,
                  lstm_hidden_dim=128, num_layers=1):
         super().__init__()
         self._emb = torch.nn.Embedding(vocab_size, emb_dim)
         self._rnn = torch.nn.LSTM(
             emb_dim, lstm_hidden_dim, num_layers=num_layers)
-        self._out = torch.nn.Linear(lstm_hidden_dim, intents_count)
+        self._out = torch.nn.Linear(lstm_hidden_dim, output_count)
 
     def forward(self, inputs):
         rnn_output = self._rnn(self._emb(inputs))[0]
@@ -151,7 +151,7 @@ class ModelTrainer():
 
 
 class TaggerModel(torch.nn.Module):
-    def __init__(self, vocab_size, tags_count,
+    def __init__(self, vocab_size, output_count,
                  emb_dim=64, lstm_hidden_dim=128,
                  num_layers=1, bidirectional=True):
         super().__init__()
@@ -163,7 +163,7 @@ class TaggerModel(torch.nn.Module):
             bidirectional=bidirectional)
 
         self._out = torch.nn.Linear(
-            (1 + bidirectional) * lstm_hidden_dim * num_layers, tags_count)
+            (1 + bidirectional) * lstm_hidden_dim * num_layers, output_count)
 
     def forward(self, inputs):
         embs = self._emb(inputs)
@@ -217,10 +217,11 @@ class UnifiedClassifier(BaseEstimator, TransformerMixin):
         if self.trainer is None:
             self.model = self._modeltype(
                 vocab_size=len(X.fields["tokens"].vocab),
-                intents_count=len(X.fields[self._target].vocab)).to(device)
+                output_count=len(X.fields[self._target].vocab)).to(device)
             criterion = torch.nn.CrossEntropyLoss().to(device)
             optimizer = torch.optim.Adam(self.model.parameters())
             self.trainer = self._trainertype(self.model, criterion, optimizer)
+            self.trainer.pad_idx = X.fields["tokens"].vocab.stoi["pad"]
 
     def fit(self, X, y=None):
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -244,10 +245,10 @@ class UnifiedClassifier(BaseEstimator, TransformerMixin):
         return self
 
 
-def build_model():
+def build_model(**args):
     model = make_pipeline(
         build_preprocessor(),
-        UnifiedClassifier(),
+        UnifiedClassifier(**args),
     )
     return model
 

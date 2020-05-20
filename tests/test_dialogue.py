@@ -47,6 +47,7 @@ def test_ner(batch_size, seq_size, vocab_size, tags_count):
     assert model(batch).shape == (seq_size, batch_size, tags_count)
 
 
-def test_intent_classifier(data):
-    model = build_model()
+@pytest.mark.parametrize("modelname", ["intent", "tagger"])
+def test_intent_classifier(data, modelname):
+    model = build_model(modelname=modelname, epochs_count=2)
     model.fit(data, None)
