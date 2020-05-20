@@ -8,6 +8,7 @@ from tqdm import tqdm
 from torchtext.data import LabelField, Field, Example, Dataset, BucketIterator
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.pipeline import make_pipeline
+from conlleval import evaluate as conll_lines
 
 SEED = 137
 
@@ -19,6 +20,7 @@ torch.backends.cudnn.deterministic = True
 
 
 """
+!pip install torch numpy sklearn conlleval
 !mkdir -p data
 !git clone https://github.com/MiuLab/SlotGated-SLU.git
 !mv SlotGated-SLU data
@@ -243,6 +245,12 @@ class UnifiedClassifier(BaseEstimator, TransformerMixin):
             name = '[{} / {}] Val'.format(epoch + 1, self.epochs_count)
             self.trainer.epoch(val, pad_idx, is_train=False, name=name)
         return self
+
+
+def coll_score(y_true, y_pred, metrics=("f1", "prec", "rec"), **kwargs):
+    lines = [(t, p) for pair in zip(y_true, y_pred) for t, p in zip(*pair)]
+    res = conll_lines(lines)
+    return [res["overall"]["tags"]["evals"][m] for m in metrics]
 
 
 def build_model(**args):
