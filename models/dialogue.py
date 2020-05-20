@@ -150,7 +150,43 @@ class ModelTrainer():
                 progress_bar.refresh()
 
 
-class IntentClassifier(BaseEstimator, TransformerMixin):
+class TaggerModel(torch.nn.Module):
+    def __init__(self, vocab_size, tags_count,
+                 emb_dim=64, lstm_hidden_dim=128,
+                 num_layers=1, bidirectional=True):
+        super().__init__()
+
+        self._emb = torch.nn.Embedding(vocab_size, emb_dim)
+        self._rnn = torch.nn.LSTM(
+            emb_dim, lstm_hidden_dim,
+            num_layers=num_layers,
+            bidirectional=bidirectional)
+
+        self._out = torch.nn.Linear(
+            (1 + bidirectional) * lstm_hidden_dim * num_layers, tags_count)
+
+    def forward(self, inputs):
+        embs = self._emb(inputs)
+        outputs, _ = self._rnn(embs, None)
+        return self._out(outputs)
+
+
+class TaggerTrainer(ModelTrainer):
+    def _loss(self, batch):
+        target = batch.tags
+        logits = self.model(batch.tokens)
+
+        mask = (target != self.pad_idx).float()
+        pred = logits.argmax(-1)
+
+        self.correct_count += ((pred == batch.tags).float() * mask).sum()
+        self.total_count += mask.sum()
+
+        return self.criterion(
+            logits.view(-1, logits.shape[-1]), target.view(-1))
+
+
+class UnifiedClassifier(BaseEstimator, TransformerMixin):
     def __init__(self, model=None, batch_size=32, epochs_count=30):
         self.model = model
         self.batch_size = batch_size
@@ -189,46 +225,10 @@ class IntentClassifier(BaseEstimator, TransformerMixin):
         return self
 
 
-class TokenTaggerModel(torch.nn.Module):
-    def __init__(self, vocab_size, tags_count,
-                 emb_dim=64, lstm_hidden_dim=128,
-                 num_layers=1, bidirectional=True):
-        super().__init__()
-
-        self._emb = torch.nn.Embedding(vocab_size, emb_dim)
-        self._rnn = torch.nn.LSTM(
-            emb_dim, lstm_hidden_dim,
-            num_layers=num_layers,
-            bidirectional=bidirectional)
-
-        self._out = torch.nn.Linear(
-            (1 + bidirectional) * lstm_hidden_dim * num_layers, tags_count)
-
-    def forward(self, inputs):
-        embs = self._emb(inputs)
-        outputs, _ = self._rnn(embs, None)
-        return self._out(outputs)
-
-
-class TaggerTrainer(ModelTrainer):
-    def _loss(self, batch):
-        target = batch.tags
-        logits = self.model(batch.tokens)
-
-        mask = (target != self.pad_idx).float()
-        pred = logits.argmax(-1)
-
-        self.correct_count += ((pred == batch.tags).float() * mask).sum()
-        self.total_count += mask.sum()
-
-        return self.criterion(
-            logits.view(-1, logits.shape[-1]), target.view(-1))
-
-
 def build_model():
     model = make_pipeline(
         build_preprocessor(),
-        IntentClassifier(),
+        UnifiedClassifier(),
     )
     return model
 
