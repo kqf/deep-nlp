@@ -262,6 +262,35 @@ class UnifiedClassifier(BaseEstimator, TransformerMixin):
         return output
 
 
+class SharedModel(torch.nn.Module):
+    def __init__(self, vocab_size, intents_count, tags_count,
+                 emb_dim=64, lstm_hidden_dim=128, num_layers=1):
+        super().__init__()
+
+        self._intents_embs = torch.nn.Embedding(vocab_size, emb_dim)
+        self._tags_embs = torch.nn.Embedding(vocab_size, emb_dim)
+        self._rnn = torch.nn.LSTM(2 * emb_dim, lstm_hidden_dim,
+                                  num_layers=num_layers, bidirectional=True)
+        self._intents_out = torch.nn.Linear(
+            2 * lstm_hidden_dim * num_layers, intents_count)
+        self._tags_out = torch.nn.Linear(
+            2 * lstm_hidden_dim * num_layers, tags_count)
+
+    def forward(self, inputs):
+        intents_embs = self._intents_embs(inputs)
+        tags_embs = self._tags_embs(inputs)
+
+        embs = torch.cat((intents_embs, tags_embs), -1)
+
+        output, (hidden, _) = self._rnn(embs, None)
+        intents = torch.cat((hidden[0], hidden[1]), -1)
+
+        intents = self._intents_out(intents).squeeze(0)
+        tags = self._tags_out(output)
+
+        return intents, tags
+
+
 def conll_score(y_true, y_pred, metrics=("f1", "prec", "rec"), **kwargs):
     lines = [f"dummy XXX {t} {p}" for pair in zip(y_true, y_pred)
              for t, p in zip(*pair)]
