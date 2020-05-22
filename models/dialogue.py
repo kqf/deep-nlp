@@ -291,6 +291,81 @@ class SharedModel(torch.nn.Module):
         return intents, tags
 
 
+class SharedTrainer():
+    _msg = (
+        "{:>5s} Loss = {:.5f},"
+        " Intents Accuracy = {:.2%},"
+        " Tags Accuracy = {:.2%}"
+    )
+
+    def __init__(self, model, intents_criterion,
+                 tags_criterion, optimizer, pad_idx):
+        self.model = model
+        self.intents_criterion = intents_criterion
+        self.tags_criterion = tags_criterion
+        self.optimizer = optimizer
+        self.pad_idx = pad_idx
+
+    def on_epoch_begin(self, is_train, name, batches_count):
+        """
+        Initializes metrics
+        """
+        self.epoch_loss = 0
+        self.intents_correct_count, self.intents_total_count = 0, 0
+        self.tags_correct_count, self.tags_total_count = 0, 0
+        self.is_train = is_train
+        self.name = name
+        self.batches_count = batches_count
+
+        self.model.train(is_train)
+
+    def on_epoch_end(self):
+        """
+        Outputs final metrics
+        """
+        return self._msg.format(
+            self.name, self.epoch_loss / self.batches_count,
+            self.intents_correct_count / self.intents_total_count,
+            self.tags_correct_count / self.tags_total_count
+        )
+
+    def on_batch(self, batch):
+        """
+        Performs forward and (if is_train) backward pass with optimization,
+        updates metrics
+        """
+        intents, tags = self.model(batch.tokens)
+        intents_pred = intents.argmax(-1)
+        tags_pred = tags.argmax(-1)
+
+        mask = (batch.tags != self.pad_idx).float()
+
+        self.intents_correct_count += (
+            intents_pred == batch.intent).float().sum()
+        self.intents_total_count += len(batch.intent)
+        self.tags_correct_count += (
+            (tags_pred == batch.tags).float() * mask).sum()
+        self.tags_total_count += mask.sum()
+
+        intents_loss = self.intents_criterion(intents, batch.intent)
+        tags_loss = self.tags_criterion(
+            tags.view(-1, tags.shape[-1]), batch.tags.view(-1))
+        loss = intents_loss + tags_loss
+
+        if self.is_train:
+            self.optimizer.zero_grad()
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.)
+            self.optimizer.step()
+        self.epoch_loss += loss.item()
+
+        return self._msg.format(
+            self.name, loss.item(),
+            self.intents_correct_count / self.intents_total_count,
+            self.tags_correct_count / self.tags_total_count
+        )
+
+
 def conll_score(y_true, y_pred, metrics=("f1", "prec", "rec"), **kwargs):
     lines = [f"dummy XXX {t} {p}" for pair in zip(y_true, y_pred)
              for t, p in zip(*pair)]
