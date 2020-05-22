@@ -50,11 +50,16 @@ def test_ner(batch_size, seq_size, vocab_size, tags_count):
 @pytest.mark.parametrize("batch_size", [128])
 @pytest.mark.parametrize("seq_size", [100])
 @pytest.mark.parametrize("vocab_size", [1000])
+@pytest.mark.parametrize("intents_count", [20])
 @pytest.mark.parametrize("tags_count", [100])
-def test_shared_model(batch_size, seq_size, vocab_size, tags_count):
+def test_shared_model(batch_size, seq_size, vocab_size,
+                      intents_count, tags_count):
     batch = torch.randint(0, vocab_size, (seq_size, batch_size))
-    model = TaggerModel(vocab_size, tags_count)
-    assert model(batch).shape == (seq_size, batch_size, tags_count)
+    model = SharedModel(vocab_size, intents_count, tags_count)
+
+    intent_logits, tag_logits = model(batch)
+    assert intent_logits.shape == (batch_size, intents_count)
+    assert tag_logits.shape == (seq_size, batch_size, tags_count)
 
 
 @pytest.mark.parametrize("modelname", [
