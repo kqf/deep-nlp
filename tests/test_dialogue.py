@@ -1,5 +1,6 @@
 import torch
 import pytest
+import numpy as np
 import pandas as pd
 
 from models.dialogue import build_preprocessor, build_model
@@ -47,7 +48,12 @@ def test_ner(batch_size, seq_size, vocab_size, tags_count):
     assert model(batch).shape == (seq_size, batch_size, tags_count)
 
 
-@pytest.mark.parametrize("modelname", ["intent", "tagger"])
+@pytest.mark.parametrize("modelname", [
+    "intent",
+    # "tagger",
+])
 def test_intent_classifier(data, modelname):
     model = build_model(modelname=modelname, epochs_count=2)
     model.fit(data, None)
+    preds = model.predict(data)
+    print(preds)

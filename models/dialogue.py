@@ -246,6 +246,21 @@ class UnifiedClassifier(BaseEstimator, TransformerMixin):
             self.trainer.epoch(val, pad_idx, is_train=False, name=name)
         return self
 
+    def predict(self, X):
+        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        self.model.eval()
+
+        x_iter = BucketIterator(
+            X, batch_size=self.batch_size * 4, device=device)
+
+        output = []
+        with torch.no_grad():
+            for batch in x_iter:
+                pred = self.model(batch.tokens).argmax(-1)
+                labels = [X.fields[self._target].vocab.itos[i] for i in pred]
+                output.append(labels)
+        return output
+
 
 def conll_score(y_true, y_pred, metrics=("f1", "prec", "rec"), **kwargs):
     lines = [f"dummy XXX {t} {p}" for pair in zip(y_true, y_pred)
