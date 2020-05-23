@@ -2,6 +2,9 @@ import torch
 import pytest
 import pandas as pd
 
+
+from sklearn.metrics import accuracy_score
+
 from models.dialogue import build_preprocessor, build_model
 from models.dialogue import IntentClassifierModel, TaggerModel, SharedModel
 
@@ -62,12 +65,13 @@ def test_shared_model(batch_size, seq_size, vocab_size,
     assert tag_logits.shape == (seq_size, batch_size, tags_count)
 
 
-@pytest.mark.parametrize("modelname", [
-    "intent",
-    "tagger"
+@pytest.mark.parametrize("modelname, target, score", [
+    ("intent", "intent", accuracy_score),
+    # ("tagger", "tags", accuracy_score),
 ])
-def test_intent_classifier(data, modelname):
-    model = build_model(modelname=modelname, epochs_count=2)
-    model.fit(data, None)
-    preds = model.predict(data)
-    print(preds)
+def test_intent_classifier(data, modelname, target, score):
+    model = build_model(modelname=modelname, epochs_count=20)
+    model.fit(data.sample(frac=1), None)
+    data["preds"] = model.predict(data)
+    # print(data.head())
+    print(score(data[target], data["preds"]))

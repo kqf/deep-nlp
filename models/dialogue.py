@@ -260,9 +260,8 @@ class UnifiedClassifier(BaseEstimator, TransformerMixin):
             for batch in x_iter:
                 pred = self.model(batch.tokens).argmax(-1)
                 if self._target == "intent":
-                    labels = [X.fields[self._target].vocab.itos[i]
-                              for i in pred]
-                    output.append(labels)
+                    for i in pred:
+                        output.append(vocab[i])
                     continue
 
                 mask = batch.tokens != pi
