@@ -374,11 +374,15 @@ class SharedTrainer():
         )
 
 
-def conll_score(y_true, y_pred, metrics=("f1", "prec", "rec"), **kwargs):
+def conll_score(y_true, y_pred, metrics="f1", **kwargs):
     lines = [f"dummy XXX {t} {p}" for pair in zip(y_true, y_pred)
              for t, p in zip(*pair)]
-    res = conll_lines(lines)
-    return [res["overall"]["tags"]["evals"][m] for m in metrics]
+    result = conll_lines(lines)["overall"]["tags"]["evals"]
+
+    if isinstance(metrics, str):
+        return result[metrics]
+
+    return [result[m] for m in metrics]
 
 
 def build_model(**args):

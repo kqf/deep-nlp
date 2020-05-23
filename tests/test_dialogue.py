@@ -7,6 +7,7 @@ from sklearn.metrics import accuracy_score
 
 from models.dialogue import build_preprocessor, build_model
 from models.dialogue import IntentClassifierModel, TaggerModel, SharedModel
+from models.dialogue import conll_score
 
 
 @pytest.fixture
@@ -67,10 +68,10 @@ def test_shared_model(batch_size, seq_size, vocab_size,
 
 @pytest.mark.parametrize("modelname, target, score", [
     ("intent", "intent", accuracy_score),
-    # ("tagger", "tags", accuracy_score),
+    ("tagger", "tags", conll_score),
 ])
 def test_intent_classifier(data, modelname, target, score):
-    model = build_model(modelname=modelname, epochs_count=2)
+    model = build_model(modelname=modelname, epochs_count=5)
     model.fit(data.sample(frac=1), None)
     data["preds"] = model.predict(data)
     assert score(data[target], data["preds"]) > 0.5
