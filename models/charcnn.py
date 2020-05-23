@@ -1,3 +1,4 @@
+import random
 import time
 import torch
 import numpy as np
@@ -18,6 +19,14 @@ from sklearn.metrics import plot_precision_recall_curve
 !pip install scikit-learn
 !curl -k -L "https://drive.google.com/uc?export=download&id=1z7avv1JiI30V4cmHJGFIfDEs9iE4SHs5" -o data/surnames.txt
 """  # noqa
+
+SEED = 137
+
+random.seed(SEED)
+np.random.seed(SEED)
+torch.manual_seed(SEED)
+torch.cuda.manual_seed(SEED)
+torch.backends.cudnn.deterministic = True
 
 
 def data(filename="data/surnames.txt"):

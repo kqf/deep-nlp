@@ -48,4 +48,4 @@ def test_char_rnn(sample):
     assert y_pred.shape == (len(X),)
 
     # In most of the cases this should work
-    assert f1_score(y, y_pred, average="micro") > 0.95
+    assert f1_score(y, y_pred, average="micro") > 0.9
