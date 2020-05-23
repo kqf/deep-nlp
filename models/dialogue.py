@@ -254,11 +254,20 @@ class UnifiedClassifier(BaseEstimator, TransformerMixin):
             X, batch_size=self.batch_size * 4, device=device)
 
         output = []
+        pi = X.fields["tokens"].vocab.stoi["<pad>"]
+        vocab = X.fields[self._target].vocab.itos
         with torch.no_grad():
             for batch in x_iter:
                 pred = self.model(batch.tokens).argmax(-1)
-                labels = [X.fields[self._target].vocab.itos[i] for i in pred]
-                output.append(labels)
+                if self._target == "intent":
+                    labels = [X.fields[self._target].vocab.itos[i]
+                              for i in pred]
+                    output.append(labels)
+                    continue
+
+                mask = batch.tokens != pi
+                for seq, m in zip(pred.T, mask.T):
+                    output.append([vocab[i] for i in seq[m]])
         return output
 
 

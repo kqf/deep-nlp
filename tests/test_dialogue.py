@@ -64,7 +64,7 @@ def test_shared_model(batch_size, seq_size, vocab_size,
 
 @pytest.mark.parametrize("modelname", [
     "intent",
-    # "tagger",
+    "tagger"
 ])
 def test_intent_classifier(data, modelname):
     model = build_model(modelname=modelname, epochs_count=2)
