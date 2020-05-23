@@ -251,7 +251,7 @@ class UnifiedClassifier(BaseEstimator, TransformerMixin):
         self.model.eval()
 
         x_iter = BucketIterator(
-            X, batch_size=self.batch_size * 4, device=device)
+            X, batch_size=self.batch_size * 4, device=device, shuffle=False)
 
         output = []
         pi = X.fields["tokens"].vocab.stoi["<pad>"]

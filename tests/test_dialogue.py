@@ -70,8 +70,7 @@ def test_shared_model(batch_size, seq_size, vocab_size,
     # ("tagger", "tags", accuracy_score),
 ])
 def test_intent_classifier(data, modelname, target, score):
-    model = build_model(modelname=modelname, epochs_count=20)
+    model = build_model(modelname=modelname, epochs_count=2)
     model.fit(data.sample(frac=1), None)
     data["preds"] = model.predict(data)
-    # print(data.head())
-    print(score(data[target], data["preds"]))
+    assert score(data[target], data["preds"]) > 0.5
