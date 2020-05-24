@@ -78,7 +78,9 @@ def test_single_models(data, modelname, target, score):
 
 
 def test_shared(data):
-    model = build_shared_model()
+    model = build_shared_model(epochs_count=5)
     model.fit(data.sample(frac=1))
-    # data["preds"] = model.predict(data)
-    # assert score(data[target], data["preds"]) > 0.5
+    pintent, ptags = model.predict(data)
+
+    assert accuracy_score(data["intent"], pintent) > 0.5
+    assert conll_score(data["tags"], ptags) > 0.5

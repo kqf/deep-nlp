@@ -413,18 +413,19 @@ class MixtureTransformer(UnifiedClassifier):
 
         intents, tags = [], []
         pi = X.fields["tokens"].vocab.stoi["<pad>"]
-        vocab = X.fields[self._target].vocab.itos
+        ivocab = X.fields["intent"].vocab.itos
+        tvocab = X.fields["tags"].vocab.itos
         with torch.no_grad():
             for batch in x_iter:
                 ilogits, tlogits = self.model(batch.tokens)
                 pintents, ptags = ilogits.argmax(-1), tlogits.argmax(-1)
 
                 for i in pintents:
-                    intents.append(vocab[i])
+                    intents.append(ivocab[i])
 
                 mask = batch.tokens != pi
                 for seq, m in zip(ptags.T, mask.T):
-                    tags.append([vocab[i] for i in seq[m]])
+                    tags.append([tvocab[i] for i in seq[m]])
         return intents, tags
 
 
@@ -447,10 +448,10 @@ def build_model(**args):
     return model
 
 
-def build_shared_model():
+def build_shared_model(**args):
     model = make_pipeline(
         build_preprocessor(),
-        MixtureTransformer(),
+        MixtureTransformer(**args),
     )
     return model
 
