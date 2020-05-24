@@ -77,8 +77,7 @@ def test_async_model(batch_size, seq_size, vocab_size,
     batch = torch.randint(0, vocab_size, (seq_size, batch_size))
     model = AsyncModel(vocab_size, intents_count, tags_count)
 
-    intent_logits, _ = model.intents_step(batch, None)
-    tag_logits, _ = model.tags_step(batch, None)
+    intent_logits, tag_logits = model(batch)
     assert intent_logits.shape == (batch_size, intents_count)
     assert tag_logits.shape == (seq_size, batch_size, tags_count)
 

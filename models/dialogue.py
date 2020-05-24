@@ -337,11 +337,7 @@ class SharedTrainer(ModelTrainer):
             self.tags_correct_count / self.tags_total_count
         )
 
-    def on_batch(self, batch):
-        """
-        Performs forward and (if is_train) backward pass with optimization,
-        updates metrics
-        """
+    def _loss(self, batch):
         intents, tags = self.model(batch.tokens)
         intents_pred = intents.argmax(-1)
         tags_pred = tags.argmax(-1)
@@ -358,6 +354,14 @@ class SharedTrainer(ModelTrainer):
         intents_loss = self.intents_criterion(intents, batch.intent)
         tags_loss = self.tags_criterion(
             tags.view(-1, tags.shape[-1]), batch.tags.view(-1))
+        return intents_loss, tags_loss
+
+    def on_batch(self, batch):
+        """
+        Performs forward and (if is_train) backward pass with optimization,
+        updates metrics
+        """
+        intents_loss, tags_loss = self._loss(batch)
         loss = intents_loss + tags_loss
 
         if self.is_train:
@@ -449,25 +453,64 @@ class AsyncModel(torch.nn.Module):
         self._intents_out = torch.nn.Linear(4 * lstm_hidden_dim, intents_count)
         self._tags_out = torch.nn.Linear(4 * lstm_hidden_dim, tags_count)
 
-    def intents_step(self, inputs, tags_hidden=None):
+    def forward(self, inputs):
         embs = self._embs(inputs)
-        intents_output, _ = self._intents_rnn(embs, None)
+        intent_outputs, _ = self._intents_rnn(embs)
         # Take the last timestep
-        intents_hidden = intents_output[-1]
+        tag_outputs, _ = self._tags_rnn(embs)
 
-        if tags_hidden is None:
-            tags_hidden = intents_hidden.new_zeros(intents_hidden.shape)
+        intents_hidden = torch.cat((intent_outputs[-1], tag_outputs[-1]), -1)
+        tags_hidden = torch.cat((intent_outputs, tag_outputs), -1)
 
-        hidden = torch.cat((intents_hidden, tags_hidden), -1)
-        return self._intents_out(hidden), hidden
+        return self._intents_out(intents_hidden), self._tags_out(tags_hidden)
 
-    def tags_step(self, inputs, intents_hidden):
-        embs = self._embs(inputs)
-        tag_outputs, _ = self._tags_rnn(embs, None)
-        if intents_hidden is None:
-            intents_hidden = tag_outputs.new_zeros(tag_outputs.shape)
-        outputs = torch.cat((tag_outputs, intents_hidden), -1)
-        return self._tags_out(outputs), tag_outputs[-1]
+
+class AsyncTrainer(SharedTrainer):
+    def __init__(self, model,
+                 intents_criterion, tags_criterion,
+                 intents_optimizer, tags_optimizer,
+                 intent_parameters, tags_parameters, pad_idx):
+        self.model = model
+        self.intents_criterion = intents_criterion
+        self.tags_criterion = tags_criterion
+        self.intents_optimizer = intents_optimizer
+        self.tags_optimizer = tags_optimizer
+        self.intent_parameters = intent_parameters
+        self.tags_parameters = tags_parameters
+        self.pad_idx = pad_idx
+
+    def on_epoch_begin(self, is_train, name, batches_count):
+        """
+        Initializes metrics
+        """
+        self.epoch_loss = 0
+        self.intents_correct_count, self.intents_total_count = 0, 0
+        self.tags_correct_count, self.tags_total_count = 0, 0
+        self.is_train = is_train
+        self.name = name
+        self.batches_count = batches_count
+        self.model.train(is_train)
+
+    def on_batch(self, batch):
+        intents_loss, tags_loss = self._loss(batch)
+
+        if self.is_train:
+            self.intents_optimizer.zero_grad()
+            intents_loss.backward(retain_graph=True)
+            torch.nn.utils.clip_grad_norm_(self.intent_parameters, 1.)
+            self.intents_optimizer.step()
+
+        if self.is_train:
+            self.intents_optimizer.zero_grad()
+            intents_loss.backward()
+            torch.nn.utils.clip_grad_norm_(self.intent_parameters, 1.)
+            self.intents_optimizer.step()
+
+        return self.msg.format(
+            self.name, intents_loss.item() + tags_loss.item(),
+            self.intents_correct_count / self.intents_total_count,
+            self.tags_correct_count / self.tags_total_count
+        )
 
 
 def conll_score(y_true, y_pred, metrics="f1", **kwargs):
