@@ -5,7 +5,7 @@ import pandas as pd
 
 from sklearn.metrics import accuracy_score
 
-from models.dialogue import build_preprocessor, build_model
+from models.dialogue import build_preprocessor, build_model, build_shared_model
 from models.dialogue import IntentClassifierModel, TaggerModel, SharedModel
 from models.dialogue import conll_score
 
@@ -70,8 +70,15 @@ def test_shared_model(batch_size, seq_size, vocab_size,
     ("intent", "intent", accuracy_score),
     ("tagger", "tags", conll_score),
 ])
-def test_intent_classifier(data, modelname, target, score):
+def test_single_models(data, modelname, target, score):
     model = build_model(modelname=modelname, epochs_count=5)
-    model.fit(data.sample(frac=1), None)
+    model.fit(data.sample(frac=1))
     data["preds"] = model.predict(data)
     assert score(data[target], data["preds"]) > 0.5
+
+
+def test_shared(data):
+    model = build_shared_model()
+    model.fit(data.sample(frac=1))
+    # data["preds"] = model.predict(data)
+    # assert score(data[target], data["preds"]) > 0.5

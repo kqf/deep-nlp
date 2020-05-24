@@ -299,7 +299,7 @@ class SharedModel(torch.nn.Module):
         return intents, tags
 
 
-class SharedTrainer():
+class SharedTrainer(ModelTrainer):
     _msg = (
         "{:>5s} Loss = {:.5f},"
         " Intents Accuracy = {:.2%},"
@@ -374,6 +374,60 @@ class SharedTrainer():
         )
 
 
+class MixtureTransformer(UnifiedClassifier):
+    def __init__(self, batch_size=32,
+                 epochs_count=30, model=None):
+        super().__init__(batch_size=batch_size, epochs_count=epochs_count)
+
+    def _init_trainer(self, X, y):
+        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+        if self.trainer is not None:
+            return
+
+        self.model = SharedModel(
+            vocab_size=len(X.fields["tokens"].vocab),
+            intents_count=len(X.fields["intent"].vocab),
+            tags_count=len(X.fields["tags"].vocab)
+        ).to(device)
+
+        pi = X.fields["tokens"].vocab.stoi["pad"]
+        intents_criterion = torch.nn.CrossEntropyLoss().to(device)
+        tags_criterion = torch.nn.CrossEntropyLoss(ignore_index=pi).to(device)
+        optimizer = torch.optim.Adam(self.model.parameters())
+        self.trainer = SharedTrainer(
+            self.model,
+            intents_criterion,
+            tags_criterion,
+            optimizer,
+            pad_idx=pi,
+        )
+        self.trainer.pad_idx = X.fields["tokens"].vocab.stoi["pad"]
+
+    def predict(self, X):
+        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        self.model.eval()
+
+        x_iter = BucketIterator(
+            X, batch_size=self.batch_size * 4, device=device, shuffle=False)
+
+        intents, tags = [], []
+        pi = X.fields["tokens"].vocab.stoi["<pad>"]
+        vocab = X.fields[self._target].vocab.itos
+        with torch.no_grad():
+            for batch in x_iter:
+                ilogits, tlogits = self.model(batch.tokens)
+                pintents, ptags = ilogits.argmax(-1), tlogits.argmax(-1)
+
+                for i in pintents:
+                    intents.append(vocab[i])
+
+                mask = batch.tokens != pi
+                for seq, m in zip(ptags.T, mask.T):
+                    tags.append([vocab[i] for i in seq[m]])
+        return intents, tags
+
+
 def conll_score(y_true, y_pred, metrics="f1", **kwargs):
     lines = [f"dummy XXX {t} {p}" for pair in zip(y_true, y_pred)
              for t, p in zip(*pair)]
@@ -389,6 +443,14 @@ def build_model(**args):
     model = make_pipeline(
         build_preprocessor(),
         UnifiedClassifier(**args),
+    )
+    return model
+
+
+def build_shared_model():
+    model = make_pipeline(
+        build_preprocessor(),
+        MixtureTransformer(),
     )
     return model
 
