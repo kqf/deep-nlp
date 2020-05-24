@@ -6,7 +6,8 @@ import pandas as pd
 from sklearn.metrics import accuracy_score
 
 from models.dialogue import build_preprocessor, build_model, build_shared_model
-from models.dialogue import IntentClassifierModel, TaggerModel, SharedModel
+from models.dialogue import IntentClassifierModel, TaggerModel
+from models.dialogue import SharedModel, AsyncModel
 from models.dialogue import conll_score
 
 
@@ -62,6 +63,22 @@ def test_shared_model(batch_size, seq_size, vocab_size,
     model = SharedModel(vocab_size, intents_count, tags_count)
 
     intent_logits, tag_logits = model(batch)
+    assert intent_logits.shape == (batch_size, intents_count)
+    assert tag_logits.shape == (seq_size, batch_size, tags_count)
+
+
+@pytest.mark.parametrize("batch_size", [128])
+@pytest.mark.parametrize("seq_size", [100])
+@pytest.mark.parametrize("vocab_size", [1000])
+@pytest.mark.parametrize("intents_count", [20])
+@pytest.mark.parametrize("tags_count", [100])
+def test_async_model(batch_size, seq_size, vocab_size,
+                     intents_count, tags_count):
+    batch = torch.randint(0, vocab_size, (seq_size, batch_size))
+    model = AsyncModel(vocab_size, intents_count, tags_count)
+
+    intent_logits, _ = model.intents_step(batch, None)
+    tag_logits, _ = model.tags_step(batch, None)
     assert intent_logits.shape == (batch_size, intents_count)
     assert tag_logits.shape == (seq_size, batch_size, tags_count)
 

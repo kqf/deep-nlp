@@ -429,6 +429,47 @@ class MixtureTransformer(UnifiedClassifier):
         return intents, tags
 
 
+# No decoder model
+# https://www.aclweb.org/anthology/N18-2050.pdf
+class AsyncModel(torch.nn.Module):
+    def __init__(self,
+                 vocab_size, intents_count, tags_count,
+                 emb_dim=64, lstm_hidden_dim=128, num_layers=1):
+        super().__init__()
+
+        self._embs = torch.nn.Embedding(vocab_size, emb_dim)
+        self._intents_rnn = torch.nn.LSTM(
+            emb_dim, lstm_hidden_dim,
+            num_layers=num_layers, bidirectional=True)
+
+        self._tags_rnn = torch.nn.LSTM(
+            emb_dim, lstm_hidden_dim,
+            num_layers=num_layers, bidirectional=True)
+
+        self._intents_out = torch.nn.Linear(4 * lstm_hidden_dim, intents_count)
+        self._tags_out = torch.nn.Linear(4 * lstm_hidden_dim, tags_count)
+
+    def intents_step(self, inputs, tags_hidden=None):
+        embs = self._embs(inputs)
+        intents_output, _ = self._intents_rnn(embs, None)
+        # Take the last timestep
+        intents_hidden = intents_output[-1]
+
+        if tags_hidden is None:
+            tags_hidden = intents_hidden.new_zeros(intents_hidden.shape)
+
+        hidden = torch.cat((intents_hidden, tags_hidden), -1)
+        return self._intents_out(hidden), hidden
+
+    def tags_step(self, inputs, intents_hidden):
+        embs = self._embs(inputs)
+        tag_outputs, _ = self._tags_rnn(embs, None)
+        if intents_hidden is None:
+            intents_hidden = tag_outputs.new_zeros(tag_outputs.shape)
+        outputs = torch.cat((tag_outputs, intents_hidden), -1)
+        return self._tags_out(outputs), tag_outputs[-1]
+
+
 def conll_score(y_true, y_pred, metrics="f1", **kwargs):
     lines = [f"dummy XXX {t} {p}" for pair in zip(y_true, y_pred)
              for t, p in zip(*pair)]
