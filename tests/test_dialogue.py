@@ -5,7 +5,8 @@ import pandas as pd
 
 from sklearn.metrics import accuracy_score
 
-from models.dialogue import build_preprocessor, build_model, build_shared_model
+from models.dialogue import build_preprocessor, build_model
+from models.dialogue import build_shared_model, build_async_model
 from models.dialogue import IntentClassifierModel, TaggerModel
 from models.dialogue import SharedModel, AsyncModel
 from models.dialogue import conll_score
@@ -93,8 +94,12 @@ def test_single_models(data, modelname, target, score):
     assert score(data[target], data["preds"]) > 0.5
 
 
-def test_shared(data):
-    model = build_shared_model(epochs_count=5)
+@pytest.mark.parametrize("model_builder", [
+    build_shared_model,
+    build_async_model,
+])
+def test_multiple_objectives_models(data, model_builder):
+    model = model_builder(epochs_count=5)
     model.fit(data.sample(frac=1))
     pintent, ptags = model.predict(data)
 

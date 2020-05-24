@@ -464,32 +464,32 @@ class AsyncModel(torch.nn.Module):
 
         return self._intents_out(intents_hidden), self._tags_out(tags_hidden)
 
+    def _not_shared_parameters(self, exclude):
+        return [
+            p for name, p in self.named_parameters()
+            if not name.startswith(exclude)
+        ]
+
+    def intent_parameters(self):
+        return self._not_shared_parameters("_tags")
+
+    def tags_parameters(self):
+        return self._not_shared_parameters("_intent")
+
 
 class AsyncTrainer(SharedTrainer):
     def __init__(self, model,
                  intents_criterion, tags_criterion,
                  intents_optimizer, tags_optimizer,
-                 intent_parameters, tags_parameters, pad_idx):
+                 pad_idx):
         self.model = model
-        self.intents_criterion = intents_criterion
-        self.tags_criterion = tags_criterion
-        self.intents_optimizer = intents_optimizer
-        self.tags_optimizer = tags_optimizer
-        self.intent_parameters = intent_parameters
-        self.tags_parameters = tags_parameters
-        self.pad_idx = pad_idx
 
-    def on_epoch_begin(self, is_train, name, batches_count):
-        """
-        Initializes metrics
-        """
-        self.epoch_loss = 0
-        self.intents_correct_count, self.intents_total_count = 0, 0
-        self.tags_correct_count, self.tags_total_count = 0, 0
-        self.is_train = is_train
-        self.name = name
-        self.batches_count = batches_count
-        self.model.train(is_train)
+        self.intents_criterion = intents_criterion
+        self.intents_optimizer = intents_optimizer
+
+        self.tags_criterion = tags_criterion
+        self.tags_optimizer = tags_optimizer
+        self.pad_idx = pad_idx
 
     def on_batch(self, batch):
         intents_loss, tags_loss = self._loss(batch)
@@ -497,19 +497,49 @@ class AsyncTrainer(SharedTrainer):
         if self.is_train:
             self.intents_optimizer.zero_grad()
             intents_loss.backward(retain_graph=True)
-            torch.nn.utils.clip_grad_norm_(self.intent_parameters, 1.)
+            torch.nn.utils.clip_grad_norm_(self.model.intent_parameters(), 1.)
             self.intents_optimizer.step()
 
         if self.is_train:
-            self.intents_optimizer.zero_grad()
-            intents_loss.backward()
-            torch.nn.utils.clip_grad_norm_(self.intent_parameters, 1.)
-            self.intents_optimizer.step()
+            self.tags_optimizer.zero_grad()
+            tags_loss.backward()
+            torch.nn.utils.clip_grad_norm_(self.model.tags_parameters(), 1.)
+            self.tags_optimizer.step()
 
-        return self.msg.format(
+        return self._msg.format(
             self.name, intents_loss.item() + tags_loss.item(),
             self.intents_correct_count / self.intents_total_count,
             self.tags_correct_count / self.tags_total_count
+        )
+
+
+class AsyncTransformer(MixtureTransformer):
+    def _init_trainer(self, X, y):
+        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+        if self.trainer is not None:
+            return
+
+        self.model = AsyncModel(
+            vocab_size=len(X.fields["tokens"].vocab),
+            intents_count=len(X.fields["intent"].vocab),
+            tags_count=len(X.fields["tags"].vocab)
+        ).to(device)
+
+        pi = X.fields["tokens"].vocab.stoi["pad"]
+        intents_criterion = torch.nn.CrossEntropyLoss().to(device)
+        tags_criterion = torch.nn.CrossEntropyLoss(ignore_index=pi).to(device)
+
+        intents_optimizer = torch.optim.Adam(self.model.intent_parameters())
+        tags_optimizer = torch.optim.Adam(self.model.tags_parameters())
+
+        self.trainer = AsyncTrainer(
+            self.model,
+            intents_criterion=intents_criterion,
+            tags_criterion=tags_criterion,
+            intents_optimizer=intents_optimizer,
+            tags_optimizer=tags_optimizer,
+            pad_idx=pi,
         )
 
 
@@ -536,6 +566,14 @@ def build_shared_model(**args):
     model = make_pipeline(
         build_preprocessor(),
         MixtureTransformer(**args),
+    )
+    return model
+
+
+def build_async_model(**args):
+    model = make_pipeline(
+        build_preprocessor(),
+        AsyncTransformer(**args),
     )
     return model
 
