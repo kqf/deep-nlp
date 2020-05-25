@@ -496,14 +496,15 @@ class AsyncTrainer(SharedTrainer):
 
         if self.is_train:
             self.intents_optimizer.zero_grad()
-            intents_loss.backward(retain_graph=True)
-            torch.nn.utils.clip_grad_norm_(self.model.intent_parameters(), 1.)
-            self.intents_optimizer.step()
-
-        if self.is_train:
             self.tags_optimizer.zero_grad()
+
+            intents_loss.backward(retain_graph=True)
             tags_loss.backward()
+
+            torch.nn.utils.clip_grad_norm_(self.model.intent_parameters(), 1.)
             torch.nn.utils.clip_grad_norm_(self.model.tags_parameters(), 1.)
+
+            self.intents_optimizer.step()
             self.tags_optimizer.step()
 
         return self._msg.format(
