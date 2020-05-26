@@ -1,3 +1,6 @@
+import torch
+import random
+import math
 import spacy
 import numpy as np
 import pandas as pd
@@ -71,8 +74,60 @@ def build_word_embeddings(data, w2v_model, min_freq=5):
     return word2ind, np.array(embeddings)
 
 
+class BatchIterator():
+    def __init__(self, data, batch_size, word2ind, shuffle=True):
+        self._data = data
+        self._num_samples = len(data)
+        self._batch_size = batch_size
+        self._word2ind = word2ind
+        self._shuffle = shuffle
+        self._batches_count = int(math.ceil(len(data) / batch_size))
+
+    def __len__(self):
+        return self._batches_count
+
+    def __iter__(self):
+        return self._iterate_batches()
+
+    def _iterate_batches(self):
+        indices = np.arange(self._num_samples)
+        if self._shuffle:
+            np.random.shuffle(indices)
+
+        for start in range(0, self._num_samples, self._batch_size):
+            end = min(start + self._batch_size, self._num_samples)
+
+            batch_indices = indices[start: end]
+
+            batch = self._data.iloc[batch_indices]
+            questions = batch['question'].values
+            correct_answers = np.array([
+                row['options'][random.choice(row['correct_indices'])]
+                for i, row in batch.iterrows()
+            ])
+            wrong_answers = np.array([
+                row['options'][random.choice(row['wrong_indices'])]
+                for i, row in batch.iterrows()
+            ])
+
+            yield {
+                'questions': self.to_matrix(questions),
+                'correct_answers': self.to_matrix(correct_answers),
+                'wrong_answers': self.to_matrix(wrong_answers)
+            }
+
+    def to_matrix(self, lines):
+        max_sent_len = max(len(line) for line in lines)
+        matrix = np.zeros((len(lines), max_sent_len))
+
+        for i, line in enumerate(lines):
+            matrix[i, :len(line)] = [self.word2ind.get(w, 1) for w in line]
+        return torch.LongTensor(matrix)
+
+
 def main():
     train, test = read_dataset()
+    print(train.head())
 
 
 if __name__ == '__main__':
