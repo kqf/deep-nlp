@@ -1,34 +1,40 @@
 import torch
 import random
-import math
 import spacy
 import numpy as np
 import pandas as pd
 
 from collections import Counter
 from sklearn.base import BaseEstimator, TransformerMixin
-from sklearn.pipeline import make_union
+from sklearn.pipeline import make_pipeline
 
 
 def read_dataset():
-    train = pd.read_json('data/train.json')
-    test = pd.read_json('data/test.json')
+    train = pd.read_json('data/train.json').dropna()
+    test = pd.read_json('data/test.json').dropna()
     return train, test
 
 
 class Tokenizer(BaseEstimator, TransformerMixin):
-    def __init__(self, col):
-        self.col = col
+    def __init__(self, question, options, language='en'):
+        self.spacy = spacy.load(language)
+        self.question = question
+        self.options = options
 
     def fit(self, X, y=None):
         return self
 
     def transform(self, X):
-        return X[self.col].str.lower().apply(self.tokenize)
+        output = pd.DataFrame(X)
+        output.loc[:, self.question] = X[self.question].apply(self.tokenize)
+        output.loc[:, self.options] = X[self.options].apply(self.otokenize)
+        return output
 
-    @staticmethod
-    def tokenize(text):
-        return [t for t in spacy.tokenizer(text)]
+    def tokenize(self, text):
+        return [t for t in self.spacy.tokenizer(text)]
+
+    def otokenize(self, texts):
+        return [t for text in texts for t in self.spacy.tokenizer(text)]
 
 
 class BatchIterator():
@@ -126,7 +132,8 @@ class TextVectorizer(BaseEstimator, TransformerMixin):
 
 def main():
     train, test = read_dataset()
-    print(train.head())
+    tt = Tokenizer("question", "options").fit_transform(train)
+    print(tt.head())
 
 
 if __name__ == '__main__':
