@@ -31,71 +31,22 @@ class Tokenizer(BaseEstimator, TransformerMixin):
         return [t for t in spacy.tokenizer(text)]
 
 
-def build_tokenizer(col1, col2):
-    texts = make_union(
-        Tokenizer(col1),
-        Tokenizer(col2),
-    )
-    return texts
-
-
-def build_word_embeddings(data, w2v_model, min_freq=5):
-    words = Counter()
-
-    for text in data["question"]:
-        for word in text:
-            words[word] += 1
-
-    for options in data["options"]:
-        for text in options:
-            for word in text:
-                words[word] += 1
-
-    word2ind = {
-        '<pad>': 0,
-        '<unk>': 1
-    }
-
-    embeddings = [
-        np.zeros(w2v_model.vectors.shape[1]),
-        np.zeros(w2v_model.vectors.shape[1])
-    ]
-
-    for word, count in words.most_common():
-        if count < min_freq:
-            break
-
-        if word not in w2v_model.vocab:
-            continue
-
-        word2ind[word] = len(word2ind)
-        embeddings.append(w2v_model.get_vector(word))
-
-    return word2ind, np.array(embeddings)
-
-
 class BatchIterator():
-    def __init__(self, data, batch_size, word2ind, shuffle=True):
+    def __init__(self, word2ind, data):
         self._data = data
         self._num_samples = len(data)
-        self._batch_size = batch_size
         self._word2ind = word2ind
-        self._shuffle = shuffle
-        self._batches_count = int(math.ceil(len(data) / batch_size))
 
-    def __len__(self):
-        return self._batches_count
+    def buckets(self, batch_size, shuffle=True):
+        return self._iterate_batches(batch_size, shuffle)
 
-    def __iter__(self):
-        return self._iterate_batches()
-
-    def _iterate_batches(self):
+    def _iterate_batches(self, batch_size, shuffle):
         indices = np.arange(self._num_samples)
-        if self._shuffle:
+        if shuffle:
             np.random.shuffle(indices)
 
-        for start in range(0, self._num_samples, self._batch_size):
-            end = min(start + self._batch_size, self._num_samples)
+        for start in range(0, self._num_samples, batch_size):
+            end = min(start + batch_size, self._num_samples)
 
             batch_indices = indices[start: end]
 
@@ -123,6 +74,54 @@ class BatchIterator():
         for i, line in enumerate(lines):
             matrix[i, :len(line)] = [self.word2ind.get(w, 1) for w in line]
         return torch.LongTensor(matrix)
+
+class TextVectorizer(BaseEstimator, TransformerMixin):
+
+    def __init__(self, w2v_model, min_freq=5,
+                 pad_token="<pad>", unk_token="<unk>"):
+        self.pad_token = pad_token
+        self.unk_token = unk_token
+        self.min_freq = min_freq
+        self.w2v_model = w2v_model
+        self.word2ind = None
+
+    def fit(self, X):
+        words = Counter()
+
+        for text in X["question"]:
+            for word in text:
+                words[word] += 1
+
+        for options in X["options"]:
+            for text in options:
+                for word in text:
+                    words[word] += 1
+
+        self.word2ind = {
+            self.pad_token: 0,
+            self.unk_token: 1
+        }
+
+        embeddings = [
+            np.zeros(self.w2v_model.vectors.shape[1]),
+            np.zeros(self.w2v_model.vectors.shape[1])
+        ]
+
+        for word, count in words.most_common():
+            if count < self.min_freq:
+                break
+
+            if word not in self.w2v_model.vocab:
+                continue
+
+            self.word2ind[word] = len(self.word2ind)
+            embeddings.append(self.w2v_model.get_vector(word))
+
+        self.embeddings = np.array(embeddings)
+        return self
+
+    def transform(self, X):
+        return BatchIterator(self.word2ind, X)
 
 
 def main():
