@@ -3,6 +3,7 @@ import random
 import spacy
 import numpy as np
 import pandas as pd
+import gensim.downloader as api
 
 from collections import Counter
 from sklearn.base import BaseEstimator, TransformerMixin
@@ -98,9 +99,8 @@ class TextVectorizer(BaseEstimator, TransformerMixin):
             for word in text:
                 words[word] += 1
 
-        for options in X["options"]:
-            for text in options:
-                for word in text:
+            for options in X["options"]:
+                for word in options:
                     words[word] += 1
 
         self.word2ind = {
@@ -128,6 +128,15 @@ class TextVectorizer(BaseEstimator, TransformerMixin):
 
     def transform(self, X):
         return BatchIterator(self.word2ind, X)
+
+
+def build_vectorizer():
+    w2v_model = api.load('glove-wiki-gigaword-100')
+    vect = make_pipeline(
+        Tokenizer("question", "options"),
+        TextVectorizer(w2v_model),
+    )
+    return vect
 
 
 def main():
