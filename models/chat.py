@@ -217,6 +217,17 @@ class ChatModel(BaseEstimator, TransformerMixin):
         return self
 
 
+def similarity(a, b):
+    return (a * b).sum(-1)
+
+
+def triplet_loss(query, correct, wrong, delta=1.0):
+    # loss = max(0, 1 - pos_sim + neg_sim)
+    return torch.nn.functional.relu(
+        delta - similarity(query, correct) + similarity(query, wrong)
+    )
+
+
 def build_vectorizer():
     w2v_model = api.load('glove-wiki-gigaword-100')
     vect = make_pipeline(
