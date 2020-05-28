@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 import gensim.downloader as api
 
+from tqdm import tqdm
 from collections import Counter
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.pipeline import make_pipeline
@@ -177,6 +178,21 @@ class ModelTrainer():
             loss.item(),
             correct_count / total_count
         )
+
+    def epoch(self, data_iter, is_train, name=None):
+        self.on_epoch_begin(is_train, name, batches_count=len(data_iter))
+
+        with torch.autograd.set_grad_enabled(is_train):
+            with tqdm(total=len(data_iter)) as progress_bar:
+                for i, batch in enumerate(data_iter):
+                    batch_progress = self.on_batch(batch)
+
+                    progress_bar.update()
+                    progress_bar.set_description(batch_progress)
+
+                epoch_progress = self.on_epoch_end()
+                progress_bar.set_description(epoch_progress)
+                progress_bar.refresh()
 
 
 def build_vectorizer():
