@@ -130,6 +130,55 @@ class TextVectorizer(BaseEstimator, TransformerMixin):
         return BatchIterator(self.word2ind, X)
 
 
+class ModelTrainer():
+    _msg = '{:>5s} Loss = {:.5f}, Recall@1 = {:.2%}'
+
+    def __init__(self, model, optimizer):
+        self._model = model
+        self._optimizer = optimizer
+
+    def on_epoch_begin(self, is_train, name, batches_count):
+        """
+        Initializes metrics
+        """
+        self._epoch_loss = 0
+        self._correct_count = 0
+        self._total_count = 0
+        self._is_train = is_train
+        self._name = name
+        self._batches_count = batches_count
+
+        self._model.train(is_train)
+
+    def on_epoch_end(self):
+        """
+        Outputs final metrics
+        """
+        return self._msg.format(
+            self._name,
+            self._epoch_loss / self._batches_count,
+            self._correct_count / self._total_count
+        )
+
+    def _loss(self, batch):
+        pass
+
+    def on_batch(self, batch):
+        loss, total_count, correct_count = self._loss(batch)
+
+        if self._is_train:
+            self._optimizer.zero_grad()
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(self._model.parameters(), 1.)
+            self._optimizer.step()
+
+        return self._msg.format(
+            self._name,
+            loss.item(),
+            correct_count / total_count
+        )
+
+
 def build_vectorizer():
     w2v_model = api.load('glove-wiki-gigaword-100')
     vect = make_pipeline(
