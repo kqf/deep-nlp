@@ -45,10 +45,10 @@ class BatchIterator():
         self._num_samples = len(data)
         self._word2ind = word2ind
 
-    def buckets(self, batch_size, shuffle=True):
-        return self._iterate_batches(batch_size, shuffle)
+    def buckets(self, batch_size, device, shuffle=True):
+        return self._iterate_batches(batch_size, device, shuffle)
 
-    def _iterate_batches(self, batch_size, shuffle):
+    def _iterate_batches(self, batch_size, device, shuffle):
         indices = np.arange(self._num_samples)
         if shuffle:
             np.random.shuffle(indices)
@@ -70,9 +70,9 @@ class BatchIterator():
             ])
 
             yield {
-                'questions': self.to_matrix(questions),
-                'correct_answers': self.to_matrix(correct_answers),
-                'wrong_answers': self.to_matrix(wrong_answers)
+                'questions': self.to_matrix(questions).to(device),
+                'correct_answers': self.to_matrix(correct_answers).to(device),
+                'wrong_answers': self.to_matrix(wrong_answers).to(device),
             }
 
     def to_matrix(self, lines):
@@ -193,6 +193,28 @@ class ModelTrainer():
                 epoch_progress = self.on_epoch_end()
                 progress_bar.set_description(epoch_progress)
                 progress_bar.refresh()
+
+
+class ChatModel(BaseEstimator, TransformerMixin):
+    def __init__(self, batch_size=32,
+                 epochs_count=30, model=None):
+        super().__init__(batch_size=batch_size, epochs_count=epochs_count)
+
+    def _init_trainer(self, X, y):
+        pass
+
+    def fit(self, X, y=None):
+        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        self._init_trainer(X, y)
+        train_dataset, test_dataset = X.split(split_ratio=0.7)
+
+        train, val = X.buckets(batch_size=self.batch_size, device=device)
+        for epoch in range(self.epochs_count):
+            name = '[{} / {}] Train'.format(epoch + 1, self.epochs_count)
+            self.trainer.epoch(train, is_train=True, name=name)
+            name = '[{} / {}] Val'.format(epoch + 1, self.epochs_count)
+            self.trainer.epoch(val, is_train=False, name=name)
+        return self
 
 
 def build_vectorizer():
