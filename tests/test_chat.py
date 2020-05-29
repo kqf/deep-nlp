@@ -4,6 +4,7 @@ import pandas as pd
 
 from models.chat import Tokenizer, build_vectorizer
 from models.chat import similarity, triplet_loss
+from models.chat import build_model
 
 
 @pytest.fixture
@@ -11,8 +12,8 @@ def data(size=100):
     df = pd.DataFrame({
         "question": ["Who am I?", "What I like?"] * size,
         "options": [["Rob.", "Bob.", "Ron."], ["cat.", "rum.", "car."]] * size,
-        "correct_indices": [[1], [1]] * size,
-        "wrong_indices": [[2, 3], [2, 3]] * size,
+        "correct_indices": [[0], [0]] * size,
+        "wrong_indices": [[1, 2], [1, 2]] * size,
     })
     return df
 
@@ -42,3 +43,7 @@ def test_triplet_loss(batch_size=512, emb_dim=32):
 def test_vectorizes_sample_data(data):
     tt = build_vectorizer().fit_transform(data)
     assert tt is not None
+
+
+def test_chat_model(data):
+    build_model().fit(data)

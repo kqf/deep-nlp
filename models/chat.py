@@ -36,14 +36,14 @@ class Tokenizer(BaseEstimator, TransformerMixin):
         return [t for t in self.spacy.tokenizer(text)]
 
     def otokenize(self, texts):
-        return [t for text in texts for t in self.spacy.tokenizer(text)]
+        return [[t for t in self.spacy.tokenizer(text)] for text in texts]
 
 
 class BatchIterator():
     def __init__(self, word2ind, data):
         self._data = data
         self._num_samples = len(data)
-        self._word2ind = word2ind
+        self.word2ind = word2ind
 
     def buckets(self, batch_size, device, shuffle=True):
         return self._iterate_batches(batch_size, device, shuffle)
@@ -101,8 +101,9 @@ class TextVectorizer(BaseEstimator, TransformerMixin):
                 words[word] += 1
 
             for options in X["options"]:
-                for word in options:
-                    words[word] += 1
+                for text in options:
+                    for word in text:
+                        words[word] += 1
 
         self.word2ind = {
             self.pad_token: 0,
@@ -162,7 +163,7 @@ class ModelTrainer():
         )
 
     def _loss(self, batch):
-        pass
+        return torch.Variable(0), 1, 0
 
     def on_batch(self, batch):
         loss, total_count, correct_count = self._loss(batch)
@@ -180,7 +181,7 @@ class ModelTrainer():
         )
 
     def epoch(self, data_iter, is_train, name=None):
-        self.on_epoch_begin(is_train, name, batches_count=len(data_iter))
+        self.on_epoch_begin(is_train, name, batches_count=self.batches_count)
 
         with torch.autograd.set_grad_enabled(is_train):
             with tqdm(total=len(data_iter)) as progress_bar:
@@ -196,25 +197,40 @@ class ModelTrainer():
 
 
 class ChatModel(BaseEstimator, TransformerMixin):
-    def __init__(self, batch_size=32,
-                 epochs_count=30, model=None):
-        super().__init__(batch_size=batch_size, epochs_count=epochs_count)
+    def __init__(self, batch_size=32, epochs_count=30):
+        self.batch_size = batch_size
+        self.epochs_count = epochs_count
 
-    def _init_trainer(self, X, y):
-        pass
+    def _init_trainer(self, X, y=None):
+        self.model = DSSM()
+        optimizer = torch.optim.Adam(self.model.parameters())
+        self.trainer = ModelTrainer(self.model, optimizer)
 
     def fit(self, X, y=None):
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self._init_trainer(X, y)
-        train_dataset, test_dataset = X.split(split_ratio=0.7)
-
-        train, val = X.buckets(batch_size=self.batch_size, device=device)
+        train = X.buckets(batch_size=self.batch_size, device=device)
         for epoch in range(self.epochs_count):
             name = '[{} / {}] Train'.format(epoch + 1, self.epochs_count)
             self.trainer.epoch(train, is_train=True, name=name)
-            name = '[{} / {}] Val'.format(epoch + 1, self.epochs_count)
-            self.trainer.epoch(val, is_train=False, name=name)
         return self
+
+
+class DSSM(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.query = None
+        self.correct = None
+        self.wrong = None
+        self.linear = torch.nn.Linear(10, 20)
+
+    def forward(self, query_inputs, correct_inputs, wrong_inputs):
+        batch_size = query_inputs.shape[0]
+        return (
+            torch.randint(0, 10, (batch_size,)),
+            torch.randint(0, 10, (batch_size,)),
+            torch.randint(0, 10, (batch_size,)),
+        )
 
 
 def similarity(a, b):
@@ -235,6 +251,14 @@ def build_vectorizer():
         TextVectorizer(w2v_model),
     )
     return vect
+
+
+def build_model():
+    model = make_pipeline(
+        build_vectorizer(),
+        ChatModel(),
+    )
+    return model
 
 
 def main():
