@@ -40,10 +40,11 @@ class Tokenizer(BaseEstimator, TransformerMixin):
 
 
 class BatchIterator():
-    def __init__(self, word2ind, data):
+    def __init__(self, word2ind, embeddings, data):
         self._data = data
         self._num_samples = len(data)
         self.word2ind = word2ind
+        self.embeddings = embeddings
 
     def buckets(self, batch_size, device, shuffle=True):
         batch_count = int(self._num_samples / batch_size)
@@ -130,7 +131,7 @@ class TextVectorizer(BaseEstimator, TransformerMixin):
         return self
 
     def transform(self, X):
-        return BatchIterator(self.word2ind, X)
+        return BatchIterator(self.word2ind, self.embeddings, X)
 
 
 class ModelTrainer():
@@ -146,7 +147,7 @@ class ModelTrainer():
         """
         self._epoch_loss = 0
         self._correct_count = 0
-        self._total_count = 0
+        self._total_count = 1  # TODO: Fix me
         self._is_train = is_train
         self._name = name
         self._batches_count = batches_count
@@ -164,12 +165,19 @@ class ModelTrainer():
         )
 
     def _loss(self, batch):
-        query, correct, wrong = self.model(
+        query, correct, wrong = self._model(
             batch["questions"],
             batch["correct_answers"],
             batch["wrong_answers"],
         )
-        return triplet_loss(query, correct, wrong)
+
+        correct_count = precision_at_1(query, correct, wrong)
+        total_count = batch["questions"].shape[0]
+
+        self._correct_count += correct_count
+        self._total_count += total_count
+        loss = triplet_loss(query, correct, wrong).sum()
+        return loss, total_count, correct_count
 
     def on_batch(self, batch):
         loss, total_count, correct_count = self._loss(batch)
@@ -208,7 +216,7 @@ class ChatModel(BaseEstimator, TransformerMixin):
         self.epochs_count = epochs_count
 
     def _init_trainer(self, X, y=None):
-        self.model = DSSM()
+        self.model = DSSM(X.embeddings)
         optimizer = torch.optim.Adam(self.model.parameters())
         self.trainer = ModelTrainer(self.model, optimizer)
 
@@ -232,7 +240,7 @@ class DSSMEncoder(torch.nn.Module):
             torch.FloatTensor(embeddings))
 
         self._conv = torch.nn.Sequential(
-            torch.nn.Conv1d(embeddings.shape[1], hidden_dim, kernel_size=3),
+            torch.nn.Conv1d(embeddings.shape[1], hidden_dim, kernel_size=1),
             torch.nn.ReLU(inplace=True)
         )
         self._out = torch.nn.Linear(hidden_dim, output_dim)
@@ -248,10 +256,10 @@ class DSSMEncoder(torch.nn.Module):
 
 
 class DSSM(torch.nn.Module):
-    def __init__(self):
+    def __init__(self, embeddings):
         super().__init__()
-        self.query = DSSMEncoder()
-        self.target = DSSMEncoder()
+        self.query = DSSMEncoder(embeddings)
+        self.target = DSSMEncoder(embeddings)
 
     def forward(self, query, correct, wrong):
         return self.query(query), self.target(correct), self.target(wrong)
@@ -259,6 +267,12 @@ class DSSM(torch.nn.Module):
 
 def similarity(a, b):
     return (a * b).sum(-1)
+
+
+def precision_at_1(q, c, w):
+    with torch.no_grad():
+        precision = (similarity(q, c) > similarity(q, w)).float().sum()
+    return precision
 
 
 def triplet_loss(query, correct, wrong, delta=1.0):
@@ -277,10 +291,10 @@ def build_vectorizer():
     return vect
 
 
-def build_model():
+def build_model(**kwargs):
     model = make_pipeline(
         build_vectorizer(),
-        ChatModel(),
+        ChatModel(**kwargs),
     )
     return model
 

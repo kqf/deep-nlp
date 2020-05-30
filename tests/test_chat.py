@@ -56,4 +56,4 @@ def test_vectorizes_sample_data(data):
 
 
 def test_chat_model(data):
-    build_model().fit(data)
+    build_model(epochs_count=2).fit(data)
