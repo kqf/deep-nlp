@@ -46,7 +46,8 @@ class BatchIterator():
         self.word2ind = word2ind
 
     def buckets(self, batch_size, device, shuffle=True):
-        return self._iterate_batches(batch_size, device, shuffle)
+        batch_count = int(self._num_samples / batch_size)
+        return self._iterate_batches(batch_size, device, shuffle), batch_count
 
     def _iterate_batches(self, batch_size, device, shuffle):
         indices = np.arange(self._num_samples)
@@ -163,7 +164,7 @@ class ModelTrainer():
         )
 
     def _loss(self, batch):
-        return torch.Variable(0), 1, 0
+        return torch.tensor(0), 1, 0
 
     def on_batch(self, batch):
         loss, total_count, correct_count = self._loss(batch)
@@ -180,11 +181,11 @@ class ModelTrainer():
             correct_count / total_count
         )
 
-    def epoch(self, data_iter, is_train, name=None):
-        self.on_epoch_begin(is_train, name, batches_count=self.batches_count)
+    def epoch(self, data_iter, batches_count, is_train, name=None):
+        self.on_epoch_begin(is_train, name, batches_count=batches_count)
 
         with torch.autograd.set_grad_enabled(is_train):
-            with tqdm(total=len(data_iter)) as progress_bar:
+            with tqdm(total=batches_count) as progress_bar:
                 for i, batch in enumerate(data_iter):
                     batch_progress = self.on_batch(batch)
 
@@ -209,10 +210,13 @@ class ChatModel(BaseEstimator, TransformerMixin):
     def fit(self, X, y=None):
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self._init_trainer(X, y)
-        train = X.buckets(batch_size=self.batch_size, device=device)
+
+        train, batches_count = X.buckets(
+            batch_size=self.batch_size, device=device)
+
         for epoch in range(self.epochs_count):
             name = '[{} / {}] Train'.format(epoch + 1, self.epochs_count)
-            self.trainer.epoch(train, is_train=True, name=name)
+            self.trainer.epoch(train, batches_count, is_train=True, name=name)
         return self
 
 
