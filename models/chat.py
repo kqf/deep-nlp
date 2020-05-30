@@ -168,6 +168,10 @@ class ModelTrainer():
 
     def on_batch(self, batch):
         loss, total_count, correct_count = self._loss(batch)
+        import ipdb
+        ipdb.set_trace()
+        import IPython
+        IPython.embed()  # noqa
 
         if self._is_train:
             self._optimizer.zero_grad()
@@ -218,6 +222,27 @@ class ChatModel(BaseEstimator, TransformerMixin):
             name = '[{} / {}] Train'.format(epoch + 1, self.epochs_count)
             self.trainer.epoch(train, batches_count, is_train=True, name=name)
         return self
+
+
+class DSSMEncoder(torch.nn.Module):
+    def __init__(self, embeddings, hidden_dim=128, output_dim=128):
+        super().__init__()
+        self._embs = torch.nn.Embedding.from_pretrained(
+            torch.FloatTensor(embeddings))
+        self._conv = torch.nn.Sequential(
+            torch.nn.Conv1d(embeddings.shape[1], hidden_dim, kernel_size=3),
+            torch.nn.ReLU(inplace=True)
+        )
+        self._out = torch.nn.Linear(hidden_dim, output_dim)
+
+    def forward(self, inputs):
+        embs = self._embs(inputs)
+        embs = embs.permute(0, 2, 1)
+
+        outputs = self._conv(embs)
+        outputs = torch.max(outputs, -1)[0]
+
+        return self._out(outputs)
 
 
 class DSSM(torch.nn.Module):
