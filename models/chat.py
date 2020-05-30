@@ -164,14 +164,15 @@ class ModelTrainer():
         )
 
     def _loss(self, batch):
-        return torch.tensor(0), 1, 0
+        query, correct, wrong = self.model(
+            batch["questions"],
+            batch["correct_answers"],
+            batch["wrong_answers"],
+        )
+        return triplet_loss(query, correct, wrong)
 
     def on_batch(self, batch):
         loss, total_count, correct_count = self._loss(batch)
-        import ipdb
-        ipdb.set_trace()
-        import IPython
-        IPython.embed()  # noqa
 
         if self._is_train:
             self._optimizer.zero_grad()
@@ -229,6 +230,7 @@ class DSSMEncoder(torch.nn.Module):
         super().__init__()
         self._embs = torch.nn.Embedding.from_pretrained(
             torch.FloatTensor(embeddings))
+
         self._conv = torch.nn.Sequential(
             torch.nn.Conv1d(embeddings.shape[1], hidden_dim, kernel_size=3),
             torch.nn.ReLU(inplace=True)
@@ -248,18 +250,11 @@ class DSSMEncoder(torch.nn.Module):
 class DSSM(torch.nn.Module):
     def __init__(self):
         super().__init__()
-        self.query = None
-        self.correct = None
-        self.wrong = None
-        self.linear = torch.nn.Linear(10, 20)
+        self.query = DSSMEncoder()
+        self.target = DSSMEncoder()
 
-    def forward(self, query_inputs, correct_inputs, wrong_inputs):
-        batch_size = query_inputs.shape[0]
-        return (
-            torch.randint(0, 10, (batch_size,)),
-            torch.randint(0, 10, (batch_size,)),
-            torch.randint(0, 10, (batch_size,)),
-        )
+    def forward(self, query, correct, wrong):
+        return self.query(query), self.target(correct), self.target(wrong)
 
 
 def similarity(a, b):
