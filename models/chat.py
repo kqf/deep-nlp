@@ -33,10 +33,11 @@ class Tokenizer(BaseEstimator, TransformerMixin):
         return output
 
     def tokenize(self, text):
-        return [t for t in self.spacy.tokenizer(text)]
+        return [t.text.lower() for t in self.spacy.tokenizer(text)]
 
     def otokenize(self, texts):
-        return [[t for t in self.spacy.tokenizer(text)] for text in texts]
+        return [[t.text.lower() for t in self.spacy.tokenizer(text)]
+                for text in texts]
 
 
 class BatchIterator():
@@ -282,18 +283,18 @@ def triplet_loss(query, correct, wrong, delta=1.0):
     )
 
 
-def build_vectorizer():
+def build_vectorizer(min_freq=5):
     w2v_model = api.load('glove-wiki-gigaword-100')
     vect = make_pipeline(
         Tokenizer("question", "options"),
-        TextVectorizer(w2v_model),
+        TextVectorizer(w2v_model, min_freq=min_freq),
     )
     return vect
 
 
-def build_model(**kwargs):
+def build_model(min_freq=5, **kwargs):
     model = make_pipeline(
-        build_vectorizer(),
+        build_vectorizer(min_freq),
         ChatModel(**kwargs),
     )
     return model

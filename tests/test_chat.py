@@ -50,10 +50,14 @@ def test_dssm_encoder(batch_size=512, seq_size=100,
     assert encode(queries).shape == (batch_size, output_dim)
 
 
-def test_vectorizes_sample_data(data):
-    tt = build_vectorizer().fit_transform(data)
-    assert tt is not None
+def test_vectorizes_sample_data(data, batch_size=64):
+    tt = build_vectorizer(min_freq=1).fit_transform(data)
+    titer, nbatches = tt.buckets(batch_size, torch.device("cpu"))
+    batch = next(titer)
+    assert batch["questions"].shape[0] == batch_size
+    assert batch["correct_answers"].shape[0] == batch_size
+    assert batch["wrong_answers"].shape[0] == batch_size
 
 
 def test_chat_model(data):
-    build_model(epochs_count=2).fit(data)
+    build_model(min_freq=1, epochs_count=20).fit(data)
