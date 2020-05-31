@@ -59,7 +59,7 @@ class BatchIterator():
         self._batch_count = int(math.ceil(self._num_samples / batch_size))
         self._batch_size = batch_size
         self._device = device
-        self._shuffle
+        self._shuffle = shuffle
         return self
 
     def __iter__(self):
@@ -226,7 +226,7 @@ class ModelTrainer():
                 progress_bar.refresh()
 
 
-class ChatModel(BaseEstimator, TransformerMixin):
+class MultiChoiceModel(BaseEstimator, TransformerMixin):
     def __init__(self, batch_size=32, epochs_count=30):
         self.batch_size = batch_size
         self.epochs_count = epochs_count
@@ -309,7 +309,7 @@ def build_vectorizer(min_freq=5):
 def build_model(min_freq=5, **kwargs):
     model = make_pipeline(
         build_vectorizer(min_freq),
-        ChatModel(**kwargs),
+        MultiChoiceModel(**kwargs),
     )
     return model
 
