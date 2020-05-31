@@ -1,3 +1,4 @@
+import math
 import torch
 import random
 import spacy
@@ -46,10 +47,24 @@ class BatchIterator():
         self._num_samples = len(data)
         self.word2ind = word2ind
         self.embeddings = embeddings
+        self._batch_count = None
+        self._batch_size = None
+        self._device = None
+        self._shuffle = None
 
-    def buckets(self, batch_size, device, shuffle=True):
-        batch_count = int(self._num_samples / batch_size)
-        return self._iterate_batches(batch_size, device, shuffle), batch_count
+    def __len__(self):
+        return self._batch_count
+
+    def __call__(self, batch_size, device, shuffle=True):
+        self._batch_count = int(math.ceil(self._num_samples / batch_size))
+        self._batch_size = batch_size
+        self._device = device
+        self._shuffle
+        return self
+
+    def __iter__(self):
+        return self._iterate_batches(
+            self._batch_size, self._device, self._shuffle)
 
     def _iterate_batches(self, batch_size, device, shuffle):
         indices = np.arange(self._num_samples)
@@ -148,7 +163,7 @@ class ModelTrainer():
         """
         self._epoch_loss = 0
         self._correct_count = 0
-        self._total_count = 1  # TODO: Fix me
+        self._total_count = 0
         self._is_train = is_train
         self._name = name
         self._batches_count = batches_count
@@ -195,11 +210,11 @@ class ModelTrainer():
             correct_count / total_count
         )
 
-    def epoch(self, data_iter, batches_count, is_train, name=None):
-        self.on_epoch_begin(is_train, name, batches_count=batches_count)
+    def epoch(self, data_iter, is_train, name=None):
+        self.on_epoch_begin(is_train, name, batches_count=len(data_iter))
 
         with torch.autograd.set_grad_enabled(is_train):
-            with tqdm(total=batches_count) as progress_bar:
+            with tqdm(total=len(data_iter)) as progress_bar:
                 for i, batch in enumerate(data_iter):
                     batch_progress = self.on_batch(batch)
 
@@ -225,12 +240,11 @@ class ChatModel(BaseEstimator, TransformerMixin):
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self._init_trainer(X, y)
 
-        train, batches_count = X.buckets(
-            batch_size=self.batch_size, device=device)
+        train = X(batch_size=self.batch_size, device=device)
 
         for epoch in range(self.epochs_count):
             name = '[{} / {}] Train'.format(epoch + 1, self.epochs_count)
-            self.trainer.epoch(train, batches_count, is_train=True, name=name)
+            self.trainer.epoch(train, is_train=True, name=name)
         return self
 
 
