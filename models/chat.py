@@ -1,7 +1,7 @@
 import torch
 import skorch
 import pandas as pd
-import torchtext
+from operator import attrgetter
 from torchtext.data import Field, Example, Dataset, BucketIterator
 from sklearn.base import BaseEstimator, TransformerMixin
 
@@ -34,8 +34,7 @@ class TextPreprocessor(BaseEstimator, TransformerMixin):
         return self
 
     def transform(self, X, y=None):
-        proc = [X[col.replace("_dummy", "")].apply(f.preprocess)
-                for col, f in self.fields]
+        proc = [X[col].apply(f.preprocess) for col, f in self.fields]
         examples = [Example.fromlist(f, self.fields) for f in zip(*proc)]
         dataset = Dataset(examples, self.fields)
         return dataset
@@ -71,8 +70,7 @@ class DSSM(torch.nn.Module):
         self.query = DSSMEncoder(embeddings)
         self.target = DSSMEncoder(embeddings)
 
-    def forward(self, inputs):
-        query, target = inputs[0]
+    def forward(self, query, target):
         return self.query(query), self.target(target)
 
 
@@ -100,8 +98,8 @@ class EmbeddingSetter(skorch.callbacks.Callback):
         net.set_params(module__embeddings=len(X.fields["query"].vocab))
 
 
-class NewBatch(torchtext.data.Batch, torch.Tensor):
-    pass
+def batch2dict(batch):
+    return {f: attrgetter(f)(batch) for f in batch.input_fields}
 
 
 class UnsupervisedNet(skorch.NeuralNet):
@@ -110,9 +108,8 @@ class UnsupervisedNet(skorch.NeuralNet):
         return self.criterion_(query, target)
 
     def get_iterator(self, dataset, training=False):
-        for xi in super().get_iterator(dataset, training):
-            # import ipdb; ipdb.set_trace(); import IPython; IPython.embed() # noqa
-            yield tuple(xi)[:-1], 0
+        for i, xi in enumerate(super().get_iterator(dataset, training)):
+            yield batch2dict(xi), torch.empty(0)
 
 
 def build_model():
@@ -123,6 +120,7 @@ def build_model():
         iterator_train=BucketIterator,
         iterator_valid=BucketIterator,
         train_split=lambda x, y, **kwargs: Dataset.split(x, **kwargs),
+        callbacks=[EmbeddingSetter()],
     )
     return model
 
