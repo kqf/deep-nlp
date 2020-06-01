@@ -97,6 +97,14 @@ class TripletLoss(torch.nn.Module):
             return b[(sim - torch.eye(*sim.shape)).argmax(0)]
 
 
+class TripletLossSemiHard(torch.nn.Module):
+    def negatives(self, a, b):
+        with torch.no_grad():
+            # Similarity between query and target
+            sim = self.sim(a.unsqueeze(0), b.unsqueeze(1))
+            return b[(sim - torch.eye(*sim.shape)).argmax(0)]
+
+
 def build_preprocessor():
     text_field = Field(lower=True, batch_first=True)
     fields = [
