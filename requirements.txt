@@ -6,6 +6,7 @@ kaggle
 nltk
 tqdm
 scikit-learn
+skorch
 bokeh
 matplotlib
 ipython
