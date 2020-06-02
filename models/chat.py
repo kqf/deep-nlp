@@ -1,5 +1,6 @@
 import torch
 import skorch
+import numpy as np
 import pandas as pd
 from operator import attrgetter
 from torchtext.data import Field, Example, Dataset, BucketIterator
@@ -74,10 +75,17 @@ class DSSM(torch.nn.Module):
         return self.query(query), self.target(target)
 
 
+def cosine(a, b):
+    unit_a = a / a.norm(p=2, dim=-1, keepdim=True)
+    unit_b = b / b.norm(p=2, dim=-1, keepdim=True)
+    return (unit_a * unit_b).sum(-1)
+
+
 class TripletLoss(torch.nn.Module):
-    def __init__(self, delta=1.0):
+    def __init__(self, sim=cosine, delta=1.0):
         super().__init__()
         self.delta = delta
+        self.sim = sim
 
     def forward(self, queries, targets):
         wrong = self.negatives(queries, targets)
@@ -85,11 +93,6 @@ class TripletLoss(torch.nn.Module):
         return torch.nn.functional.relu(
             self.delta - self.sim(queries, correct) + self.sim(queries, wrong)
         ).mean()
-
-    def sim(self, a, b):
-        unit_a = a / a.norm(p=2, dim=-1, keepdim=True)
-        unit_b = b / b.norm(p=2, dim=-1, keepdim=True)
-        return (unit_a * unit_b).sum(-1)
 
     def negatives(self, a, b):
         with torch.no_grad():
@@ -132,6 +135,13 @@ class UnsupervisedNet(skorch.NeuralNet):
     def get_iterator(self, dataset, training=False):
         for i, xi in enumerate(super().get_iterator(dataset, training)):
             yield batch2dict(xi), torch.empty(0)
+
+    def predict_proba(self, X):
+        y_probas = []
+        for yp in self.forward_iter(X, training=False):
+            y_probas.append(cosine(*yp))
+        y_proba = np.concatenate(y_probas, 0)
+        return y_proba
 
 
 def build_model():
