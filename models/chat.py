@@ -5,6 +5,7 @@ import pandas as pd
 from operator import attrgetter
 from torchtext.data import Field, Example, Dataset, BucketIterator
 from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.pipeline import make_pipeline
 
 
 def read_data(filename):
@@ -156,7 +157,12 @@ def build_model():
         train_split=lambda x, y, **kwargs: Dataset.split(x, **kwargs),
         callbacks=[EmbeddingSetter()],
     )
-    return model
+
+    full = make_pipeline(
+        build_preprocessor(),
+        model,
+    )
+    return full
 
 
 def main():

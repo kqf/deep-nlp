@@ -1,5 +1,6 @@
 import pytest
 import pandas as pd
+import itertools
 from models.chat import build_preprocessor, build_model
 from torchtext.data import BucketIterator
 
@@ -21,7 +22,13 @@ def data(size=128):
     })
 
 
-def test_dummy(data, batch_size=128):
+@pytest.fixture
+def validation(data):
+    pairs = itertools.product(data["query"].unique(), data["target"].unique())
+    return pd.DataFrame(list(pairs), columns=["query", "target"])
+
+
+def test_dummy(data, validation, batch_size=128):
     dataset = build_preprocessor().fit_transform(data)
     data_iter = BucketIterator(dataset, batch_size=batch_size)
 
@@ -29,4 +36,7 @@ def test_dummy(data, batch_size=128):
     assert next(iter(data_iter)).target.shape[0] == batch_size
 
     model = build_model()
-    model.fit(dataset)
+    model.fit(data)
+
+    validation["scores"] = model.predict(validation)
+    print(validation.sort_values(["query", "scores"]))
