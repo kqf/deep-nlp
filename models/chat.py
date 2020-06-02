@@ -132,10 +132,6 @@ class UnsupervisedNet(skorch.NeuralNet):
         query, target = y_pred
         return self.criterion_(query, target)
 
-    def get_iterator(self, dataset, training=False):
-        for i, xi in enumerate(super().get_iterator(dataset, training)):
-            yield batch2dict(xi), torch.empty(0)
-
     def predict_proba(self, X):
         y_probas = []
         for yp in self.forward_iter(X, training=False):
@@ -144,13 +140,19 @@ class UnsupervisedNet(skorch.NeuralNet):
         return y_proba
 
 
+class SkorchBucketIterator(BucketIterator):
+    def __iter__(self):
+        for batch in super().__iter__():
+            yield batch2dict(batch), torch.empty(0)
+
+
 def build_model():
     model = UnsupervisedNet(
         module=DSSM,
         batch_size=512,
         criterion=TripletLoss,
-        iterator_train=BucketIterator,
-        iterator_valid=BucketIterator,
+        iterator_train=SkorchBucketIterator,
+        iterator_valid=SkorchBucketIterator,
         train_split=lambda x, y, **kwargs: Dataset.split(x, **kwargs),
         callbacks=[EmbeddingSetter()],
     )
