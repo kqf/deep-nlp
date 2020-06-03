@@ -43,7 +43,7 @@ class TextPreprocessor(BaseEstimator, TransformerMixin):
 
 def build_preprocessor():
     source_field = Field(lower=True, batch_first=True)
-    target_field = Field(lower=True, batch_first=True)
+    target_field = Field(lower=True, batch_first=True, is_target=True)
     fields = [
         ('source', source_field),
         ('target', target_field),
@@ -51,22 +51,30 @@ def build_preprocessor():
     return TextPreprocessor(fields, min_freq=5)
 
 
+def shift(seq, by, batch_dim=1):
+    return torch.cat((seq[by:], seq.new_ones(by, seq.shape[batch_dim])))
+
+
 class LanguageModelNet(skorch.NeuralNet):
     def get_loss(self, y_pred, y_true, X=None, training=False):
-        y_shape = (y_pred.shape[0],)
-        return self.criterion_(y_pred, torch.randint(0, 2, y_shape))
+        # Next line is just a hack to match the shapes
+        y_pred = torch.cat([y_pred.unsqueeze(1)] * y_true.shape[1], 1)
+
+        logits = y_pred.view(-1, y_pred.shape[-1])
+        return self.criterion_(logits, shift(y_true, by=1).view(-1))
 
 
 class SkorchBucketIterator(BucketIterator):
     def __iter__(self):
         for batch in super().__iter__():
-            yield batch.source[:, :2].float(), torch.empty(0)
+            yield batch.source[:, :2].float(), batch.target
 
 
 class InputVocabSetter(skorch.callbacks.Callback):
     def on_train_begin(self, net, X, y):
-        pi = X.fields["target"].vocab["<pad>"]
-        net.set_params(criterion__ignore_index=pi)
+        vocab = X.fields["target"].vocab
+        net.set_params(criterion__ignore_index=vocab["<pad>"])
+        net.set_params(module__output_units=len(vocab))
 
 
 def build_model():
