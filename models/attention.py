@@ -1,9 +1,12 @@
 import torch
+import skorch
 import random
 import numpy as np
 import pandas as pd
+from skorch.toy import MLPModule
 from torchtext.data import Field, Example, Dataset, BucketIterator
 from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.pipeline import make_pipeline
 
 
 SEED = 137
@@ -46,6 +49,36 @@ def build_preprocessor():
         ('target', target_field),
     ]
     return TextPreprocessor(fields, min_freq=5)
+
+
+class LanguageModelNet(skorch.NeuralNet):
+    def get_loss(self, y_pred, y_true, X=None, training=False):
+        y_shape = (y_pred.shape[0],)
+        return self.criterion_(y_pred, torch.randint(0, 2, y_shape))
+
+
+class SkorchBucketIterator(BucketIterator):
+    def __iter__(self):
+        for batch in super().__iter__():
+            yield batch.source[:, :2].float(), torch.empty(0)
+
+
+def build_model():
+    model = LanguageModelNet(
+        module=MLPModule,
+        module__input_units=2,
+        criterion=torch.nn.NLLLoss,
+        batch_size=512,
+        iterator_train=SkorchBucketIterator,
+        iterator_valid=SkorchBucketIterator,
+        train_split=lambda x, y, **kwargs: Dataset.split(x, **kwargs),
+    )
+
+    full = make_pipeline(
+        build_preprocessor(),
+        model,
+    )
+    return full
 
 
 def main():
