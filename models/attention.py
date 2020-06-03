@@ -63,15 +63,22 @@ class SkorchBucketIterator(BucketIterator):
             yield batch.source[:, :2].float(), torch.empty(0)
 
 
+class InputVocabSetter(skorch.callbacks.Callback):
+    def on_train_begin(self, net, X, y):
+        pi = X.fields["target"].vocab["<pad>"]
+        net.set_params(criterion__ignore_index=pi)
+
+
 def build_model():
     model = LanguageModelNet(
         module=MLPModule,
         module__input_units=2,
-        criterion=torch.nn.NLLLoss,
+        criterion=torch.nn.CrossEntropyLoss,
         batch_size=512,
         iterator_train=SkorchBucketIterator,
         iterator_valid=SkorchBucketIterator,
         train_split=lambda x, y, **kwargs: Dataset.split(x, **kwargs),
+        callbacks=[InputVocabSetter()],
     )
 
     full = make_pipeline(
