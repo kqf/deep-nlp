@@ -77,6 +77,40 @@ class InputVocabSetter(skorch.callbacks.Callback):
         net.set_params(module__output_units=len(vocab))
 
 
+class Encoder(torch.nn.Module):
+    def __init__(self, vocab_size, emb_dim=128, rnn_hidden_dim=256,
+                 num_layers=1, bidirectional=False):
+        super().__init__()
+
+        self._emb = torch.nn.Embedding(vocab_size, emb_dim)
+        self._rnn = torch.nn.GRU(
+            input_size=emb_dim,
+            hidden_size=rnn_hidden_dim,
+            num_layers=num_layers,
+            bidirectional=bidirectional)
+
+    def forward(self, inputs, hidden=None):
+        return self._rnn(self._emb(inputs))
+
+
+class Decoder(torch.nn.Module):
+    def __init__(self, vocab_size, emb_dim=128,
+                 rnn_hidden_dim=256, num_layers=1):
+        super().__init__()
+
+        self._emb = torch.nn.Embedding(vocab_size, emb_dim)
+        self._rnn = torch.nn.GRU(
+            input_size=emb_dim,
+            hidden_size=rnn_hidden_dim,
+            num_layers=num_layers
+        )
+        self._out = torch.nn.Linear(rnn_hidden_dim, vocab_size)
+
+    def forward(self, inputs, encoder_output, encoder_mask, hidden=None):
+        outputs, hidden = self._rnn(self._emb(inputs), hidden)
+        return self._out(outputs), hidden
+
+
 def build_model():
     model = LanguageModelNet(
         module=MLPModule,
