@@ -72,9 +72,11 @@ class SkorchBucketIterator(BucketIterator):
 
 class InputVocabSetter(skorch.callbacks.Callback):
     def on_train_begin(self, net, X, y):
-        vocab = X.fields["target"].vocab
-        net.set_params(criterion__ignore_index=vocab["<pad>"])
-        net.set_params(module__output_units=len(vocab))
+        tvocab = X.fields["target"].vocab
+        svocab = X.fields["source"].vocab
+        net.set_params(module__source_vocab_size=len(svocab))
+        net.set_params(module__target_vocab_size=len(tvocab))
+        net.set_params(criterion__ignore_index=tvocab["<pad>"])
 
 
 class Encoder(torch.nn.Module):
@@ -111,10 +113,37 @@ class Decoder(torch.nn.Module):
         return self._out(outputs), hidden
 
 
+class TranslationModel(torch.nn.Module):
+    def __init__(
+            self,
+            source_vocab_size=0,
+            target_vocab_size=0,
+            emb_dim=128,
+            rnn_hidden_dim=256,
+            num_layers=1,
+            bidirectional_encoder=False,
+            encodertype=Encoder,
+            decodertype=Decoder,
+    ):
+
+        super().__init__()
+
+        self.encoder = encodertype(
+            source_vocab_size, emb_dim,
+            rnn_hidden_dim, num_layers, bidirectional_encoder)
+
+        self.decoder = decodertype(
+            target_vocab_size, emb_dim,
+            rnn_hidden_dim, num_layers)
+
+    def forward(self, source_inputs, target_inputs):
+        encoded, hidden = self.encoder(source_inputs)
+        return self.decoder(target_inputs, encoded, hidden)
+
+
 def build_model():
     model = LanguageModelNet(
-        module=MLPModule,
-        module__input_units=2,
+        module=TranslationModel,
         criterion=torch.nn.CrossEntropyLoss,
         batch_size=512,
         iterator_train=SkorchBucketIterator,
