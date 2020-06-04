@@ -42,14 +42,27 @@ class TextPreprocessor(BaseEstimator, TransformerMixin):
         return dataset
 
 
-def build_preprocessor():
-    source_field = Field(lower=True, batch_first=True)
-    target_field = Field(lower=True, batch_first=True, is_target=True)
+def build_preprocessor(init_token="<s>", eos_token="</s>"):
+    source_field = Field(
+        tokenize="spacy",
+        init_token=None,
+        eos_token=eos_token,
+        lower=True,
+        batch_first=True
+    )
+    target_field = Field(
+        tokenize="moses",
+        init_token=init_token,
+        eos_token=eos_token,
+        lower=True,
+        batch_first=True,
+        is_target=True
+    )
     fields = [
         ('source', source_field),
         ('target', target_field),
     ]
-    return TextPreprocessor(fields, min_freq=1)
+    return TextPreprocessor(fields, min_freq=3)
 
 
 def shift(seq, by, batch_dim=1):
@@ -156,7 +169,10 @@ def build_model():
         iterator_train=SkorchBucketIterator,
         iterator_valid=SkorchBucketIterator,
         train_split=lambda x, y, **kwargs: Dataset.split(x, **kwargs),
-        callbacks=[InputVocabSetter()],
+        callbacks=[
+            InputVocabSetter(),
+            skorch.callbacks.GradientNormClipping(1.),
+        ],
     )
 
     full = make_pipeline(
