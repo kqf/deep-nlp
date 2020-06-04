@@ -3,7 +3,8 @@ import skorch
 import random
 import numpy as np
 import pandas as pd
-from skorch.toy import MLPModule
+
+from operator import attrgetter
 from torchtext.data import Field, Example, Dataset, BucketIterator
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.pipeline import make_pipeline
@@ -48,7 +49,7 @@ def build_preprocessor():
         ('source', source_field),
         ('target', target_field),
     ]
-    return TextPreprocessor(fields, min_freq=5)
+    return TextPreprocessor(fields, min_freq=1)
 
 
 def shift(seq, by, batch_dim=1):
@@ -57,9 +58,7 @@ def shift(seq, by, batch_dim=1):
 
 class LanguageModelNet(skorch.NeuralNet):
     def get_loss(self, y_pred, y_true, X=None, training=False):
-        # Next line is just a hack to match the shapes
-        y_pred = torch.cat([y_pred.unsqueeze(1)] * y_true.shape[1], 1)
-
+        y_pred, _ = y_pred
         logits = y_pred.view(-1, y_pred.shape[-1])
         return self.criterion_(logits, shift(y_true, by=1).view(-1))
 
@@ -67,7 +66,11 @@ class LanguageModelNet(skorch.NeuralNet):
 class SkorchBucketIterator(BucketIterator):
     def __iter__(self):
         for batch in super().__iter__():
-            yield batch.source[:, :2].float(), batch.target
+            yield self.batch2dict(batch), batch.target
+
+    @staticmethod
+    def batch2dict(batch):
+        return {f: attrgetter(f)(batch) for f in batch.fields}
 
 
 class InputVocabSetter(skorch.callbacks.Callback):
@@ -136,9 +139,13 @@ class TranslationModel(torch.nn.Module):
             target_vocab_size, emb_dim,
             rnn_hidden_dim, num_layers)
 
-    def forward(self, source_inputs, target_inputs):
-        encoded, hidden = self.encoder(source_inputs)
-        return self.decoder(target_inputs, encoded, hidden)
+    def forward(self, source, target):
+        # Convert to batch second
+        sources, targets = source.T, target.T
+
+        # Run the model
+        encoded, hidden = self.encoder(sources)
+        return self.decoder(targets, encoded, hidden)
 
 
 def build_model():
