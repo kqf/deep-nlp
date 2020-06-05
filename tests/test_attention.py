@@ -7,7 +7,7 @@ from models.attention import build_preprocessor, build_model
 
 
 @pytest.fixture
-def data(size=128):
+def data(size=100):
     corpus = {
         "source": ["All work and no play makes Jack a dull boy"] * size,
         "target":
@@ -16,7 +16,7 @@ def data(size=128):
     return pd.DataFrame(corpus)
 
 
-def test_textpreprocessor(data, batch_size=128):
+def test_textpreprocessor(data, batch_size=32):
     tp = build_preprocessor().fit_transform(data)
     batch = next(iter(BucketIterator(tp, batch_size)))
     # assert tp.transform(data) is not None

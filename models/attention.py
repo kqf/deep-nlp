@@ -70,8 +70,7 @@ class LanguageModelNet(skorch.NeuralNet):
     def get_loss(self, y_pred, y_true, X=None, training=False):
         y_pred, _ = y_pred
         logits = y_pred.view(-1, y_pred.shape[-1])
-        crt = self.criterion_(logits, shift(y_true.T, by=1).view(-1))
-        return crt
+        return self.criterion_(logits, shift(y_true.T, by=1).view(-1))
 
 
 class SkorchBucketIterator(BucketIterator):
@@ -122,7 +121,7 @@ class Decoder(torch.nn.Module):
         )
         self._out = torch.nn.Linear(rnn_hidden_dim, vocab_size)
 
-    def forward(self, inputs, encoder_output, encoder_mask, hidden=None):
+    def forward(self, inputs, encoder_output, hidden=None):
         outputs, hidden = self._rnn(self._emb(inputs), hidden)
         return self._out(outputs), hidden
 
@@ -169,10 +168,15 @@ def ppx(loss_type):
 def build_model():
     model = LanguageModelNet(
         module=TranslationModel,
+        optimizer=torch.optim.Adam,  # <<< unexpected
         criterion=torch.nn.CrossEntropyLoss,
         batch_size=32,
         iterator_train=SkorchBucketIterator,
+        iterator_train__shuffle=True,
+        iterator_train__sort=False,
         iterator_valid=SkorchBucketIterator,
+        iterator_valid__shuffle=True,
+        iterator_valid__sort=False,
         train_split=lambda x, y, **kwargs: Dataset.split(x, **kwargs),
         callbacks=[
             InputVocabSetter(),
