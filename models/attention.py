@@ -47,16 +47,13 @@ def build_preprocessor(init_token="<s>", eos_token="</s>"):
         tokenize="spacy",
         init_token=None,
         eos_token=eos_token,
-        lower=True,
         batch_first=True
     )
     target_field = Field(
         tokenize="moses",
         init_token=init_token,
         eos_token=eos_token,
-        lower=True,
         batch_first=True,
-        is_target=True
     )
     fields = [
         ('source', source_field),
@@ -73,7 +70,8 @@ class LanguageModelNet(skorch.NeuralNet):
     def get_loss(self, y_pred, y_true, X=None, training=False):
         y_pred, _ = y_pred
         logits = y_pred.view(-1, y_pred.shape[-1])
-        return self.criterion_(logits, shift(y_true, by=1).view(-1))
+        crt = self.criterion_(logits, shift(y_true.T, by=1).view(-1))
+        return crt
 
 
 class SkorchBucketIterator(BucketIterator):
@@ -172,7 +170,7 @@ def build_model():
     model = LanguageModelNet(
         module=TranslationModel,
         criterion=torch.nn.CrossEntropyLoss,
-        batch_size=512,
+        batch_size=32,
         iterator_train=SkorchBucketIterator,
         iterator_valid=SkorchBucketIterator,
         train_split=lambda x, y, **kwargs: Dataset.split(x, **kwargs),
