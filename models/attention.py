@@ -145,6 +145,20 @@ class PositionalEncoding(torch.nn.Module):
         return self.dropout(x)
 
 
+class LayerNorm(torch.nn.Module):
+    def __init__(self, features, eps=1e-6):
+        super().__init__()
+        self._gamma = torch.nn.Parameter(torch.ones(features))
+        self._beta = torch.nn.Parameter(torch.zeros(features))
+        self._eps = eps
+
+    def forward(self, inputs):
+        mean = inputs.mean(dim=-1, keepdims=True)
+        var = inputs.std(dim=-1, keepdims=True) ** 2
+        inputs = (inputs - mean) / (var + self._eps).sqrt()
+        return self._gamma * inputs + self._beta
+
+
 class TranslationModel(torch.nn.Module):
     def __init__(
             self,
