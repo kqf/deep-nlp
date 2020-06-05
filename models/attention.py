@@ -161,6 +161,13 @@ class TranslationModel(torch.nn.Module):
         return self.decoder(targets, encoded, hidden)
 
 
+def ppx(loss_type):
+    def _ppx(model, X, y):
+        return np.exp(model.history[-1][loss_type])
+    _ppx.__name__ = f"ppx_{loss_type}"
+    return _ppx
+
+
 def build_model():
     model = LanguageModelNet(
         module=TranslationModel,
@@ -172,6 +179,8 @@ def build_model():
         callbacks=[
             InputVocabSetter(),
             skorch.callbacks.GradientNormClipping(1.),
+            skorch.callbacks.EpochScoring(ppx("train_loss"), on_train=True),
+            skorch.callbacks.EpochScoring(ppx("valid_loss"), on_train=False),
         ],
     )
 
