@@ -126,6 +126,25 @@ class Decoder(torch.nn.Module):
         return self._out(outputs), hidden
 
 
+class PositionalEncoding(torch.nn.Module):
+    def __init__(self, d_model, dropout, max_len=5000):
+        super().__init__()
+        self.dropout = torch.nn.Dropout(p=dropout)
+
+        pe = torch.zeros(max_len, d_model)
+        position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)
+        div_term = torch.exp(torch.arange(
+            0, d_model, 2, dtype=torch.float) * (-np.log(10000.0) / d_model))
+        pe[:, 0::2] = torch.sin(position * div_term)
+        pe[:, 1::2] = torch.cos(position * div_term)
+        pe = pe.unsqueeze(0)
+        self.register_buffer('pe', pe)
+
+    def forward(self, x):
+        x = x + self.pe[:, :x.size(1)]
+        return self.dropout(x)
+
+
 class TranslationModel(torch.nn.Module):
     def __init__(
             self,
@@ -170,6 +189,7 @@ def build_model():
         module=TranslationModel,
         optimizer=torch.optim.Adam,  # <<< unexpected
         criterion=torch.nn.CrossEntropyLoss,
+        max_epochs=2,
         batch_size=32,
         iterator_train=SkorchBucketIterator,
         iterator_train__shuffle=True,
