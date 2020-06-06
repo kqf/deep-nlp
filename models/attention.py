@@ -159,6 +159,16 @@ class LayerNorm(torch.nn.Module):
         return self._gamma * inputs + self._beta
 
 
+class ResidualBlock(torch.nn.Module):
+    def __init__(self, size, dropout_rate):
+        super().__init__()
+        self._norm = LayerNorm(size)
+        self._dropout = torch.nn.Dropout(dropout_rate)
+
+    def forward(self, inputs, sublayer):
+        return inputs + self._dropout(sublayer(self._norm(inputs)))
+
+
 class TranslationModel(torch.nn.Module):
     def __init__(
             self,
