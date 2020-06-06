@@ -169,6 +169,20 @@ class ResidualBlock(torch.nn.Module):
         return inputs + self._dropout(sublayer(self._norm(inputs)))
 
 
+class ScaledDotProductAttention(torch.nn.Module):
+    def __init__(self, dropout_rate):
+        super().__init__()
+        self._dropout = torch.nn.Dropout(dropout_rate)
+
+    def forward(self, query, key, value, mask):
+        f_att = torch.matmul(query, key.transpose(-2, -1))
+        f_att /= np.sqrt(key.shape[-1])
+        f_att = torch.masked_fill_(mask.unsqueeze(-2) == 0, -float('inf'))
+        weights = torch.funtional.softmax(f_att, -1)
+        output = torch.matmul(weights, value)
+        return self._dropout(output), weights
+
+
 class TranslationModel(torch.nn.Module):
     def __init__(
             self,
