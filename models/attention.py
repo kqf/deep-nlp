@@ -194,6 +194,23 @@ class PositionwiseFeedForward(torch.nn.Module):
         return self.w_2(self.dropout(torch.functional.relu(self.w_1(inputs))))
 
 
+class EncoderBlock(torch.nn.Module):
+    def __init__(self, size, self_attn, feed_forward, dropout_rate):
+        super().__init__()
+
+        self._self_attn = self_attn
+        self._feed_forward = feed_forward
+        self._self_attention_block = ResidualBlock(size, dropout_rate)
+        self._feed_forward_block = ResidualBlock(size, dropout_rate)
+
+    def forward(self, inputs, mask):
+        outputs = self._self_attention_block(
+            inputs,
+            lambda inputs: self._self_attn(inputs, inputs, inputs, mask)
+        )
+        return self._feed_forward_block(outputs, self._feed_forward)
+
+
 class TranslationModel(torch.nn.Module):
     def __init__(
             self,
