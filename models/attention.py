@@ -183,6 +183,17 @@ class ScaledDotProductAttention(torch.nn.Module):
         return self._dropout(output), weights
 
 
+class PositionwiseFeedForward(torch.nn.Module):
+    def __init__(self, d_model, d_ff, dropout=0.1):
+        super().__init__()
+        self.w_1 = torch.nn.Linear(d_model, d_ff)
+        self.w_2 = torch.nn.Linear(d_ff, d_model)
+        self.dropout = torch.nn.Dropout(dropout)
+
+    def forward(self, inputs):
+        return self.w_2(self.dropout(torch.functional.relu(self.w_1(inputs))))
+
+
 class TranslationModel(torch.nn.Module):
     def __init__(
             self,
