@@ -183,6 +183,74 @@ class ScaledDotProductAttention(torch.nn.Module):
         return self._dropout(output), weights
 
 
+class MultiHeadAttentionLayer(torch.nn.Module):
+    def __init__(self, hid_dim, n_heads, dropout, device):
+        super().__init__()
+
+        if hid_dim % n_heads == 0:
+            raise IOError("Attention hid_dim should be multiple of n_heads")
+
+        self.hid_dim = hid_dim
+        self.n_heads = n_heads
+        self.head_dim = hid_dim // n_heads
+
+        self.fc_q = torch.nn.Linear(hid_dim, hid_dim)
+        self.fc_k = torch.nn.Linear(hid_dim, hid_dim)
+        self.fc_v = torch.nn.Linear(hid_dim, hid_dim)
+        self.fc_o = torch.nn.Linear(hid_dim, hid_dim)
+        self.dropout = torch.nn.Dropout(dropout)
+        self.scale = np.sqrt(self.head_dim)
+
+    def forward(self, query, key, value, mask=None):
+
+        batch_size = query.shape[0]
+
+        # query = [batch size, query len, hid dim]
+        # key = [batch size, key len, hid dim]
+        # value = [batch size, value len, hid dim]
+
+        # Q = [batch size, query len, hid dim]
+        # K = [batch size, key len, hid dim]
+        # V = [batch size, value len, hid dim]
+        Q = self.fc_q(query)
+        K = self.fc_k(key)
+        V = self.fc_v(value)
+
+        # head_dim * n_heads = hid_dim
+        # Q = [batch size, n heads, query len, head dim]
+        # K = [batch size, n heads, key len, head dim]
+        # V = [batch size, n heads, value len, head dim]
+        Q = Q.view(batch_size, -1, self.n_heads,
+                   self.head_dim).permute(0, 2, 1, 3)
+        K = K.view(batch_size, -1, self.n_heads,
+                   self.head_dim).permute(0, 2, 1, 3)
+        V = V.view(batch_size, -1, self.n_heads,
+                   self.head_dim).permute(0, 2, 1, 3)
+
+        # energy = [batch size, n heads, query len, key len]
+        energy = torch.matmul(Q, K.permute(0, 1, 3, 2)) / self.scale
+
+        if mask is not None:
+            energy = energy.masked_fill(mask == 0, -float('inf'))
+
+        # attention = [batch size, n heads, query len, key len]
+        attention = torch.softmax(energy, dim=-1)
+
+        # x = [batch size, n heads, query len, head dim]
+        x = torch.matmul(self.dropout(attention), V)
+
+        # x = [batch size, query len, n heads, head dim]
+        x = x.permute(0, 2, 1, 3).contiguous()
+
+        # x = [batch size, query len, hid dim]
+        x = x.view(batch_size, -1, self.hid_dim)
+
+        # x = [batch size, query len, hid dim]
+        x = self.fc_o(x)
+
+        return x, attention
+
+
 class PositionwiseFeedForward(torch.nn.Module):
     def __init__(self, d_model, d_ff, dropout=0.1):
         super().__init__()
