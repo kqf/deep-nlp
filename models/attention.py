@@ -221,7 +221,7 @@ class MultiHeadedAttention(torch.nn.Module):
         # x = [batch size, query len, hid dim]
         x = self.fc_o(x)
 
-        return x  # , attention
+        return x, attention
 
 
 class PositionwiseFeedForward(torch.nn.Module):
@@ -249,7 +249,7 @@ class EncoderLayer(torch.nn.Module):
         # TODO: Rewrite me -- this is ugly
         outputs = self._self_attention_block(
             inputs,
-            lambda inputs: self._self_attn(inputs, inputs, inputs, mask)
+            lambda inputs: self._self_attn(inputs, inputs, inputs, mask)[0]
         )
         return self._feed_forward_block(outputs, self._feed_forward)
 
