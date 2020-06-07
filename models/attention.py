@@ -256,7 +256,7 @@ class EncoderLayer(torch.nn.Module):
 
 class Encoder(torch.nn.Module):
     def __init__(self, vocab_size, d_model, d_ff,
-                 blocks_count, heads_count, dropout_rate):
+                 blocks_count, n_heads, dropout_rate):
         super().__init__()
         self._emb = torch.nn.Sequential(
             torch.nn.Embedding(vocab_size, d_model),
@@ -264,7 +264,7 @@ class Encoder(torch.nn.Module):
         )
 
         self._blocks = torch.nn.ModuleList([
-            EncoderLayer(d_model, heads_count, d_ff, dropout_rate)
+            EncoderLayer(d_model, n_heads, d_ff, dropout_rate)
             for _ in range(blocks_count)
         ])
         self._norm = LayerNorm(d_model)
@@ -278,24 +278,29 @@ class Encoder(torch.nn.Module):
 
 
 class DecoderLayer(torch.nn.Module):
-    def __init__(self, size, self_attn, encoder_attn,
-                 feed_forward, dropout_rate):
+    def __init__(self, d_model, n_heads, d_ff, dropout_rate):
         super().__init__()
 
-        self._self_attn = self_attn
-        self._encoder_attn = encoder_attn
-        self._feed_forward = feed_forward
-        self._self_attention_block = ResidualBlock(size, dropout_rate)
-        self._attention_block = ResidualBlock(size, dropout_rate)
-        self._feed_forward_block = ResidualBlock(size, dropout_rate)
+        self._self_attn = MultiHeadedAttention(
+            n_heads, d_model, dropout_rate)
+        self._encoder_attn = MultiHeadedAttention(
+            n_heads, d_model, dropout_rate)
+
+        self._feed_forward = PositionwiseFeedForward(
+            d_model, d_ff, dropout_rate)
+
+        self._self_attention_block = ResidualBlock(d_model, dropout_rate)
+        self._attention_block = ResidualBlock(d_model, dropout_rate)
+        self._feed_forward_block = ResidualBlock(d_model, dropout_rate)
 
     def forward(self, inputs, encoder_output, source_mask, target_mask):
         outputs = self._self_attention_block(
-            inputs, lambda inputs: self._self_attn(
-                inputs, inputs, inputs, target_mask)
+            inputs, lambda inputs:
+            self._self_attn(inputs, inputs, inputs, target_mask)[0]
         )
         outputs = self._attention_block(
-            outputs, lambda inputs: self._encoder_attn(
+            outputs, lambda inputs:
+            self._encoder_attn(
                 inputs, encoder_output, encoder_output, source_mask)
         )
         return self._feed_forward_block(outputs, self._feed_forward)
