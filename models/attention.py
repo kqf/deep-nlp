@@ -92,22 +92,6 @@ class InputVocabSetter(skorch.callbacks.Callback):
         net.set_params(criterion__ignore_index=tvocab["<pad>"])
 
 
-class Encoder(torch.nn.Module):
-    def __init__(self, vocab_size, emb_dim=128, rnn_hidden_dim=256,
-                 num_layers=1, bidirectional=False):
-        super().__init__()
-
-        self._emb = torch.nn.Embedding(vocab_size, emb_dim)
-        self._rnn = torch.nn.GRU(
-            input_size=emb_dim,
-            hidden_size=rnn_hidden_dim,
-            num_layers=num_layers,
-            bidirectional=bidirectional)
-
-    def forward(self, inputs, hidden=None):
-        return self._rnn(self._emb(inputs))
-
-
 class Decoder(torch.nn.Module):
     def __init__(self, vocab_size, emb_dim=128,
                  rnn_hidden_dim=256, num_layers=1):
@@ -169,26 +153,15 @@ class ResidualBlock(torch.nn.Module):
         return inputs + self._dropout(sublayer(self._norm(inputs)))
 
 
-class ScaledDotProductAttention(torch.nn.Module):
-    def __init__(self, dropout_rate):
-        super().__init__()
-        self._dropout = torch.nn.Dropout(dropout_rate)
-
-    def forward(self, query, key, value, mask):
-        f_att = torch.matmul(query, key.transpose(-2, -1))
-        f_att /= np.sqrt(key.shape[-1])
-        f_att = torch.masked_fill_(mask.unsqueeze(-2) == 0, -float('inf'))
-        weights = torch.funtional.softmax(f_att, -1)
-        output = torch.matmul(weights, value)
-        return self._dropout(output), weights
-
-
-class MultiHeadAttentionLayer(torch.nn.Module):
-    def __init__(self, hid_dim, n_heads, dropout, device):
+class MultiHeadedAttention(torch.nn.Module):
+    def __init__(self, hid_dim, n_heads, dropout):
         super().__init__()
 
-        if hid_dim % n_heads == 0:
-            raise IOError("Attention hid_dim should be multiple of n_heads")
+        if hid_dim % n_heads != 0:
+            raise IOError(
+                "Attention hid_dim should be multiple of n_heads. "
+                f"Got hid_dim={hid_dim} and n_heads={n_heads} instead."
+            )
 
         self.hid_dim = hid_dim
         self.n_heads = n_heads
@@ -248,7 +221,7 @@ class MultiHeadAttentionLayer(torch.nn.Module):
         # x = [batch size, query len, hid dim]
         x = self.fc_o(x)
 
-        return x, attention
+        return x  # , attention
 
 
 class PositionwiseFeedForward(torch.nn.Module):
@@ -259,24 +232,49 @@ class PositionwiseFeedForward(torch.nn.Module):
         self.dropout = torch.nn.Dropout(dropout)
 
     def forward(self, inputs):
-        return self.w_2(self.dropout(torch.functional.relu(self.w_1(inputs))))
+        return self.w_2(
+            self.dropout(torch.nn.functional.relu(self.w_1(inputs))))
 
 
-class EncoderBlock(torch.nn.Module):
-    def __init__(self, size, self_attn, feed_forward, dropout_rate):
+class EncoderLayer(torch.nn.Module):
+    def __init__(self, d_model, n_heads, d_ff, dropout_rate):
         super().__init__()
-
-        self._self_attn = self_attn
-        self._feed_forward = feed_forward
-        self._self_attention_block = ResidualBlock(size, dropout_rate)
-        self._feed_forward_block = ResidualBlock(size, dropout_rate)
+        self._self_attn = MultiHeadedAttention(d_model, n_heads, dropout_rate)
+        self._feed_forward = PositionwiseFeedForward(
+            d_model, d_ff, dropout_rate)
+        self._self_attention_block = ResidualBlock(d_model, dropout_rate)
+        self._feed_forward_block = ResidualBlock(d_model, dropout_rate)
 
     def forward(self, inputs, mask):
+        # TODO: Rewrite me -- this is ugly
         outputs = self._self_attention_block(
             inputs,
             lambda inputs: self._self_attn(inputs, inputs, inputs, mask)
         )
         return self._feed_forward_block(outputs, self._feed_forward)
+
+
+class Encoder(torch.nn.Module):
+    def __init__(self, vocab_size, d_model, d_ff,
+                 blocks_count, heads_count, dropout_rate):
+        super().__init__()
+        self._emb = torch.nn.Sequential(
+            torch.nn.Embedding(vocab_size, d_model),
+            PositionalEncoding(d_model, dropout_rate)
+        )
+
+        self._blocks = torch.nn.ModuleList([
+            EncoderLayer(d_model, heads_count, d_ff, dropout_rate)
+            for _ in range(blocks_count)
+        ])
+        self._norm = LayerNorm(d_model)
+
+    def forward(self, inputs, mask):
+        inputs = self._emb(inputs)
+
+        for block in self._blocks:
+            inputs = block(inputs, mask)
+        return self._norm(inputs)
 
 
 class DecoderLayer(torch.nn.Module):

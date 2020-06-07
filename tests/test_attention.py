@@ -6,6 +6,7 @@ from torchtext.data import BucketIterator
 
 from models.attention import build_preprocessor, build_model
 from models.attention import PositionalEncoding, LayerNorm
+from models.attention import Encoder
 
 
 @pytest.fixture
@@ -39,6 +40,14 @@ def test_layer_normalization(n_features=20, batch_size=128):
     assert ln(data).shape == data.shape
 
 
+def test_encoder(seq_size=100, batch_size=128, vocab_size=30, model_d=10):
+    enc = Encoder(vocab_size, model_d, 10, 10, 5, 0.7)
+    inputs, mask = torch.randint(0, vocab_size, (seq_size, batch_size)), None
+    outputs = enc(inputs.T, mask)
+    assert outputs.shape == (batch_size, seq_size, model_d)
+
+
+@pytest.mark.skip
 def test_full_model(data):
     model = build_model().fit(data)
     assert model is not None
