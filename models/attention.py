@@ -264,9 +264,9 @@ class DecoderLayer(torch.nn.Module):
         super().__init__()
 
         self._self_attn = MultiHeadedAttention(
-            n_heads, d_model, dropout_rate)
+            d_model, n_heads, dropout_rate)
         self._encoder_attn = MultiHeadedAttention(
-            n_heads, d_model, dropout_rate)
+            d_model, n_heads, dropout_rate)
 
         self._feed_forward = PositionwiseFeedForward(
             d_model, d_ff, dropout_rate)
@@ -317,31 +317,28 @@ class TranslationModel(torch.nn.Module):
             self,
             source_vocab_size=0,
             target_vocab_size=0,
-            emb_dim=128,
-            rnn_hidden_dim=256,
-            num_layers=1,
-            bidirectional_encoder=False,
-            encodertype=Encoder,
-            decodertype=Decoder,
-    ):
-
+            d_model=256,
+            d_ff=1024,
+            blocks_count=4,
+            heads_count=8,
+            dropout_rate=0.1):
         super().__init__()
 
-        self.encoder = encodertype(
-            source_vocab_size, emb_dim,
-            rnn_hidden_dim, num_layers, bidirectional_encoder)
-
-        self.decoder = decodertype(
-            target_vocab_size, emb_dim,
-            rnn_hidden_dim, num_layers)
+        self.d_model = d_model
+        self.encoder = Encoder(source_vocab_size, d_model,
+                               d_ff, blocks_count, heads_count, dropout_rate)
+        self.decoder = Decoder(target_vocab_size, d_model,
+                               d_ff, blocks_count, heads_count, dropout_rate)
 
     def forward(self, source, target):
-        # Convert to batch second
-        sources, targets = source.T, target.T
+        source_inputs, target_inputs = source.T, target.T
 
-        # Run the model
-        encoded, hidden = self.encoder(sources)
-        return self.decoder(targets, encoded, hidden)
+        source_mask = None
+        target_mask = None
+
+        encoder_output = self.encoder(source_inputs, source_mask)
+        return self.decoder(
+            target_inputs, encoder_output, source_mask, target_mask)
 
 
 def ppx(loss_type):
