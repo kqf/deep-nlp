@@ -89,6 +89,7 @@ class InputVocabSetter(skorch.callbacks.Callback):
         svocab = X.fields["source"].vocab
         net.set_params(module__source_vocab_size=len(svocab))
         net.set_params(module__target_vocab_size=len(tvocab))
+        net.set_params(module__pad_idx=tvocab["<pad>"])
         net.set_params(criterion__ignore_index=tvocab["<pad>"])
 
 
@@ -312,16 +313,16 @@ class Decoder(torch.nn.Module):
         return self._out_layer(self._norm(inputs))
 
 
-def subsequent_mask(size, device):
-    mask = torch.ones(size, size, device=device).triu_()
+def subsequent_mask(size):
+    mask = torch.ones(size, size).triu_()
     return mask.unsqueeze(0) == 0
 
 
-def make_mask(source_inputs, target_inputs, pad_idx, device):
+def make_mask(source_inputs, target_inputs, pad_idx):
     source_mask = (source_inputs != pad_idx).unsqueeze(-2)
     target_mask = (target_inputs != pad_idx).unsqueeze(-2)
     target_mask = target_mask & subsequent_mask(
-        target_inputs.size(-1), device).type_as(target_mask)
+        target_inputs.size(-1)).type_as(target_mask)
     return source_mask, target_mask
 
 
@@ -330,6 +331,7 @@ class TranslationModel(torch.nn.Module):
             self,
             source_vocab_size=0,
             target_vocab_size=0,
+            pad_idx=-1,
             d_model=256,
             d_ff=1024,
             blocks_count=4,
@@ -337,6 +339,7 @@ class TranslationModel(torch.nn.Module):
             dropout_rate=0.1):
         super().__init__()
 
+        self.pad_idx = pad_idx
         self.d_model = d_model
         self.encoder = Encoder(source_vocab_size, d_model,
                                d_ff, blocks_count, heads_count, dropout_rate)
@@ -347,7 +350,8 @@ class TranslationModel(torch.nn.Module):
         source_inputs = source.transpose(0, 1)
         target_inputs = target.transpose(0, 1)
 
-        source_mask, target_mask = make_mask(source_inputs, target_inputs)
+        source_mask, target_mask = make_mask(
+            source_inputs, target_inputs, pad_idx=self.pad_idx)
 
         source_mask = source_mask.to(source.device)
         target_mask = target_mask.to(target.device)

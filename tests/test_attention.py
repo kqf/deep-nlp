@@ -47,7 +47,7 @@ def test_encoder(seq_size=100, batch_size=128, vocab_size=30, model_d=10):
     assert outputs.shape == (batch_size, seq_size, model_d)
 
 
-# @pytest.mark.skip
+@pytest.mark.skip
 def test_full_model(data):
     model = build_model().fit(data)
     assert model is not None
