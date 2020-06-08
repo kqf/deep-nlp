@@ -92,24 +92,6 @@ class InputVocabSetter(skorch.callbacks.Callback):
         net.set_params(criterion__ignore_index=tvocab["<pad>"])
 
 
-class Decoder(torch.nn.Module):
-    def __init__(self, vocab_size, emb_dim=128,
-                 rnn_hidden_dim=256, num_layers=1):
-        super().__init__()
-
-        self._emb = torch.nn.Embedding(vocab_size, emb_dim)
-        self._rnn = torch.nn.GRU(
-            input_size=emb_dim,
-            hidden_size=rnn_hidden_dim,
-            num_layers=num_layers
-        )
-        self._out = torch.nn.Linear(rnn_hidden_dim, vocab_size)
-
-    def forward(self, inputs, encoder_output, hidden=None):
-        outputs, hidden = self._rnn(self._emb(inputs), hidden)
-        return self._out(outputs), hidden
-
-
 class PositionalEncoding(torch.nn.Module):
     def __init__(self, d_model, dropout, max_len=5000):
         super().__init__()
@@ -256,7 +238,7 @@ class EncoderLayer(torch.nn.Module):
 
 class Encoder(torch.nn.Module):
     def __init__(self, vocab_size, d_model, d_ff,
-                 blocks_count, n_heads, dropout_rate):
+                 n_blocks, n_heads, dropout_rate):
         super().__init__()
         self._emb = torch.nn.Sequential(
             torch.nn.Embedding(vocab_size, d_model),
@@ -265,7 +247,7 @@ class Encoder(torch.nn.Module):
 
         self._blocks = torch.nn.ModuleList([
             EncoderLayer(d_model, n_heads, d_ff, dropout_rate)
-            for _ in range(blocks_count)
+            for _ in range(n_blocks)
         ])
         self._norm = LayerNorm(d_model)
 
@@ -304,6 +286,30 @@ class DecoderLayer(torch.nn.Module):
                 inputs, encoder_output, encoder_output, source_mask)
         )
         return self._feed_forward_block(outputs, self._feed_forward)
+
+
+class Decoder(torch.nn.Module):
+    def __init__(self,
+                 vocab_size, d_model, d_ff, n_blocks,
+                 n_heads, dropout_rate):
+        super().__init__()
+
+        self._emb = torch.nn.Sequential(
+            torch.nn.Embedding(vocab_size, d_model),
+            PositionalEncoding(d_model, dropout_rate)
+        )
+
+        self._blocks = torch.nn.ModuleList([
+            DecoderLayer(d_model, n_heads, d_ff, dropout_rate)
+            for _ in range(n_blocks)])
+        self._norm = LayerNorm(d_model)
+        self._out_layer = torch.nn.Linear(d_model, vocab_size)
+
+    def forward(self, inputs, encoder_output, source_mask, target_mask):
+        inputs = self._emb(inputs)
+        for block in self._blocks:
+            inputs = block(inputs, encoder_output, source_mask, target_mask)
+        return self._out_layer(self._norm(inputs))
 
 
 class TranslationModel(torch.nn.Module):
