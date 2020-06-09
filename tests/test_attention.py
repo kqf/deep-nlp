@@ -56,7 +56,7 @@ def test_decoder(
     enc_src = torch.rand(batch_size, src_seq_size, model_d)
     mask = None
 
-    outputs = dec(inp_trg, enc_src, mask, mask)
+    outputs, _ = dec(inp_trg, enc_src, mask, mask)
     assert outputs.shape == (batch_size, trg_seq_size, trg_vocab_size)
 
 

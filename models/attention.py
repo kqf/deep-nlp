@@ -365,6 +365,12 @@ def ppx(loss_type):
     return _ppx
 
 
+# TODO: Try withiut m.weight.dim() > 1
+def initialize_weights(m):
+    if hasattr(m, 'weight') and m.weight.dim() > 1:
+        torch.nn.init.xavier_uniform_(m.weight.data)
+
+
 def build_model():
     model = LanguageModelNet(
         module=TranslationModel,
@@ -384,6 +390,7 @@ def build_model():
             skorch.callbacks.GradientNormClipping(1.),
             skorch.callbacks.EpochScoring(ppx("train_loss"), on_train=True),
             skorch.callbacks.EpochScoring(ppx("valid_loss"), on_train=False),
+            skorch.callbacks.Initializer('*', fn=initialize_weights),
         ],
     )
 
