@@ -179,11 +179,8 @@ class MultiHeadedAttention(torch.nn.Module):
 
         Q = Q.view(batch_size, -1, self.n_heads,
                    self.head_dim).permute(0, 2, 1, 3)
-        try:
-            K = K.view(batch_size, -1, self.n_heads,
-                       self.head_dim).permute(0, 2, 1, 3)
-        except:
-            import ipdb; ipdb.set_trace(); import IPython; IPython.embed() # noqa
+        K = K.view(batch_size, -1, self.n_heads,
+                   self.head_dim).permute(0, 2, 1, 3)
         V = V.view(batch_size, -1, self.n_heads,
                    self.head_dim).permute(0, 2, 1, 3)
 
@@ -310,10 +307,9 @@ class Decoder(torch.nn.Module):
 
     def forward(self, inputs, enc_src, source_mask, target_mask):
         inputs = self._emb(inputs)
-        # import ipdb; ipdb.set_trace(); import IPython; IPython.embed() # noqa
         for block in self._blocks:
             inputs = block(inputs, enc_src, source_mask, target_mask)
-        return self._out_layer(self._norm(inputs))
+        return self._out_layer(self._norm(inputs)), None
 
 
 def subsequent_mask(size):
@@ -350,8 +346,8 @@ class TranslationModel(torch.nn.Module):
                                d_ff, blocks_count, heads_count, dropout_rate)
 
     def forward(self, source, target):
-        source_inputs = source.transpose(0, 1)
-        target_inputs = target.transpose(0, 1)
+        source_inputs = source
+        target_inputs = target
 
         # source_mask, target_mask = make_mask(
         #     source_inputs, target_inputs, pad_idx=self.pad_idx)

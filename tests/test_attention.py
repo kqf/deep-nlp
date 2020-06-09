@@ -42,8 +42,8 @@ def test_layer_normalization(n_features=20, batch_size=128):
 
 def test_encoder(seq_size=100, batch_size=128, vocab_size=30, model_d=10):
     enc = Encoder(vocab_size, model_d, 10, 10, 5, 0.7)
-    inputs, mask = torch.randint(0, vocab_size, (seq_size, batch_size)), None
-    outputs = enc(inputs.T, mask)
+    inputs, mask = torch.randint(0, vocab_size, (batch_size, seq_size)), None
+    outputs = enc(inputs, mask)
     assert outputs.shape == (batch_size, seq_size, model_d)
 
 
@@ -60,7 +60,6 @@ def test_decoder(
     assert outputs.shape == (batch_size, trg_seq_size, trg_vocab_size)
 
 
-# @pytest.mark.skip
 def test_full_model(data):
     model = build_model().fit(data)
     assert model is not None
