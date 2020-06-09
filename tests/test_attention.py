@@ -6,7 +6,7 @@ from torchtext.data import BucketIterator
 
 from models.attention import build_preprocessor, build_model
 from models.attention import PositionalEncoding, LayerNorm
-from models.attention import Encoder
+from models.attention import Encoder, Decoder
 
 
 @pytest.fixture
@@ -47,7 +47,17 @@ def test_encoder(seq_size=100, batch_size=128, vocab_size=30, model_d=10):
     assert outputs.shape == (batch_size, seq_size, model_d)
 
 
-@pytest.mark.skip
+def test_decoder(seq_size=100, batch_size=128, vocab_size=30, model_d=10):
+    dec = Decoder(vocab_size, model_d, 10, 10, 5, 0.7)
+    inputs = torch.randint(0, vocab_size, (batch_size, seq_size))
+    encoder_output = torch.randint(
+        0, vocab_size, (batch_size, seq_size, model_d))
+    mask = None
+    outputs = dec(inputs, encoder_output, mask, mask)
+    assert outputs.shape == (batch_size, seq_size, model_d)
+
+
+# @pytest.mark.skip
 def test_full_model(data):
     model = build_model().fit(data)
     assert model is not None

@@ -176,10 +176,14 @@ class MultiHeadedAttention(torch.nn.Module):
         # Q = [batch size, n heads, query len, head dim]
         # K = [batch size, n heads, key len, head dim]
         # V = [batch size, n heads, value len, head dim]
+
         Q = Q.view(batch_size, -1, self.n_heads,
                    self.head_dim).permute(0, 2, 1, 3)
-        K = K.view(batch_size, -1, self.n_heads,
-                   self.head_dim).permute(0, 2, 1, 3)
+        try:
+            K = K.view(batch_size, -1, self.n_heads,
+                       self.head_dim).permute(0, 2, 1, 3)
+        except:
+            import ipdb; ipdb.set_trace(); import IPython; IPython.embed() # noqa
         V = V.view(batch_size, -1, self.n_heads,
                    self.head_dim).permute(0, 2, 1, 3)
 
@@ -276,15 +280,13 @@ class DecoderLayer(torch.nn.Module):
         self._attention_block = ResidualBlock(d_model, dropout_rate)
         self._feed_forward_block = ResidualBlock(d_model, dropout_rate)
 
-    def forward(self, inputs, encoder_output, source_mask, target_mask):
-        outputs = self._self_attention_block(
-            inputs, lambda inputs:
-            self._self_attn(inputs, inputs, inputs, target_mask)[0]
+    def forward(self, inputs, enc_src, source_mask, target_mask):
+        trg = self._self_attention_block(
+            inputs, lambda x: self._self_attn(x, x, x, target_mask)[0]
         )
         outputs = self._attention_block(
-            outputs, lambda inputs:
-            self._encoder_attn(
-                inputs, encoder_output, encoder_output, source_mask)
+            trg, lambda inputs:
+            self._encoder_attn(trg, enc_src, enc_src, source_mask)[0]
         )
         return self._feed_forward_block(outputs, self._feed_forward)
 
@@ -306,10 +308,11 @@ class Decoder(torch.nn.Module):
         self._norm = LayerNorm(d_model)
         self._out_layer = torch.nn.Linear(d_model, vocab_size)
 
-    def forward(self, inputs, encoder_output, source_mask, target_mask):
+    def forward(self, inputs, enc_src, source_mask, target_mask):
         inputs = self._emb(inputs)
+        # import ipdb; ipdb.set_trace(); import IPython; IPython.embed() # noqa
         for block in self._blocks:
-            inputs = block(inputs, encoder_output, source_mask, target_mask)
+            inputs = block(inputs, enc_src, source_mask, target_mask)
         return self._out_layer(self._norm(inputs))
 
 
@@ -350,15 +353,16 @@ class TranslationModel(torch.nn.Module):
         source_inputs = source.transpose(0, 1)
         target_inputs = target.transpose(0, 1)
 
-        source_mask, target_mask = make_mask(
-            source_inputs, target_inputs, pad_idx=self.pad_idx)
+        # source_mask, target_mask = make_mask(
+        #     source_inputs, target_inputs, pad_idx=self.pad_idx)
 
-        source_mask = source_mask.to(source.device)
-        target_mask = target_mask.to(target.device)
+        source_mask, target_mask = None, None
 
-        encoder_output = self.encoder(source_inputs, source_mask)
-        return self.decoder(
-            target_inputs, encoder_output, source_mask, target_mask)
+        # source_mask = source_mask.to(source.device)
+        # target_mask = target_mask.to(target.device)
+
+        enc_src = self.encoder(source_inputs, source_mask)
+        return self.decoder(target_inputs, enc_src, source_mask, target_mask)
 
 
 def ppx(loss_type):
