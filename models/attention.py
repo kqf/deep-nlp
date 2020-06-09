@@ -211,13 +211,15 @@ class MultiHeadedAttention(torch.nn.Module):
 class PositionwiseFeedForward(torch.nn.Module):
     def __init__(self, d_model, d_ff, dropout=0.1):
         super().__init__()
-        self.w_1 = torch.nn.Linear(d_model, d_ff)
-        self.w_2 = torch.nn.Linear(d_ff, d_model)
-        self.dropout = torch.nn.Dropout(dropout)
+        self._all = torch.nn.Sequential(
+            torch.nn.Linear(d_model, d_ff),
+            torch.nn.ReLU(),
+            torch.nn.Linear(d_ff, d_model),
+            torch.nn.Dropout(dropout)
+        )
 
     def forward(self, inputs):
-        return self.w_2(
-            self.dropout(torch.nn.functional.relu(self.w_1(inputs))))
+        return self._all(inputs)
 
 
 class EncoderLayer(torch.nn.Module):
@@ -231,11 +233,11 @@ class EncoderLayer(torch.nn.Module):
 
     def forward(self, inputs, mask):
         # TODO: Rewrite me -- this is ugly
-        outputs = self._self_attention_block(
+        enc = self._self_attention_block(
             inputs,
-            lambda inputs: self._self_attn(inputs, inputs, inputs, mask)[0]
+            lambda x: self._self_attn(x, x, x, mask)[0]
         )
-        return self._feed_forward_block(outputs, self._feed_forward)
+        return self._feed_forward_block(enc, self._feed_forward)
 
 
 class Encoder(torch.nn.Module):
@@ -255,7 +257,6 @@ class Encoder(torch.nn.Module):
 
     def forward(self, inputs, mask):
         inputs = self._emb(inputs)
-
         for block in self._blocks:
             inputs = block(inputs, mask)
         return self._norm(inputs)
@@ -317,11 +318,11 @@ def subsequent_mask(size):
     return mask.unsqueeze(0) == 0
 
 
-def make_mask(source_inputs, target_inputs, pad_idx):
-    source_mask = (source_inputs != pad_idx).unsqueeze(-2)
-    target_mask = (target_inputs != pad_idx).unsqueeze(-2)
+def make_mask(source, target, pad_idx):
+    source_mask = (source != pad_idx).unsqueeze(-2)
+    target_mask = (target != pad_idx).unsqueeze(-2)
     target_mask = target_mask & subsequent_mask(
-        target_inputs.size(-1)).type_as(target_mask)
+        target.size(-1)).type_as(target_mask)
     return source_mask, target_mask
 
 
@@ -346,19 +347,15 @@ class TranslationModel(torch.nn.Module):
                                d_ff, blocks_count, heads_count, dropout_rate)
 
     def forward(self, source, target):
-        source_inputs = source
-        target_inputs = target
-
         # source_mask, target_mask = make_mask(
-        #     source_inputs, target_inputs, pad_idx=self.pad_idx)
-
-        source_mask, target_mask = None, None
-
+        #     source, target, pad_idx=self.pad_idx)
         # source_mask = source_mask.to(source.device)
         # target_mask = target_mask.to(target.device)
 
-        enc_src = self.encoder(source_inputs, source_mask)
-        return self.decoder(target_inputs, enc_src, source_mask, target_mask)
+        source_mask, target_mask = None, None
+
+        enc_src = self.encoder(source, source_mask)
+        return self.decoder(target, enc_src, source_mask, target_mask)
 
 
 def ppx(loss_type):
