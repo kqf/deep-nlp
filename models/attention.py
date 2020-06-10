@@ -68,7 +68,7 @@ def shift(seq, by, batch_dim=1):
 
 class LanguageModelNet(skorch.NeuralNet):
     def get_loss(self, y_pred, y_true, X=None, training=False):
-        y_pred, _ = y_pred
+        # y_pred, _ = y_pred
         logits = y_pred.view(-1, y_pred.shape[-1])
         return self.criterion_(logits, shift(y_true.T, by=1).view(-1))
 
@@ -310,7 +310,7 @@ class Decoder(torch.nn.Module):
         inputs = self._emb(inputs)
         for block in self._blocks:
             inputs = block(inputs, enc_src, source_mask, target_mask)
-        return self._out_layer(self._norm(inputs)), None
+        return self._out_layer(self._norm(inputs))
 
 
 def subsequent_mask(size):
@@ -404,7 +404,7 @@ def build_model():
         module=TranslationModel,
         optimizer=NoamOpt,  # <<< unexpected
         criterion=torch.nn.CrossEntropyLoss,
-        max_epochs=30,
+        max_epochs=2,
         batch_size=32,
         iterator_train=SkorchBucketIterator,
         iterator_train__shuffle=True,
