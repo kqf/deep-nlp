@@ -371,8 +371,9 @@ def initialize_weights(m):
 
 
 class NoamOpt(object):
-    def __init__(self, parameters, factor=2, warmup=4000, optimizer=None):
-        self.optimizer = optimizer or self.optim.Adam(
+    def __init__(self, parameters, lr=0,
+                 factor=2, warmup=4000, optimizer=None):
+        self.optimizer = optimizer or torch.optim.Adam(
             parameters, lr=0, betas=(0.9, 0.98), eps=1e-9)
         self._step = 0
         self.warmup = warmup
@@ -380,13 +381,13 @@ class NoamOpt(object):
         self.model_size = len(parameters)
         self._rate = 0
 
-    def step(self):
+    def step(self, step_fn):
         self._step += 1
         rate = self.rate()
         for p in self.optimizer.param_groups:
             p['lr'] = rate
         self._rate = rate
-        self.optimizer.step()
+        return self.optimizer.step(step_fn)
 
     def rate(self, step=None):
         if step is None:
@@ -394,11 +395,14 @@ class NoamOpt(object):
         factor = self.model_size ** (-0.5) * self.factor
         return factor * min(step ** (-0.5), step * self.warmup ** (-1.5))
 
+    def zero_grad(self):
+        return self.optimizer.zero_grad()
+
 
 def build_model():
     model = LanguageModelNet(
         module=TranslationModel,
-        optimizer=torch.optim.Adam,  # <<< unexpected
+        optimizer=NoamOpt,  # <<< unexpected
         criterion=torch.nn.CrossEntropyLoss,
         max_epochs=30,
         batch_size=32,
