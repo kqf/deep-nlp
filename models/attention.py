@@ -370,12 +370,37 @@ def initialize_weights(m):
         torch.nn.init.xavier_uniform_(m.data)
 
 
+class NoamOpt(object):
+    def __init__(self, parameters, factor=2, warmup=4000, optimizer=None):
+        self.optimizer = optimizer or self.optim.Adam(
+            parameters, lr=0, betas=(0.9, 0.98), eps=1e-9)
+        self._step = 0
+        self.warmup = warmup
+        self.factor = factor
+        self.model_size = len(parameters)
+        self._rate = 0
+
+    def step(self):
+        self._step += 1
+        rate = self.rate()
+        for p in self.optimizer.param_groups:
+            p['lr'] = rate
+        self._rate = rate
+        self.optimizer.step()
+
+    def rate(self, step=None):
+        if step is None:
+            step = self._step
+        factor = self.model_size ** (-0.5) * self.factor
+        return factor * min(step ** (-0.5), step * self.warmup ** (-1.5))
+
+
 def build_model():
     model = LanguageModelNet(
         module=TranslationModel,
         optimizer=torch.optim.Adam,  # <<< unexpected
         criterion=torch.nn.CrossEntropyLoss,
-        max_epochs=2,
+        max_epochs=30,
         batch_size=32,
         iterator_train=SkorchBucketIterator,
         iterator_train__shuffle=True,
