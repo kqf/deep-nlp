@@ -72,6 +72,32 @@ class LanguageModelNet(skorch.NeuralNet):
         logits = y_pred.view(-1, y_pred.shape[-1])
         return self.criterion_(logits, shift(y_true.T, by=1).view(-1))
 
+    def transform(self, X, max_len=10):
+        self.module_.eval()
+        dataset = self.get_dataset(X)
+        tg = X.fields["target"]
+        init_token_idx = tg.vocab.stoi[tg.init_token]
+        for (data, _) in self.get_iterator(dataset, training=False):
+            source = data["source"]
+            source_mask = (source != self.module_.source_pad_idx)
+            source_mask = source_mask.unsqueeze(-2).unsqueeze(-2)
+            with torch.no_grad():
+                enc_src = self.module_.encoder(source, source_mask)
+
+            target = source.new_ones(source.shape[0], 1) * init_token_idx
+            for i in range(max_len):
+                with torch.no_grad():
+                    _, target_mask = make_mask(
+                        source, target,
+                        self.module_.source_pad_idx,
+                        self.module_.target_pad_idx
+                    )
+
+                    output = self.module_.decoder(
+                        target, enc_src, source_mask, target_mask)
+                    last_pred = output[:, [-1]]
+                    target = torch.cat([target, last_pred.argmax(-1)], dim=-1)
+
 
 class SkorchBucketIterator(BucketIterator):
     def __iter__(self):
@@ -284,8 +310,8 @@ class DecoderLayer(torch.nn.Module):
             inputs, lambda x: self._self_attn(x, x, x, target_mask)[0]
         )
         outputs = self._attention_block(
-            trg, lambda inputs:
-            self._encoder_attn(trg, enc_src, enc_src, source_mask)[0]
+            trg, lambda x:
+            self._encoder_attn(x, enc_src, enc_src, source_mask)[0]
         )
         return self._feed_forward_block(outputs, self._feed_forward)
 
@@ -360,6 +386,7 @@ class TranslationModel(torch.nn.Module):
         )
 
         enc_src = self.encoder(source, source_mask)
+        # TODO: Check the order of the source_mask, target_mask
         return self.decoder(target, enc_src, source_mask, target_mask)
 
 
