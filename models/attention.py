@@ -375,40 +375,39 @@ def initialize_weights(m):
         torch.nn.init.xavier_uniform_(m.data)
 
 
-class NoamOpt(object):
-    def __init__(self, parameters, lr=0,
-                 factor=2, warmup=4000, optimizer=None):
-        self.optimizer = optimizer or torch.optim.Adam(
-            parameters, lr=0, betas=(0.9, 0.98), eps=1e-9)
-        self._step = 0
+class NoamOpt(torch.optim.Adam):
+    def __init__(self, params,
+                 d_model=1, factor=2, warmup=4000, *args, **kwargs):
+        super().__init__(params, *args, **kwargs)
+        self.d_model = d_model
         self.warmup = warmup
         self.factor = factor
-        self.model_size = len(parameters)
+
         self._rate = 0
+        self._step = 0
 
     def step(self, step_fn):
         self._step += 1
         rate = self.rate()
-        for p in self.optimizer.param_groups:
+        for p in self.param_groups:
             p['lr'] = rate
         self._rate = rate
-        return self.optimizer.step(step_fn)
+        return super().step(step_fn)
 
     def rate(self, step=None):
         if step is None:
             step = self._step
-        factor = self.model_size ** (-0.5) * self.factor
+        factor = self.d_model ** (-0.5) * self.factor
         return factor * min(step ** (-0.5), step * self.warmup ** (-1.5))
-
-    def zero_grad(self):
-        return self.optimizer.zero_grad()
 
 
 def build_model():
     model = LanguageModelNet(
         module=TranslationModel,
+        module__d_model=256,
         optimizer=NoamOpt,
         optimizer__lr=0.0005,
+        optimizer__d_model=256,
         criterion=torch.nn.CrossEntropyLoss,
         max_epochs=2,
         batch_size=32,
