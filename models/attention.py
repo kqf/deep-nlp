@@ -77,6 +77,7 @@ class LanguageModelNet(skorch.NeuralNet):
         dataset = self.get_dataset(X)
         tg = X.fields["target"]
         init_token_idx = tg.vocab.stoi[tg.init_token]
+        predicted_sentences = []
         for (data, _) in self.get_iterator(dataset, training=False):
             source = data["source"]
             source_mask = (source != self.module_.source_pad_idx)
@@ -85,18 +86,28 @@ class LanguageModelNet(skorch.NeuralNet):
                 enc_src = self.module_.encoder(source, source_mask)
 
             target = source.new_ones(source.shape[0], 1) * init_token_idx
-            for i in range(max_len):
+            for i in range(max_len + 1):
+                _, target_mask = make_mask(
+                    source, target,
+                    self.module_.source_pad_idx,
+                    self.module_.target_pad_idx
+                )
                 with torch.no_grad():
-                    _, target_mask = make_mask(
-                        source, target,
-                        self.module_.source_pad_idx,
-                        self.module_.target_pad_idx
-                    )
-
                     output = self.module_.decoder(
                         target, enc_src, source_mask, target_mask)
-                    last_pred = output[:, [-1]]
-                    target = torch.cat([target, last_pred.argmax(-1)], dim=-1)
+
+                last_pred = output[:, [-1]]
+                target = torch.cat([target, last_pred.argmax(-1)], dim=-1)
+
+            # Ensure the sequence has an end
+            sentences = target.numpy()
+            sentences[:, -1] = tg.vocab.stoi[tg.eos_token]
+            for seq in sentences:
+                stop = np.argmax(seq == tg.vocab.stoi[tg.eos_token])
+                predicted_sentences.append(
+                    (" ".join(np.take(tg.vocab.itos, seq[: stop]))))
+
+        return predicted_sentences
 
 
 class SkorchBucketIterator(BucketIterator):
