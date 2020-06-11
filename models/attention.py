@@ -83,13 +83,14 @@ class SkorchBucketIterator(BucketIterator):
         return {f: attrgetter(f)(batch) for f in batch.fields}
 
 
-class InputVocabSetter(skorch.callbacks.Callback):
+class DynamicVariablesSetter(skorch.callbacks.Callback):
     def on_train_begin(self, net, X, y):
         tvocab = X.fields["target"].vocab
         svocab = X.fields["source"].vocab
         net.set_params(module__source_vocab_size=len(svocab))
         net.set_params(module__target_vocab_size=len(tvocab))
-        net.set_params(module__pad_idx=tvocab["<pad>"])
+        net.set_params(module__source_pad_idx=svocab["<pad>"])
+        net.set_params(module__target_pad_idx=tvocab["<pad>"])
         net.set_params(criterion__ignore_index=tvocab["<pad>"])
 
 
@@ -313,10 +314,10 @@ class Decoder(torch.nn.Module):
         return self._out_layer(self._norm(inputs))
 
 
-def make_mask(source, target, pad_idx):
+def make_mask(source, target, source_pad_idx, target_pad_idx):
     # mask = [batch_size, 1, 1, seq_len]
-    source_mask = (source != pad_idx).unsqueeze(-2).unsqueeze(-2)
-    target_mask = (target != pad_idx).unsqueeze(-2).unsqueeze(-2)
+    source_mask = (source != source_pad_idx).unsqueeze(-2).unsqueeze(-2)
+    target_mask = (target != target_pad_idx).unsqueeze(-2).unsqueeze(-2)
 
     tlen = target.shape[-1]
     # subsequent_mask = [tlen, tlen]
@@ -332,7 +333,8 @@ class TranslationModel(torch.nn.Module):
             self,
             source_vocab_size=0,
             target_vocab_size=0,
-            pad_idx=-1,
+            source_pad_idx=-1,
+            target_pad_idx=-1,
             d_model=256,
             d_ff=1024,
             blocks_count=4,
@@ -340,7 +342,9 @@ class TranslationModel(torch.nn.Module):
             dropout_rate=0.1):
         super().__init__()
 
-        self.pad_idx = pad_idx
+        self.source_pad_idx = source_pad_idx
+        self.target_pad_idx = target_pad_idx
+
         self.d_model = d_model
         self.encoder = Encoder(source_vocab_size, d_model,
                                d_ff, blocks_count, heads_count, dropout_rate)
@@ -349,7 +353,11 @@ class TranslationModel(torch.nn.Module):
 
     def forward(self, source, target):
         source_mask, target_mask = make_mask(
-            source, target, pad_idx=self.pad_idx)
+            source,
+            target,
+            source_pad_idx=self.source_pad_idx,
+            target_pad_idx=self.target_pad_idx,
+        )
 
         enc_src = self.encoder(source, source_mask)
         return self.decoder(target, enc_src, source_mask, target_mask)
@@ -399,7 +407,8 @@ class NoamOpt(object):
 def build_model():
     model = LanguageModelNet(
         module=TranslationModel,
-        optimizer=NoamOpt,  # <<< unexpected
+        optimizer=NoamOpt,
+        optimizer__lr=0.0005,
         criterion=torch.nn.CrossEntropyLoss,
         max_epochs=2,
         batch_size=32,
@@ -411,7 +420,7 @@ def build_model():
         iterator_valid__sort=False,
         train_split=lambda x, y, **kwargs: Dataset.split(x, **kwargs),
         callbacks=[
-            InputVocabSetter(),
+            DynamicVariablesSetter(),
             skorch.callbacks.GradientNormClipping(1.),
             skorch.callbacks.EpochScoring(ppx("train_loss"), on_train=True),
             skorch.callbacks.EpochScoring(ppx("valid_loss"), on_train=False),
