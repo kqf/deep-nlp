@@ -313,16 +313,17 @@ class Decoder(torch.nn.Module):
         return self._out_layer(self._norm(inputs))
 
 
-def subsequent_mask(size):
-    mask = torch.ones(size, size).triu_()
-    return mask.unsqueeze(0) == 0
-
-
 def make_mask(source, target, pad_idx):
-    source_mask = (source != pad_idx).unsqueeze(-2)
-    target_mask = (target != pad_idx).unsqueeze(-2)
-    target_mask = target_mask & subsequent_mask(
-        target.size(-1)).type_as(target_mask)
+    # mask = [batch_size, 1, 1, seq_len]
+    source_mask = (source != pad_idx).unsqueeze(-2).unsqueeze(-2)
+    target_mask = (target != pad_idx).unsqueeze(-2).unsqueeze(-2)
+
+    tlen = target.shape[-1]
+    # subsequent_mask = [tlen, tlen]
+    subsequent_mask = torch.tril(torch.ones(tlen, tlen, device=target.device))
+
+    # target_mask = [batch_size, 1, tlen, tlen]
+    target_mask = target_mask & subsequent_mask.type_as(target_mask)
     return source_mask, target_mask
 
 
@@ -347,12 +348,8 @@ class TranslationModel(torch.nn.Module):
                                d_ff, blocks_count, heads_count, dropout_rate)
 
     def forward(self, source, target):
-        # source_mask, target_mask = make_mask(
-        #     source, target, pad_idx=self.pad_idx)
-        # source_mask = source_mask.to(source.device)
-        # target_mask = target_mask.to(target.device)
-
-        source_mask, target_mask = None, None
+        source_mask, target_mask = make_mask(
+            source, target, pad_idx=self.pad_idx)
 
         enc_src = self.encoder(source, source_mask)
         return self.decoder(target, enc_src, source_mask, target_mask)
