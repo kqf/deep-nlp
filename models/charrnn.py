@@ -1,6 +1,7 @@
 import math
 import tqdm
 import torch
+import random
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -15,6 +16,14 @@ sns.set()
 !pip install matplotlib
 !pip install seaborn
 """  # noqa
+
+SEED = 137
+
+random.seed(SEED)
+np.random.seed(SEED)
+torch.manual_seed(SEED)
+torch.cuda.manual_seed(SEED)
+torch.backends.cudnn.deterministic = True
 
 
 class SimpleRNNModel(torch.nn.Module):
