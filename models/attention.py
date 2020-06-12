@@ -233,8 +233,8 @@ class PositionwiseFeedForward(torch.nn.Module):
         self._all = torch.nn.Sequential(
             torch.nn.Linear(d_model, d_ff),
             torch.nn.ReLU(),
+            torch.nn.Dropout(dropout),
             torch.nn.Linear(d_ff, d_model),
-            torch.nn.Dropout(dropout)
         )
 
     def forward(self, inputs):
@@ -423,9 +423,8 @@ def build_model():
     model = LanguageModelNet(
         module=TranslationModel,
         module__d_model=256,
-        optimizer=NoamOpt,
+        optimizer=torch.optim.Adam,
         optimizer__lr=0.0005,
-        optimizer__d_model=256,
         criterion=torch.nn.CrossEntropyLoss,
         max_epochs=20,
         batch_size=32,
