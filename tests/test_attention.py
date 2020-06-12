@@ -5,7 +5,7 @@ import pandas as pd
 from torchtext.data import BucketIterator
 
 from models.attention import build_preprocessor, build_model
-from models.attention import PositionalEncoding, LayerNorm
+from models.attention import PositionalEncoding
 from models.attention import Encoder, Decoder
 
 
@@ -32,12 +32,6 @@ def test_positional_encoding(emb_dim=10):
 
     emb = torch.zeros((1, 100, emb_dim))
     assert pe(emb).shape == emb.shape
-
-
-def test_layer_normalization(n_features=20, batch_size=128):
-    ln = LayerNorm(n_features)
-    data = torch.rand(batch_size, n_features)
-    assert ln(data).shape == data.shape
 
 
 def test_encoder(seq_size=100, batch_size=128, vocab_size=30, model_d=10):

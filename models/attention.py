@@ -145,28 +145,14 @@ class PositionalEncoding(torch.nn.Module):
         return self.dropout(x)
 
 
-class LayerNorm(torch.nn.Module):
-    def __init__(self, features, eps=1e-6):
-        super().__init__()
-        self._gamma = torch.nn.Parameter(torch.ones(features))
-        self._beta = torch.nn.Parameter(torch.zeros(features))
-        self._eps = eps
-
-    def forward(self, inputs):
-        mean = inputs.mean(dim=-1, keepdims=True)
-        var = inputs.std(dim=-1, keepdims=True) ** 2
-        inputs = (inputs - mean) / (var + self._eps).sqrt()
-        return self._gamma * inputs + self._beta
-
-
 class ResidualBlock(torch.nn.Module):
     def __init__(self, size, dropout_rate):
         super().__init__()
-        self._norm = LayerNorm(size)
+        self._norm = torch.nn.LayerNorm(size)
         self._dropout = torch.nn.Dropout(dropout_rate)
 
     def forward(self, inputs, sublayer):
-        return inputs + self._dropout(sublayer(self._norm(inputs)))
+        return self._norm(inputs + self._dropout(sublayer(inputs)))
 
 
 class MultiHeadedAttention(torch.nn.Module):
@@ -286,7 +272,7 @@ class Encoder(torch.nn.Module):
             EncoderLayer(d_model, n_heads, d_ff, dropout_rate)
             for _ in range(n_blocks)
         ])
-        self._norm = LayerNorm(d_model)
+        self._norm = torch.nn.LayerNorm(d_model)
 
     def forward(self, inputs, mask):
         inputs = self._emb(inputs)
@@ -336,7 +322,7 @@ class Decoder(torch.nn.Module):
         self._blocks = torch.nn.ModuleList([
             DecoderLayer(d_model, n_heads, d_ff, dropout_rate)
             for _ in range(n_blocks)])
-        self._norm = LayerNorm(d_model)
+        self._norm = torch.nn.LayerNorm(d_model)
         self._out_layer = torch.nn.Linear(d_model, vocab_size)
 
     def forward(self, inputs, enc_src, source_mask, target_mask):
@@ -344,20 +330,6 @@ class Decoder(torch.nn.Module):
         for block in self._blocks:
             inputs = block(inputs, enc_src, source_mask, target_mask)
         return self._out_layer(self._norm(inputs))
-
-
-def make_mask(source, target, source_pad_idx, target_pad_idx):
-    # mask = [batch_size, 1, 1, seq_len]
-    source_mask = (source != source_pad_idx).unsqueeze(-2).unsqueeze(-2)
-    target_mask = (target != target_pad_idx).unsqueeze(-2).unsqueeze(-2)
-
-    tlen = target.shape[-1]
-    # subsequent_mask = [tlen, tlen]
-    subsequent_mask = torch.tril(torch.ones(tlen, tlen, device=target.device))
-
-    # target_mask = [batch_size, 1, tlen, tlen]
-    target_mask = target_mask & subsequent_mask.type_as(target_mask)
-    return source_mask, target_mask
 
 
 class TranslationModel(torch.nn.Module):
