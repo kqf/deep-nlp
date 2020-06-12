@@ -80,18 +80,13 @@ class LanguageModelNet(skorch.NeuralNet):
         predicted_sentences = []
         for (data, _) in self.get_iterator(dataset, training=False):
             source = data["source"]
-            source_mask = (source != self.module_.source_pad_idx)
-            source_mask = source_mask.unsqueeze(-2).unsqueeze(-2)
+            source_mask = self.module_.source_mask(source)
             with torch.no_grad():
                 enc_src = self.module_.encoder(source, source_mask)
 
             target = source.new_ones(source.shape[0], 1) * init_token_idx
             for i in range(max_len + 1):
-                _, target_mask = make_mask(
-                    source, target,
-                    self.module_.source_pad_idx,
-                    self.module_.target_pad_idx
-                )
+                target_mask = self.module_.target_mask(target)
                 with torch.no_grad():
                     output = self.module_.decoder(
                         target, enc_src, source_mask, target_mask)
