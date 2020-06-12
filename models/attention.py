@@ -389,16 +389,29 @@ class TranslationModel(torch.nn.Module):
                                d_ff, blocks_count, heads_count, dropout_rate)
 
     def forward(self, source, target):
-        source_mask, target_mask = make_mask(
-            source,
-            target,
-            source_pad_idx=self.source_pad_idx,
-            target_pad_idx=self.target_pad_idx,
-        )
+        source_mask = self.source_mask(source)
+        target_mask = self.target_mask(target)
 
         enc_src = self.encoder(source, source_mask)
         # TODO: Check the order of the source_mask, target_mask
         return self.decoder(target, enc_src, source_mask, target_mask)
+
+    def source_mask(self, inputs):
+        # mask = [batch_size, 1, 1, seq_len]
+        return (inputs != self.source_pad_idx).unsqueeze(-2).unsqueeze(-2)
+
+    def target_mask(self, inputs):
+        # mask = [batch_size, 1, 1, seq_len]
+        mask = (inputs != self.target_pad_idx).unsqueeze(-2).unsqueeze(-2)
+
+        tlen = inputs.shape[-1]
+        # subsequent_mask = [tlen, tlen]
+        subsequent_mask = torch.tril(
+            torch.ones(tlen, tlen, device=inputs.device))
+
+        # mask = [batch_size, 1, tlen, tlen]
+        target_mask = mask & subsequent_mask.type_as(mask)
+        return target_mask
 
 
 def ppx(loss_type):
@@ -447,7 +460,7 @@ def build_model():
         optimizer__lr=0.0005,
         optimizer__d_model=256,
         criterion=torch.nn.CrossEntropyLoss,
-        max_epochs=2,
+        max_epochs=20,
         batch_size=32,
         iterator_train=SkorchBucketIterator,
         iterator_train__shuffle=True,
