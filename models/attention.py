@@ -125,6 +125,13 @@ class DynamicVariablesSetter(skorch.callbacks.Callback):
         net.set_params(module__target_pad_idx=tvocab["<pad>"])
         net.set_params(criterion__ignore_index=tvocab["<pad>"])
 
+        n_pars = self.count_parameters(net.module_)
+        print(f'The model has {n_pars:,} trainable parameters')
+
+    @staticmethod
+    def count_parameters(model):
+        return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
 
 class PositionalEncoding(torch.nn.Module):
     def __init__(self, d_model, dropout, max_len=5000):
@@ -412,10 +419,14 @@ def build_model():
     model = LanguageModelNet(
         module=TranslationModel,
         module__d_model=256,
+        module__d_ff=1024,
+        module__blocks_count=4,
+        module__heads_count=8,
+        module__dropout_rate=0.1,
         optimizer=torch.optim.Adam,
         optimizer__lr=0.0005,
         criterion=torch.nn.CrossEntropyLoss,
-        max_epochs=2,
+        max_epochs=20,
         batch_size=32,
         iterator_train=SkorchBucketIterator,
         iterator_train__shuffle=True,
@@ -426,7 +437,7 @@ def build_model():
         train_split=lambda x, y, **kwargs: Dataset.split(x, **kwargs),
         callbacks=[
             DynamicVariablesSetter(),
-            # skorch.callbacks.GradientNormClipping(1.),
+            skorch.callbacks.GradientNormClipping(1.),
             skorch.callbacks.EpochScoring(ppx("train_loss"), on_train=True),
             skorch.callbacks.EpochScoring(ppx("valid_loss"), on_train=False),
             skorch.callbacks.Initializer('*', fn=initialize_weights),
