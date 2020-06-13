@@ -310,6 +310,7 @@ class Decoder(torch.nn.Module):
         self._blocks = torch.nn.ModuleList([
             DecoderLayer(d_model, n_heads, d_ff, dropout_rate)
             for _ in range(n_blocks)])
+
         self._norm = torch.nn.LayerNorm(d_model)
         self._out_layer = torch.nn.Linear(d_model, vocab_size)
 
@@ -425,7 +426,7 @@ def build_model():
         train_split=lambda x, y, **kwargs: Dataset.split(x, **kwargs),
         callbacks=[
             DynamicVariablesSetter(),
-            skorch.callbacks.GradientNormClipping(1.),
+            # skorch.callbacks.GradientNormClipping(1.),
             skorch.callbacks.EpochScoring(ppx("train_loss"), on_train=True),
             skorch.callbacks.EpochScoring(ppx("valid_loss"), on_train=False),
             skorch.callbacks.Initializer('*', fn=initialize_weights),
