@@ -57,5 +57,5 @@ def test_decoder(
 def test_full_model(data):
     model = build_model().fit(data)
     model.predict(data)
-    model.transform(data)
+    print(model.transform(data))
     assert model is not None

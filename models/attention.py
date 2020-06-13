@@ -97,7 +97,9 @@ class LanguageModelNet(skorch.NeuralNet):
             # Ensure the sequence has an end
             sentences = target.numpy()
             sentences[:, -1] = tg.vocab.stoi[tg.eos_token]
-            for seq in sentences:
+
+            # Ignore start of sequence token
+            for seq in sentences[:, 1:]:
                 stop = np.argmax(seq == tg.vocab.stoi[tg.eos_token])
                 predicted_sentences.append(
                     (" ".join(np.take(tg.vocab.itos, seq[: stop]))))
