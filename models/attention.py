@@ -62,15 +62,15 @@ def build_preprocessor(init_token="<s>", eos_token="</s>"):
     return TextPreprocessor(fields, min_freq=3)
 
 
-def shift(seq, by, batch_dim=1):
-    return torch.cat((seq[by:], seq.new_ones(by, seq.shape[batch_dim])))
+def shift(seq, by, batch_dim=0):
+    padding = seq.new_ones(seq.shape[batch_dim], by)
+    return torch.cat((seq[:, by:], padding), dim=-1)
 
 
 class LanguageModelNet(skorch.NeuralNet):
     def get_loss(self, y_pred, y_true, X=None, training=False):
-        # y_pred, _ = y_pred
         logits = y_pred.view(-1, y_pred.shape[-1])
-        return self.criterion_(logits, shift(y_true.T, by=1).view(-1))
+        return self.criterion_(logits, shift(y_true, by=1).view(-1))
 
     def transform(self, X, max_len=10):
         self.module_.eval()
@@ -426,7 +426,7 @@ def build_model():
         optimizer=torch.optim.Adam,
         optimizer__lr=0.0005,
         criterion=torch.nn.CrossEntropyLoss,
-        max_epochs=20,
+        max_epochs=2,
         batch_size=32,
         iterator_train=SkorchBucketIterator,
         iterator_train__shuffle=True,
