@@ -244,19 +244,15 @@ class PositionwiseFeedForward(torch.nn.Module):
 class EncoderLayer(torch.nn.Module):
     def __init__(self, d_model, n_heads, d_ff, dropout_rate):
         super().__init__()
-        self._self_attn = MultiHeadedAttention(d_model, n_heads, dropout_rate)
-        self._feed_forward = PositionwiseFeedForward(
-            d_model, d_ff, dropout_rate)
-        self._self_attention_block = ResidualBlock(d_model, dropout_rate)
-        self._feed_forward_block = ResidualBlock(d_model, dropout_rate)
+        self._attn = MultiHeadedAttention(d_model, n_heads, dropout_rate)
+        self._ff = PositionwiseFeedForward(d_model, d_ff, dropout_rate)
 
-    def forward(self, inputs, mask):
-        # TODO: Rewrite me -- this is ugly
-        enc = self._self_attention_block(
-            inputs,
-            lambda x: self._self_attn(x, x, x, mask)[0]
-        )
-        return self._feed_forward_block(enc, self._feed_forward)
+        self._res1 = ResidualBlock(d_model, dropout_rate)
+        self._res2 = ResidualBlock(d_model, dropout_rate)
+
+    def forward(self, src, mask):
+        enc = self._res1(src, lambda x: self._attn(x, x, x, mask)[0])
+        return self._res2(enc, self._ff)
 
 
 class Encoder(torch.nn.Module):
@@ -285,27 +281,19 @@ class DecoderLayer(torch.nn.Module):
     def __init__(self, d_model, n_heads, d_ff, dropout_rate):
         super().__init__()
 
-        self._self_attn = MultiHeadedAttention(
-            d_model, n_heads, dropout_rate)
-        self._encoder_attn = MultiHeadedAttention(
-            d_model, n_heads, dropout_rate)
+        self._attn = MultiHeadedAttention(d_model, n_heads, dropout_rate)
+        self._attn_enc = MultiHeadedAttention(d_model, n_heads, dropout_rate)
+        self._ff = PositionwiseFeedForward(d_model, d_ff, dropout_rate)
 
-        self._feed_forward = PositionwiseFeedForward(
-            d_model, d_ff, dropout_rate)
+        self._res1 = ResidualBlock(d_model, dropout_rate)
+        self._res2 = ResidualBlock(d_model, dropout_rate)
+        self._res3 = ResidualBlock(d_model, dropout_rate)
 
-        self._self_attention_block = ResidualBlock(d_model, dropout_rate)
-        self._attention_block = ResidualBlock(d_model, dropout_rate)
-        self._feed_forward_block = ResidualBlock(d_model, dropout_rate)
-
-    def forward(self, inputs, enc_src, source_mask, target_mask):
-        trg = self._self_attention_block(
-            inputs, lambda x: self._self_attn(x, x, x, target_mask)[0]
-        )
-        outputs = self._attention_block(
-            trg, lambda x:
-            self._encoder_attn(x, enc_src, enc_src, source_mask)[0]
-        )
-        return self._feed_forward_block(outputs, self._feed_forward)
+    def forward(self, x, enc_src, source_mask, target_mask):
+        x = self._res1(x, lambda x: self._attn(x, x, x, target_mask)[0])
+        e = enc_src
+        x = self._res2(x, lambda x: self._attn_enc(x, e, e, source_mask)[0])
+        return self._res3(x, self._ff)
 
 
 class Decoder(torch.nn.Module):
