@@ -136,12 +136,12 @@ class DynamicVariablesSetter(skorch.callbacks.Callback):
 
 
 class PositionalEncoding(torch.nn.Module):
-    def __init__(self, d_model, dropout, max_len=5000):
+    def __init__(self, d_model, dropout, n_pos):
         super().__init__()
         self.dropout = torch.nn.Dropout(p=dropout)
 
-        pe = torch.zeros(max_len, d_model)
-        position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)
+        pe = torch.zeros(n_pos, d_model)
+        position = torch.arange(0, n_pos, dtype=torch.float).unsqueeze(1)
         div_term = torch.exp(torch.arange(
             0, d_model, 2, dtype=torch.float) * (-np.log(10000.0) / d_model))
         pe[:, 0::2] = torch.sin(position * div_term)
@@ -266,11 +266,11 @@ class EncoderLayer(torch.nn.Module):
 
 class Encoder(torch.nn.Module):
     def __init__(self, vocab_size, d_model, d_ff,
-                 n_blocks, n_heads, dropout_rate):
+                 n_blocks, n_heads, dropout_rate, n_pos=128):
         super().__init__()
         self._emb = torch.nn.Sequential(
             torch.nn.Embedding(vocab_size, d_model),
-            PositionalEncoding(d_model, dropout_rate)
+            PositionalEncoding(d_model, dropout_rate, n_pos),
         )
 
         self._blocks = torch.nn.ModuleList([
@@ -308,12 +308,12 @@ class DecoderLayer(torch.nn.Module):
 class Decoder(torch.nn.Module):
     def __init__(self,
                  vocab_size, d_model, d_ff, n_blocks,
-                 n_heads, dropout_rate):
+                 n_heads, dropout_rate, n_pos=128):
         super().__init__()
 
         self._emb = torch.nn.Sequential(
             torch.nn.Embedding(vocab_size, d_model),
-            PositionalEncoding(d_model, dropout_rate)
+            PositionalEncoding(d_model, dropout_rate, n_pos),
         )
 
         self._blocks = torch.nn.ModuleList([
@@ -358,7 +358,6 @@ class TranslationModel(torch.nn.Module):
         target_mask = self.target_mask(target)
 
         enc_src = self.encoder(source, source_mask)
-        # TODO: Check the order of the source_mask, target_mask
         return self.decoder(target, enc_src, source_mask, target_mask)
 
     def source_mask(self, inputs):
@@ -428,7 +427,7 @@ def build_model():
         optimizer=torch.optim.Adam,
         optimizer__lr=0.0005,
         criterion=torch.nn.CrossEntropyLoss,
-        max_epochs=20,
+        max_epochs=2,
         batch_size=32,
         iterator_train=SkorchBucketIterator,
         iterator_train__shuffle=True,

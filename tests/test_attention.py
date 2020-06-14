@@ -28,7 +28,7 @@ def test_textpreprocessor(data, batch_size=32):
 
 
 def test_positional_encoding(emb_dim=10):
-    pe = PositionalEncoding(emb_dim, dropout=0)
+    pe = PositionalEncoding(emb_dim, dropout=0, n_pos=128)
 
     emb = torch.zeros((1, 100, emb_dim))
     assert pe(emb).shape == emb.shape
