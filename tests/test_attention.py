@@ -62,5 +62,5 @@ def test_full_model(data):
     model = build_model().fit(data)
     model.predict(data)
     print(model.transform(data))
-    model.score(data)
+    print(f"BLUE score for the model is {model.score(data)} %")
     assert model is not None

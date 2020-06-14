@@ -88,8 +88,8 @@ class LanguageModelNet(skorch.NeuralNet):
         for X, sentences in self._greedy_decode_iterator(X, max_len):
             for seq in sentences[:, 1:]:
                 stop = np.argmax(seq == tg.vocab.stoi[tg.eos_token])
-                pred.append([seq[: stop].tolist()])
-                y_true.append([X["target"].tolist()])
+                pred.append(seq[: stop].tolist())
+                y_true.append(X["target"].tolist())
 
         return corpus_bleu(y_true, pred) * 100
 
@@ -117,7 +117,7 @@ class LanguageModelNet(skorch.NeuralNet):
             # Ensure the sequence has an end
             sentences = target.numpy()
             sentences[:, -1] = tg.vocab.stoi[tg.eos_token]
-            yield X, sentences
+            yield data, sentences
 
 
 class SkorchBucketIterator(BucketIterator):
