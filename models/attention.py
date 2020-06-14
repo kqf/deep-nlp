@@ -135,6 +135,21 @@ class DynamicVariablesSetter(skorch.callbacks.Callback):
         return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 
+class PositionalEncodingSine(torch.nn.Module):
+    def __init__(self, d_model, dropout, n_pos):
+        super().__init__()
+        self._emb = torch.nn.Embedding(n_pos, d_model)
+        self.dropout = torch.nn.Dropout(p=dropout)
+        self.scale = torch.sqrt(torch.FloatTensor([d_model]))
+
+    def forward(self, x):
+        batch_size, seq_len, _ = x.shape
+        pos = torch.arange(0, seq_len).unsqueeze(0).repeat(batch_size, 1)
+
+        x = x * self.scale.to(x.device) + self._emb(pos.to(x.device))
+        return self.dropout(x)
+
+
 class PositionalEncoding(torch.nn.Module):
     def __init__(self, d_model, dropout, n_pos):
         super().__init__()
@@ -266,11 +281,12 @@ class EncoderLayer(torch.nn.Module):
 
 class Encoder(torch.nn.Module):
     def __init__(self, vocab_size, d_model, d_ff,
-                 n_blocks, n_heads, dropout_rate, n_pos=128):
+                 n_blocks, n_heads, dropout_rate, n_pos=128, pos="sine"):
         super().__init__()
+        pp = PositionalEncodingSine if pos == "sine" else PositionalEncoding
         self._emb = torch.nn.Sequential(
             torch.nn.Embedding(vocab_size, d_model),
-            PositionalEncoding(d_model, dropout_rate, n_pos),
+            pp(d_model, dropout_rate, n_pos),
         )
 
         self._blocks = torch.nn.ModuleList([
@@ -308,12 +324,12 @@ class DecoderLayer(torch.nn.Module):
 class Decoder(torch.nn.Module):
     def __init__(self,
                  vocab_size, d_model, d_ff, n_blocks,
-                 n_heads, dropout_rate, n_pos=128):
+                 n_heads, dropout_rate, n_pos=128, pos="sine"):
         super().__init__()
-
+        pp = PositionalEncodingSine if pos == "sine" else PositionalEncoding
         self._emb = torch.nn.Sequential(
             torch.nn.Embedding(vocab_size, d_model),
-            PositionalEncoding(d_model, dropout_rate, n_pos),
+            pp(d_model, dropout_rate, n_pos),
         )
 
         self._blocks = torch.nn.ModuleList([
