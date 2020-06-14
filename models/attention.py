@@ -73,11 +73,21 @@ class LanguageModelNet(skorch.NeuralNet):
         return self.criterion_(logits, shift(y_true, by=1).view(-1))
 
     def transform(self, X, max_len=10):
+        tg = X.fields["target"]
+        predicted_sentences = []
+        for X, sentences in self._greedy_decode_iterator(X, max_len):
+            # Ignore start of sequence token
+            for seq in sentences[:, 1:]:
+                stop = np.argmax(seq == tg.vocab.stoi[tg.eos_token])
+                predicted_sentences.append(
+                    (" ".join(np.take(tg.vocab.itos, seq[: stop]))))
+        return predicted_sentences
+
+    def _greedy_decode_iterator(self, X, max_len=100):
         self.module_.eval()
         dataset = self.get_dataset(X)
         tg = X.fields["target"]
         init_token_idx = tg.vocab.stoi[tg.init_token]
-        predicted_sentences = []
         for (data, _) in self.get_iterator(dataset, training=False):
             source = data["source"]
             source_mask = self.module_.source_mask(source)
@@ -97,14 +107,7 @@ class LanguageModelNet(skorch.NeuralNet):
             # Ensure the sequence has an end
             sentences = target.numpy()
             sentences[:, -1] = tg.vocab.stoi[tg.eos_token]
-
-            # Ignore start of sequence token
-            for seq in sentences[:, 1:]:
-                stop = np.argmax(seq == tg.vocab.stoi[tg.eos_token])
-                predicted_sentences.append(
-                    (" ".join(np.take(tg.vocab.itos, seq[: stop]))))
-
-        return predicted_sentences
+            yield X, sentences
 
 
 class SkorchBucketIterator(BucketIterator):
