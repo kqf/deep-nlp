@@ -62,4 +62,5 @@ def test_full_model(data):
     model = build_model().fit(data)
     model.predict(data)
     print(model.transform(data))
+    model.score(data)
     assert model is not None

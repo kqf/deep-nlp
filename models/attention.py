@@ -8,6 +8,7 @@ from operator import attrgetter
 from torchtext.data import Field, Example, Dataset, BucketIterator
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.pipeline import make_pipeline
+from nltk.translate.bleu_score import corpus_bleu
 
 
 SEED = 137
@@ -74,14 +75,23 @@ class LanguageModelNet(skorch.NeuralNet):
 
     def transform(self, X, max_len=10):
         tg = X.fields["target"]
-        predicted_sentences = []
+        pred = []
         for X, sentences in self._greedy_decode_iterator(X, max_len):
-            # Ignore start of sequence token
             for seq in sentences[:, 1:]:
                 stop = np.argmax(seq == tg.vocab.stoi[tg.eos_token])
-                predicted_sentences.append(
-                    (" ".join(np.take(tg.vocab.itos, seq[: stop]))))
-        return predicted_sentences
+                pred.append((" ".join(np.take(tg.vocab.itos, seq[: stop]))))
+        return pred
+
+    def score(self, X, y=None, max_len=10):
+        tg = X.fields["target"]
+        y_true, pred = [], []
+        for X, sentences in self._greedy_decode_iterator(X, max_len):
+            for seq in sentences[:, 1:]:
+                stop = np.argmax(seq == tg.vocab.stoi[tg.eos_token])
+                pred.append([seq[: stop].tolist()])
+                y_true.append([X["target"].tolist()])
+
+        return corpus_bleu(y_true, pred) * 100
 
     def _greedy_decode_iterator(self, X, max_len=100):
         self.module_.eval()
