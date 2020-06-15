@@ -1,9 +1,19 @@
 import torch
+import random
 import skorch
+import numpy as np
 
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.pipeline import make_pipeline
 from torchtext.data import Field, Example, Dataset, BucketIterator
+
+SEED = 137
+
+random.seed(SEED)
+np.random.seed(SEED)
+torch.manual_seed(SEED)
+torch.cuda.manual_seed(SEED)
+torch.backends.cudnn.deterministic = True
 
 
 def read_dataset(path):
