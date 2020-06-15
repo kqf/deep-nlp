@@ -1,6 +1,8 @@
 import torch
+import skorch
 
 from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.pipeline import make_pipeline
 from torchtext.data import Field, Example, Dataset, BucketIterator
 
 
@@ -51,18 +53,71 @@ def build_preprocessor():
 
 
 class BaselineTagger(torch.nn.Module):
-    def __init__(self, embeddings, tags_count,
-                 emb_dim=100, rnn_dim=256, num_layers=1):
+    def __init__(self, embeddings, tags_count=2, rnn_dim=256, num_layers=1):
         super().__init__()
+        self._out = torch.nn.Linear(rnn_dim, tags_count)
+        if embeddings is None:
+            return
+
         self._emb = torch.nn.Embedding.from_pretrained(embeddings)
+        emb_dim = embeddings.shape[1]
         self._rnn = torch.nn.LSTM(
             emb_dim, rnn_dim, num_layers=num_layers, batch_first=True)
-        self._out = torch.nn.Linear(rnn_dim, tags_count)
 
     def forward(self, inputs):
         emb = self._emb(inputs)
         hid, _ = self._rnn(emb)
         return self._out(hid)
+
+
+class DynamicVariablesSetter(skorch.callbacks.Callback):
+    def on_train_begin(self, net, X, y):
+        svocab = X.fields["tokens"].vocab
+        tvocab = X.fields["tags"].vocab
+        # TODO: Fix me later
+        embeddings = torch.rand(len(svocab), 100)
+        net.set_params(module__embeddings=embeddings)
+        net.set_params(module__tags_count=len(tvocab))
+
+        n_pars = self.count_parameters(net.module_)
+        print(f'The model has {n_pars:,} trainable parameters')
+
+    @staticmethod
+    def count_parameters(model):
+        return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+
+class TaggerNet(skorch.NeuralNet):
+    def get_loss(self, y_pred, y_true, X=None, training=False):
+        logits = y_pred.view(-1, y_pred.shape[-1])
+        return self.criterion_(logits, y_true.view(-1))
+
+
+def build_baseline():
+    model = TaggerNet(
+        module=BaselineTagger,
+        module__embeddings=None,
+        optimizer=torch.optim.Adam,
+        criterion=torch.nn.CrossEntropyLoss,
+        max_epochs=2,
+        batch_size=32,
+        iterator_train=BucketIterator,
+        iterator_train__shuffle=True,
+        iterator_train__sort=False,
+        iterator_valid=BucketIterator,
+        iterator_valid__shuffle=True,
+        iterator_valid__sort=False,
+        train_split=lambda x, y, **kwargs: Dataset.split(x, **kwargs),
+        callbacks=[
+            DynamicVariablesSetter(),
+        ],
+    )
+
+    full = make_pipeline(
+        build_preprocessor(),
+        model,
+    )
+    return full
 
 
 def main():
