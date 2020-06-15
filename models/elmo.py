@@ -1,3 +1,5 @@
+import torch
+
 from sklearn.base import BaseEstimator, TransformerMixin
 from torchtext.data import Field, Example, Dataset, BucketIterator
 
@@ -46,6 +48,21 @@ def build_preprocessor():
         ('tags', Field(unk_token=None, batch_first=True, is_target=True)),
     ]
     return TextPreprocessor(fields)
+
+
+class BaselineTagger(torch.nn.Module):
+    def __init__(self, embeddings, tags_count,
+                 emb_dim=100, rnn_dim=256, num_layers=1):
+        super().__init__()
+        self._emb = torch.nn.Embedding.from_pretrained(embeddings)
+        self._rnn = torch.nn.LSTM(
+            emb_dim, rnn_dim, num_layers=num_layers, batch_first=True)
+        self._out = torch.nn.Linear(rnn_dim, tags_count)
+
+    def forward(self, inputs):
+        emb = self._emb(inputs)
+        hid, _ = self._rnn(emb)
+        return self._out(hid)
 
 
 def main():
