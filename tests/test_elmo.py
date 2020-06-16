@@ -17,7 +17,7 @@ def data(size=160):
         ['O', 'O', 'O', 'O', 'O', 'O', 'I-PER', 'O', 'O', 'O'],
     )
     example2 = (
-        ["The", "chocolate", "makes",  "Andrew", "happy"],
+        ["The", "chocolate", "makes", "Andrew", "happy"],
         ["O", "O", "O", "I-PER", "O"],
     )
     return [example1, example2] * size
@@ -50,7 +50,7 @@ def test_baseline_module(embeddings, batch, n_tags=2):
 def test_baseline_model(data):
     model = build_baseline().fit(data)
 
-    preds = model.predict(data)
-
     tokens, tags = zip(*data)
-    print("Scores: ", model.score(data, tags))
+    score = model.score(data, tags)
+    print("F1 score: ", score)
+    assert score > 0.5
