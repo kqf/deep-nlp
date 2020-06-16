@@ -44,4 +44,7 @@ def test_baseline_module(embeddings, batch, n_tags=2):
 
 
 def test_baseline_model(data):
-    build_baseline().fit(data)
+    model = build_baseline().fit(data)
+
+    preds = model.predict(data)
+    # import ipdb; ipdb.set_trace(); import IPython; IPython.embed() # noqa

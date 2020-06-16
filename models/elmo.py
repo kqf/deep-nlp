@@ -88,7 +88,7 @@ class DynamicVariablesSetter(skorch.callbacks.Callback):
         embeddings = torch.rand(len(svocab), 100)
         net.set_params(module__embeddings=embeddings)
         net.set_params(module__tags_count=len(tvocab))
-        net.set_params(criterion__ignore_index=svocab["<pad>"])
+        net.set_params(criterion__ignore_index=tvocab["<pad>"])
 
         n_pars = self.count_parameters(net.module_)
         print(f'The model has {n_pars:,} trainable parameters')
@@ -103,6 +103,11 @@ class TaggerNet(skorch.NeuralNet):
         logits = y_pred.view(-1, y_pred.shape[-1])
         return self.criterion_(logits, y_true.view(-1))
 
+    def predict(self, X):
+        probs = self.predict_proba(X)
+        label_ids = probs.argmax(-1)
+        return np.take(X.fields["tags"].vocab.itos, label_ids)
+
 
 def build_baseline():
     model = TaggerNet(
@@ -110,7 +115,7 @@ def build_baseline():
         module__embeddings=None,
         optimizer=torch.optim.Adam,
         criterion=torch.nn.CrossEntropyLoss,
-        max_epochs=2,
+        max_epochs=20,
         batch_size=32,
         iterator_train=BucketIterator,
         iterator_train__shuffle=True,
