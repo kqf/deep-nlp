@@ -2,10 +2,13 @@ import torch
 import random
 import skorch
 import numpy as np
+import itertools
 
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.pipeline import make_pipeline
 from torchtext.data import Field, Example, Dataset, BucketIterator
+from conlleval import evaluate as conll_lines
+
 
 SEED = 137
 
@@ -109,6 +112,24 @@ class TaggerNet(skorch.NeuralNet):
         return np.take(X.fields["tags"].vocab.itos, label_ids)
 
 
+    def score(self, X, y):
+        preds = self.predict(X)
+        trimmed = [p[:len(t)] for p, t in zip(preds, y)]
+        y_pred = list(itertools.chain(*trimmed))
+        y_true = list(itertools.chain(*y))
+        return conll_score(y_pred, y_true)
+
+
+def conll_score(y_true, y_pred, metrics="f1", **kwargs):
+    lines = [f"dummy XXX {t} {p}" for pair in zip(y_true, y_pred)
+             for t, p in zip(*pair)]
+    result = conll_lines(lines)["overall"]["tags"]["evals"]
+
+    if isinstance(metrics, str):
+        return result[metrics]
+
+    return [result[m] for m in metrics]
+
 def build_baseline():
     model = TaggerNet(
         module=BaselineTagger,
@@ -116,7 +137,7 @@ def build_baseline():
         optimizer=torch.optim.Adam,
         criterion=torch.nn.CrossEntropyLoss,
         max_epochs=20,
-        batch_size=32,
+        batch_size=64,
         iterator_train=BucketIterator,
         iterator_train__shuffle=True,
         iterator_train__sort=False,

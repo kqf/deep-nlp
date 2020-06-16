@@ -9,14 +9,18 @@ from models.elmo import BaselineTagger
 
 @pytest.fixture
 def data(size=160):
-    example = (
+    example1 = (
         [
             'All', 'work', 'and', 'no', 'play', 'makes',
             'Jack', 'a', 'dull', 'boy'
         ],
         ['O', 'O', 'O', 'O', 'O', 'O', 'I-PER', 'O', 'O', 'O'],
     )
-    return [example, ] * size
+    example2 = (
+        ["The", "chocolate", "makes",  "Andrew", "happy"],
+        ["O", "O", "O", "I-PER", "O"],
+    )
+    return [example1, example2] * size
 
 
 @pytest.fixture
@@ -47,4 +51,6 @@ def test_baseline_model(data):
     model = build_baseline().fit(data)
 
     preds = model.predict(data)
-    # import ipdb; ipdb.set_trace(); import IPython; IPython.embed() # noqa
+
+    tokens, tags = zip(*data)
+    print("Scores: ", model.score(data, tags))
