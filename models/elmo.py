@@ -3,6 +3,7 @@ import random
 import skorch
 import numpy as np
 import itertools
+import gensim.downloader as api
 
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.pipeline import make_pipeline
@@ -87,9 +88,8 @@ class DynamicVariablesSetter(skorch.callbacks.Callback):
     def on_train_begin(self, net, X, y):
         svocab = X.fields["tokens"].vocab
         tvocab = X.fields["tags"].vocab
-        # TODO: Fix me later
-        embeddings = torch.rand(len(svocab), 100)
-        net.set_params(module__embeddings=embeddings)
+
+        net.set_params(module__embeddings=pretrained_embeddings(svocab))
         net.set_params(module__tags_count=len(tvocab))
         net.set_params(criterion__ignore_index=tvocab["<pad>"])
 
@@ -101,7 +101,18 @@ class DynamicVariablesSetter(skorch.callbacks.Callback):
         return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 
+def pretrained_embeddings(vocab, w2v_name="glove-wiki-gigaword-100"):
+    w2v_model = api.load('glove-wiki-gigaword-100')
+    embeddings = np.zeros((len(vocab), w2v_model.vectors.shape[1]))
+
+    for i, token in enumerate(vocab.itos):
+        if token.lower() in w2v_model.vocab:
+            embeddings[i] = w2v_model.get_vector(token.lower())
+
+    return torch.Tensor(embeddings)
+
 class TaggerNet(skorch.NeuralNet):
+
     def get_loss(self, y_pred, y_true, X=None, training=False):
         logits = y_pred.view(-1, y_pred.shape[-1])
         return self.criterion_(logits, y_true.view(-1))
