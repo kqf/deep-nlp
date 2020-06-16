@@ -88,6 +88,7 @@ class DynamicVariablesSetter(skorch.callbacks.Callback):
         embeddings = torch.rand(len(svocab), 100)
         net.set_params(module__embeddings=embeddings)
         net.set_params(module__tags_count=len(tvocab))
+        net.set_params(criterion__ignore_index=svocab["<pad>"])
 
         n_pars = self.count_parameters(net.module_)
         print(f'The model has {n_pars:,} trainable parameters')
