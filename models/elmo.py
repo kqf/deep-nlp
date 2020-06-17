@@ -6,6 +6,8 @@ import itertools
 import gensim.downloader as api
 
 from allennlp.modules.elmo import Elmo
+from allennlp.modules import ConditionalRandomField
+
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.pipeline import make_pipeline
 from torchtext.data import Field, Example, Dataset, BucketIterator
@@ -175,6 +177,29 @@ class TaggerNet(skorch.NeuralNet):
         return conll_score(y_true, y_pred)
 
 
+class CRFTaggerNet(skorch.NeuralNet):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.padding_index = 0
+
+    def get_loss(self, y_pred, y_true, X=None, training=False):
+        mask = y_pred == self.padding_index
+        return -self.criterion_(y_pred, y_true, mask)
+
+    def predict(self, X):
+        probs = self.criterion_(X)
+        label_ids = probs.argmax(-1)
+        return np.take(X.fields["tags"].vocab.itos, label_ids)
+
+    def score(self, X, y):
+        preds = self.predict(X)
+        trimmed = [p[:len(t)] for p, t in zip(preds, y)]
+        y_pred = list(itertools.chain(*trimmed))
+        y_true = list(itertools.chain(*y))
+        return conll_score(y_true, y_pred)
+
+
 def conll_score(y_true, y_pred, metrics="f1", **kwargs):
     lines = [f"dummy XXX {t} {p}" for pair in zip(y_true, y_pred)
              for t, p in zip(*pair)]
@@ -213,12 +238,51 @@ def build_baseline():
     return full
 
 
+class ConditionalRandomFieldLoss(ConditionalRandomField):
+    def __init__(self, ignore_index=None, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.ignore_index = ignore_index
+
+    def forward(self, inputs, tags):
+        mask = None
+        if self.ignore_index is not None:
+            mask = tags == self.ignore_index
+        return - super().forward(inputs, tags, mask)
+
+
 def build_elmo():
     model = TaggerNet(
         module=ElmoTagger,
         module__elmo=None,
         optimizer=torch.optim.Adam,
         criterion=torch.nn.CrossEntropyLoss,
+        max_epochs=4,
+        batch_size=64,
+        iterator_train=BucketIterator,
+        iterator_train__shuffle=True,
+        iterator_train__sort=False,
+        iterator_valid=BucketIterator,
+        iterator_valid__shuffle=False,
+        iterator_valid__sort=False,
+        train_split=lambda x, y, **kwargs: Dataset.split(x, **kwargs),
+        callbacks=[
+            DynamicVariablesSetterELMO(),
+        ],
+    )
+
+    full = make_pipeline(
+        build_preprocessor(),
+        model,
+    )
+    return full
+
+
+def build_crf():
+    model = TaggerNet(
+        module=ElmoTagger,
+        module__elmo=None,
+        optimizer=torch.optim.Adam,
+        criterion=ConditionalRandomFieldLoss,
         max_epochs=4,
         batch_size=64,
         iterator_train=BucketIterator,
