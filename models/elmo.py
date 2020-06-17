@@ -5,6 +5,7 @@ import numpy as np
 import itertools
 import gensim.downloader as api
 
+from allennlp.modules.elmo import Elmo
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.pipeline import make_pipeline
 from torchtext.data import Field, Example, Dataset, BucketIterator
@@ -101,6 +102,29 @@ class DynamicVariablesSetter(skorch.callbacks.Callback):
         return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 
+class DynamicVariablesSetterELMO(DynamicVariablesSetter):
+    def on_train_begin(self, net, X, y):
+        svocab = X.fields["tokens"].vocab
+        tvocab = X.fields["tags"].vocab
+
+
+        options_file = "https://s3-us-west-2.amazonaws.com/allennlp/models/elmo/2x4096_512_2048cnn_2xhighway/elmo_2x4096_512_2048cnn_2xhighway_options.json"
+        weight_file = "https://s3-us-west-2.amazonaws.com/allennlp/models/elmo/2x4096_512_2048cnn_2xhighway/elmo_2x4096_512_2048cnn_2xhighway_weights.hdf5"
+
+        elmo = Elmo(
+            options_file,
+            weight_file,
+            num_output_representations=1,
+            dropout=0, vocab_to_cache=svocab.itos)
+
+        net.set_params(module__elmo=elmo)
+        net.set_params(module__tags_count=len(tvocab))
+        net.set_params(criterion__ignore_index=tvocab["<pad>"])
+
+        n_pars = self.count_parameters(net.module_)
+        print(f'The model has {n_pars:,} trainable parameters')
+
+
 def pretrained_embeddings(vocab, w2v_name="glove-wiki-gigaword-100"):
     w2v_model = api.load('glove-wiki-gigaword-100')
     embeddings = np.zeros((len(vocab), w2v_model.vectors.shape[1]))
@@ -158,6 +182,33 @@ def build_baseline():
         train_split=lambda x, y, **kwargs: Dataset.split(x, **kwargs),
         callbacks=[
             DynamicVariablesSetter(),
+        ],
+    )
+
+    full = make_pipeline(
+        build_preprocessor(),
+        model,
+    )
+    return full
+
+
+def build_elmo():
+    model = TaggerNet(
+        module=BaselineTagger,
+        module__elmo=None,
+        optimizer=torch.optim.Adam,
+        criterion=torch.nn.CrossEntropyLoss,
+        max_epochs=4,
+        batch_size=64,
+        iterator_train=BucketIterator,
+        iterator_train__shuffle=True,
+        iterator_train__sort=False,
+        iterator_valid=BucketIterator,
+        iterator_valid__shuffle=False,
+        iterator_valid__sort=False,
+        train_split=lambda x, y, **kwargs: Dataset.split(x, **kwargs),
+        callbacks=[
+            DynamicVariablesSetterELMO(),
         ],
     )
 

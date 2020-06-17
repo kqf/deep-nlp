@@ -3,7 +3,7 @@ import torch
 
 from torchtext.data import BucketIterator
 
-from models.elmo import build_preprocessor, build_baseline
+from models.elmo import build_preprocessor, build_baseline, build_elmo
 from models.elmo import BaselineTagger
 
 
@@ -47,8 +47,12 @@ def test_baseline_module(embeddings, batch, n_tags=2):
     assert logits.shape == (batch_size, seq_len, n_tags)
 
 
-def test_baseline_model(data):
-    model = build_baseline().fit(data)
+@pytest.mark.parametrize("build", [
+    # build_baseline,
+    build_elmo
+])
+def test_baseline_model(build, data):
+    model = build().fit(data)
 
     tokens, tags = zip(*data)
     score = model.score(data, tags)
