@@ -122,17 +122,19 @@ class ElmoTagger(torch.nn.Module):
 
 
 class DynamicVariablesSetterELMO(DynamicVariablesSetter):
+    _storage = "https://s3-us-west-2.amazonaws.com/allennlp/models/elmo/"
+    _model = "2x4096_512_2048cnn_2xhighway/elmo_2x4096_512_2048cnn_2xhighway"
+
+    options_file = f"{_storage}{_model}_options.json"
+    weight_file = f"{_storage}{_model}_weights.hdf5"
+
     def on_train_begin(self, net, X, y):
         svocab = X.fields["tokens"].vocab
         tvocab = X.fields["tags"].vocab
 
-
-        options_file = "https://s3-us-west-2.amazonaws.com/allennlp/models/elmo/2x4096_512_2048cnn_2xhighway/elmo_2x4096_512_2048cnn_2xhighway_options.json"
-        weight_file = "https://s3-us-west-2.amazonaws.com/allennlp/models/elmo/2x4096_512_2048cnn_2xhighway/elmo_2x4096_512_2048cnn_2xhighway_weights.hdf5"
-
         elmo = Elmo(
-            options_file,
-            weight_file,
+            self.options_file,
+            self.weight_file,
             num_output_representations=1,
             dropout=0, vocab_to_cache=svocab.itos)
 
