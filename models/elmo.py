@@ -102,6 +102,25 @@ class DynamicVariablesSetter(skorch.callbacks.Callback):
         return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 
+class ElmoTagger(torch.nn.Module):
+    def __init__(self, elmo, tags_count=2, rnn_dim=256, num_layers=1):
+        super().__init__()
+        self.elmo = elmo
+        self._out = torch.nn.Linear(rnn_dim, tags_count)
+        self._rnn = torch.nn.LSTM(
+            1024, rnn_dim, num_layers=num_layers, batch_first=True)
+
+    def forward(self, inputs):
+        elm = self.elmo(
+            # API workaraund: pass empty tensor
+            inputs=inputs.new_empty((inputs.shape[0], inputs.shape[1], 50)),
+            word_inputs=inputs
+        )
+        emb = elm["elmo_representations"][0]
+        hid, _ = self._rnn(emb)
+        return self._out(hid)
+
+
 class DynamicVariablesSetterELMO(DynamicVariablesSetter):
     def on_train_begin(self, net, X, y):
         svocab = X.fields["tokens"].vocab
@@ -194,7 +213,7 @@ def build_baseline():
 
 def build_elmo():
     model = TaggerNet(
-        module=BaselineTagger,
+        module=ElmoTagger,
         module__elmo=None,
         optimizer=torch.optim.Adam,
         criterion=torch.nn.CrossEntropyLoss,
