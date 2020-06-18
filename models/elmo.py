@@ -175,19 +175,12 @@ class TaggerNet(skorch.NeuralNet):
         return conll_score(y_true, y_pred)
 
 
-class CRFTaggerNet(skorch.NeuralNet):
+class CRFTaggerNet(TaggerNet):
 
     def predict(self, X):
-        probs = self.criterion_(X)
-        label_ids = probs.argmax(-1)
+        probs = self.predict_proba(X)
+        label_ids, _ = zip(*self.criterion_.viterbi_tags(torch.tensor(probs)))
         return np.take(X.fields["tags"].vocab.itos, label_ids)
-
-    def score(self, X, y):
-        preds = self.predict(X)
-        trimmed = [p[:len(t)] for p, t in zip(preds, y)]
-        y_pred = list(itertools.chain(*trimmed))
-        y_true = list(itertools.chain(*y))
-        return conll_score(y_true, y_pred)
 
 
 def conll_score(y_true, y_pred, metrics="f1", **kwargs):
@@ -253,7 +246,6 @@ class CRFLoss(ConditionalRandomField):
         mask = None
         if self.ignore_index is not None:
             mask = (tags != self.ignore_index)
-            # import ipdb; ipdb.set_trace(); import IPython; IPython.embed() # noqa
         return -super().forward(inputs, tags, mask)
 
 
@@ -285,7 +277,7 @@ def build_elmo():
 
 
 def build_crf():
-    model = TaggerNet(
+    model = CRFTaggerNet(
         module=ElmoTagger,
         module__elmo=None,
         optimizer=torch.optim.Adam,
