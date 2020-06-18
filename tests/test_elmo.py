@@ -3,7 +3,8 @@ import torch
 
 from torchtext.data import BucketIterator
 
-from models.elmo import build_preprocessor, build_baseline, build_elmo
+from models.elmo import build_preprocessor
+from models.elmo import build_baseline, build_elmo, build_crf
 from models.elmo import BaselineTagger
 
 
@@ -49,7 +50,8 @@ def test_baseline_module(embeddings, batch, n_tags=2):
 
 @pytest.mark.parametrize("build", [
     # build_baseline,
-    build_elmo
+    # build_elmo,
+    build_crf,
 ])
 def test_baseline_model(build, data):
     model = build().fit(data)

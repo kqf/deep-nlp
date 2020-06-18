@@ -144,6 +144,9 @@ class DynamicVariablesSetterELMO(DynamicVariablesSetter):
         net.set_params(module__tags_count=len(tvocab))
         net.set_params(criterion__ignore_index=tvocab["<pad>"])
 
+        if net.criterion is ConditionalRandomFieldLoss:
+            net.set_params(criterion__num_tags=len(tvocab))
+
         n_pars = self.count_parameters(net.module_)
         print(f'The model has {n_pars:,} trainable parameters')
 
@@ -239,8 +242,8 @@ def build_baseline():
 
 
 class ConditionalRandomFieldLoss(ConditionalRandomField):
-    def __init__(self, ignore_index=None, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, ignore_index=None, num_tags=2, *args, **kwargs):
+        super().__init__(num_tags, *args, **kwargs)
         self.ignore_index = ignore_index
 
     def forward(self, inputs, tags):
