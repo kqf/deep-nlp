@@ -177,14 +177,6 @@ class TaggerNet(skorch.NeuralNet):
 
 class CRFTaggerNet(skorch.NeuralNet):
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.padding_index = 0
-
-    def get_loss(self, y_pred, y_true, X=None, training=False):
-        mask = y_pred == self.padding_index
-        return -self.criterion_(y_pred, y_true, mask)
-
     def predict(self, X):
         probs = self.criterion_(X)
         label_ids = probs.argmax(-1)
@@ -252,15 +244,16 @@ def build_baseline():
     return full
 
 
-class ConditionalRandomFieldLoss(ConditionalRandomField):
+class CRFLoss(ConditionalRandomField):
     def __init__(self, ignore_index=None, num_tags=2, *args, **kwargs):
         super().__init__(num_tags, *args, **kwargs)
         self.ignore_index = ignore_index
 
     def forward(self, inputs, tags):
-        # TODO: Fix the inputs shape
+        mask = None
         if self.ignore_index is not None:
-            mask = tags == self.ignore_index
+            mask = (tags != self.ignore_index)
+            # import ipdb; ipdb.set_trace(); import IPython; IPython.embed() # noqa
         return -super().forward(inputs, tags, mask)
 
 
@@ -296,7 +289,7 @@ def build_crf():
         module=ElmoTagger,
         module__elmo=None,
         optimizer=torch.optim.Adam,
-        criterion=ConditionalRandomFieldLoss,
+        criterion=CRFLoss,
         max_epochs=4,
         batch_size=64,
         iterator_train=BucketIterator,
