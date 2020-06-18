@@ -49,8 +49,8 @@ def test_baseline_module(embeddings, batch, n_tags=2):
 
 
 @pytest.mark.parametrize("build", [
-    # build_baseline,
-    # build_elmo,
+    build_baseline,
+    build_elmo,
     build_crf,
 ])
 def test_baseline_model(build, data):

@@ -70,7 +70,8 @@ def build_preprocessor():
 
 
 class BaselineTagger(torch.nn.Module):
-    def __init__(self, embeddings, tags_count=2, rnn_dim=256, num_layers=1):
+    def __init__(self, embeddings=None,
+                 tags_count=2, rnn_dim=256, num_layers=1):
         super().__init__()
         self._out = torch.nn.Linear(rnn_dim, tags_count)
         if embeddings is None:
@@ -106,7 +107,7 @@ class DynamicVariablesSetter(skorch.callbacks.Callback):
 
 
 class ElmoTagger(torch.nn.Module):
-    def __init__(self, elmo, tags_count=2, rnn_dim=256, num_layers=1):
+    def __init__(self, elmo=None, tags_count=2, rnn_dim=256, num_layers=1):
         super().__init__()
         self.elmo = elmo
         self._out = torch.nn.Linear(rnn_dim, tags_count)
@@ -163,9 +164,20 @@ def pretrained_embeddings(vocab, w2v_name="glove-wiki-gigaword-100"):
 class TaggerNet(skorch.NeuralNet):
 
     def predict(self, X):
-        probs = self.predict_proba(X)
-        label_ids = probs.argmax(-1)
+        label_ids = self.probs2labels(self.predict_proba(X))
         return np.take(X.fields["tags"].vocab.itos, label_ids)
+
+    def probs2labels(self, probs):
+        # NB: This is ugly, but it allows to reduce the line count
+        if self.criterion is not CRFLoss:
+            return probs.argmax(-1)
+
+        self.module_.eval()
+        with torch.no_grad():
+            outputs = self.criterion_.viterbi_tags(torch.tensor(probs))
+
+        label_ids, viterbi_score = zip(*outputs)
+        return label_ids
 
     def score(self, X, y):
         preds = self.predict(X)
@@ -173,14 +185,6 @@ class TaggerNet(skorch.NeuralNet):
         y_pred = list(itertools.chain(*trimmed))
         y_true = list(itertools.chain(*y))
         return conll_score(y_true, y_pred)
-
-
-class CRFTaggerNet(TaggerNet):
-
-    def predict(self, X):
-        probs = self.predict_proba(X)
-        label_ids, _ = zip(*self.criterion_.viterbi_tags(torch.tensor(probs)))
-        return np.take(X.fields["tags"].vocab.itos, label_ids)
 
 
 def conll_score(y_true, y_pred, metrics="f1", **kwargs):
@@ -210,33 +214,6 @@ class TaggingCrossEntropyLoss(torch.nn.CrossEntropyLoss):
         return super().forward(logits, target.view(-1))
 
 
-def build_baseline():
-    model = TaggerNet(
-        module=BaselineTagger,
-        module__embeddings=None,
-        optimizer=torch.optim.Adam,
-        criterion=TaggingCrossEntropyLoss,
-        max_epochs=4,
-        batch_size=64,
-        iterator_train=BucketIterator,
-        iterator_train__shuffle=True,
-        iterator_train__sort=False,
-        iterator_valid=BucketIterator,
-        iterator_valid__shuffle=False,
-        iterator_valid__sort=False,
-        train_split=lambda x, y, **kwargs: Dataset.split(x, **kwargs),
-        callbacks=[
-            DynamicVariablesSetter(),
-        ],
-    )
-
-    full = make_pipeline(
-        build_preprocessor(),
-        model,
-    )
-    return full
-
-
 class CRFLoss(ConditionalRandomField):
     def __init__(self, ignore_index=None, num_tags=2, *args, **kwargs):
         super().__init__(num_tags, *args, **kwargs)
@@ -249,12 +226,15 @@ class CRFLoss(ConditionalRandomField):
         return -super().forward(inputs, tags, mask)
 
 
-def build_elmo():
+def build_baseline(
+        module=BaselineTagger,
+        setter=DynamicVariablesSetter,
+        criterion=TaggingCrossEntropyLoss,):
+
     model = TaggerNet(
-        module=ElmoTagger,
-        module__elmo=None,
+        module=module,
         optimizer=torch.optim.Adam,
-        criterion=TaggingCrossEntropyLoss,
+        criterion=criterion,
         max_epochs=4,
         batch_size=64,
         iterator_train=BucketIterator,
@@ -265,7 +245,7 @@ def build_elmo():
         iterator_valid__sort=False,
         train_split=lambda x, y, **kwargs: Dataset.split(x, **kwargs),
         callbacks=[
-            DynamicVariablesSetterELMO(),
+            setter(),
         ],
     )
 
@@ -276,31 +256,21 @@ def build_elmo():
     return full
 
 
-def build_crf():
-    model = CRFTaggerNet(
+def build_elmo():
+    model = build_baseline(
         module=ElmoTagger,
-        module__elmo=None,
-        optimizer=torch.optim.Adam,
+        setter=DynamicVariablesSetterELMO,
+    )
+    return model
+
+
+def build_crf(model=ElmoTagger, setter=DynamicVariablesSetterELMO):
+    model = build_baseline(
+        module=ElmoTagger,
+        setter=DynamicVariablesSetterELMO,
         criterion=CRFLoss,
-        max_epochs=4,
-        batch_size=64,
-        iterator_train=BucketIterator,
-        iterator_train__shuffle=True,
-        iterator_train__sort=False,
-        iterator_valid=BucketIterator,
-        iterator_valid__shuffle=False,
-        iterator_valid__sort=False,
-        train_split=lambda x, y, **kwargs: Dataset.split(x, **kwargs),
-        callbacks=[
-            DynamicVariablesSetterELMO(),
-        ],
     )
-
-    full = make_pipeline(
-        build_preprocessor(),
-        model,
-    )
-    return full
+    return model
 
 
 def main():
