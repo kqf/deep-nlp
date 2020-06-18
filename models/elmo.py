@@ -95,6 +95,7 @@ class DynamicVariablesSetter(skorch.callbacks.Callback):
         net.set_params(module__embeddings=pretrained_embeddings(svocab))
         net.set_params(module__tags_count=len(tvocab))
         net.set_params(criterion__ignore_index=tvocab["<pad>"])
+        net.set_params(criterion__num_tags=len(tvocab))
 
         n_pars = self.count_parameters(net.module_)
         print(f'The model has {n_pars:,} trainable parameters')
@@ -143,9 +144,7 @@ class DynamicVariablesSetterELMO(DynamicVariablesSetter):
         net.set_params(module__elmo=elmo)
         net.set_params(module__tags_count=len(tvocab))
         net.set_params(criterion__ignore_index=tvocab["<pad>"])
-
-        if net.criterion is ConditionalRandomFieldLoss:
-            net.set_params(criterion__num_tags=len(tvocab))
+        net.set_params(criterion__num_tags=len(tvocab))
 
         n_pars = self.count_parameters(net.module_)
         print(f'The model has {n_pars:,} trainable parameters')
@@ -162,10 +161,6 @@ def pretrained_embeddings(vocab, w2v_name="glove-wiki-gigaword-100"):
     return torch.Tensor(embeddings)
 
 class TaggerNet(skorch.NeuralNet):
-
-    def get_loss(self, y_pred, y_true, X=None, training=False):
-        logits = y_pred.view(-1, y_pred.shape[-1])
-        return self.criterion_(logits, y_true.view(-1))
 
     def predict(self, X):
         probs = self.predict_proba(X)
@@ -214,12 +209,28 @@ def conll_score(y_true, y_pred, metrics="f1", **kwargs):
     return [result[m] for m in metrics]
 
 
+class TaggingCrossEntropyLoss(torch.nn.CrossEntropyLoss):
+    def __init__(self, ignore_index=None, num_tags=None, *args, **kwargs):
+        super().__init__(ignore_index=ignore_index, *args, **kwargs)
+        self.num_tags = num_tags
+
+    def forward(self, inputs, target):
+        if inputs.shape[-1] != self.num_tags:
+            raise IOError(
+                f"Wrong inputs dimension {inputs.shape}. "
+                f"Last dimension should be equal "
+                f"to the number of tags {self.num_tags}"
+            )
+        logits = inputs.view(-1, self.num_tags)
+        return super().forward(logits, target.view(-1))
+
+
 def build_baseline():
     model = TaggerNet(
         module=BaselineTagger,
         module__embeddings=None,
         optimizer=torch.optim.Adam,
-        criterion=torch.nn.CrossEntropyLoss,
+        criterion=TaggingCrossEntropyLoss,
         max_epochs=4,
         batch_size=64,
         iterator_train=BucketIterator,
@@ -247,10 +258,10 @@ class ConditionalRandomFieldLoss(ConditionalRandomField):
         self.ignore_index = ignore_index
 
     def forward(self, inputs, tags):
-        mask = None
+        # TODO: Fix the inputs shape
         if self.ignore_index is not None:
             mask = tags == self.ignore_index
-        return - super().forward(inputs, tags, mask)
+        return -super().forward(inputs, tags, mask)
 
 
 def build_elmo():
@@ -258,7 +269,7 @@ def build_elmo():
         module=ElmoTagger,
         module__elmo=None,
         optimizer=torch.optim.Adam,
-        criterion=torch.nn.CrossEntropyLoss,
+        criterion=TaggingCrossEntropyLoss,
         max_epochs=4,
         batch_size=64,
         iterator_train=BucketIterator,
