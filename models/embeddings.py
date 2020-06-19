@@ -64,11 +64,7 @@ def build_preprocessor():
 class SkorchBucketIterator(BucketIterator):
     def __iter__(self):
         for batch in super().__iter__():
-            yield self.batch2dict(batch), batch.target.view(-1)
-
-    @staticmethod
-    def batch2dict(batch):
-        return {f: attrgetter(f)(batch) for f in batch.fields}
+            yield batch.context.view(-1), batch.target.view(-1)
 
 
 class SkipGramModel(torch.nn.Module):
@@ -77,8 +73,8 @@ class SkipGramModel(torch.nn.Module):
         self.embeddings = torch.nn.Embedding(vocab_size, embedding_dim)
         self.out_layer = torch.nn.Linear(embedding_dim, vocab_size)
 
-    def forward(self, context, target):
-        latent = self.embeddings(context.squeeze(-1))
+    def forward(self, context):
+        latent = self.embeddings(context)
         return self.out_layer(latent)
 
 
