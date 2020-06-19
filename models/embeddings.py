@@ -1,5 +1,8 @@
+import torch
+
+from operator import attrgetter
 from torchtext.data import Dataset, Example
-from torchtext.data import Field
+from torchtext.data import Field, BucketIterator
 
 from sklearn.base import BaseEstimator, TransformerMixin
 
@@ -53,6 +56,28 @@ def build_preprocessor():
         ('target', word)
     ]
     return TextPreprocessor(fields, dtype=SkipGramDataset)
+
+
+class SkorchBucketIterator(BucketIterator):
+    def __iter__(self):
+        for batch in super().__iter__():
+            yield self.batch2dict(batch), batch.target
+
+    @staticmethod
+    def batch2dict(batch):
+        return {f: attrgetter(f)(batch) for f in batch.fields}
+
+
+class SkipGramModel(torch.nn.Module):
+    def __init__(self, vocab_size=None, embedding_dim=100):
+        super().__init__()
+        if vocab_size is not None:
+            self.embeddings = torch.nn.Embedding(vocab_size, embedding_dim)
+        self.out_layer = torch.nn.Linear(embedding_dim, vocab_size)
+
+    def forward(self, inputs):
+        latent = self.embeddings(inputs)
+        return self.out_layer(latent)
 
 
 def main():
