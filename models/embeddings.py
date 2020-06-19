@@ -1,6 +1,8 @@
 from torchtext.data import Dataset, Example
 from torchtext.data import Field
 
+from sklearn.base import BaseEstimator, TransformerMixin
+
 
 def split(sentence):
     return sentence.split()
@@ -29,23 +31,37 @@ class SkipGramDataset(Dataset):
         super(SkipGramDataset, self).__init__(examples, fields, **kwargs)
 
 
+class TextPreprocessor(BaseEstimator, TransformerMixin):
+    def __init__(self, fields, dtype=SkipGramDataset):
+        self.fields = fields
+        self.dtype = dtype
+
+    def fit(self, X, y=None):
+        dataset = self.transform(X, y)
+        for name, field in dataset.fields.items():
+            field.build_vocab(dataset)
+        return self
+
+    def transform(self, X, y=None):
+        return self.dtype(X, self.fields)
+
+
 def build_preprocessor():
-    pass
-
-
-def main():
     word = Field(tokenize=lambda x: [x], batch_first=True)
     fields = [
         ('context', word),
         ('target', word)
     ]
+    return TextPreprocessor(fields, dtype=SkipGramDataset)
+
+
+def main():
     raw = [
         "first sentence",
         "second sentence",
     ]
-
-    data = SkipGramDataset(raw, fields)
-    word.build_vocab(data)
+    data = build_preprocessor().fit_transform(raw)
+    print(data)
 
 
 if __name__ == '__main__':
