@@ -1,7 +1,7 @@
 import pytest
 
 from torchtext.data import BucketIterator
-from models.embeddings import build_preprocessor
+from models.embeddings import build_preprocessor, build_model
 
 
 @pytest.fixture
@@ -18,3 +18,8 @@ def test_representation(data, batch_size=64):
 
     assert batch.context.shape == (batch_size, 1)
     assert batch.target.shape == (batch_size, 1)
+
+
+def test_model(data):
+    model = build_model()
+    model.fit(data)

@@ -1,10 +1,13 @@
 import torch
+import skorch
 
 from operator import attrgetter
+
 from torchtext.data import Dataset, Example
 from torchtext.data import Field, BucketIterator
 
 from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.pipeline import make_pipeline
 
 
 def split(sentence):
@@ -61,7 +64,7 @@ def build_preprocessor():
 class SkorchBucketIterator(BucketIterator):
     def __iter__(self):
         for batch in super().__iter__():
-            yield self.batch2dict(batch), batch.target
+            yield self.batch2dict(batch), batch.target.view(-1)
 
     @staticmethod
     def batch2dict(batch):
@@ -69,15 +72,53 @@ class SkorchBucketIterator(BucketIterator):
 
 
 class SkipGramModel(torch.nn.Module):
-    def __init__(self, vocab_size=None, embedding_dim=100):
+    def __init__(self, vocab_size=1, embedding_dim=100):
         super().__init__()
-        if vocab_size is not None:
-            self.embeddings = torch.nn.Embedding(vocab_size, embedding_dim)
+        self.embeddings = torch.nn.Embedding(vocab_size, embedding_dim)
         self.out_layer = torch.nn.Linear(embedding_dim, vocab_size)
 
-    def forward(self, inputs):
-        latent = self.embeddings(inputs)
+    def forward(self, context, target):
+        latent = self.embeddings(context.squeeze(-1))
         return self.out_layer(latent)
+
+
+class DynamicParameterSetter(skorch.callbacks.Callback):
+    def on_train_begin(self, net, X, y):
+        vocab = X.fields["context"].vocab
+        net.set_params(module__vocab_size=len(vocab))
+
+        n_pars = self.count_parameters(net.module_)
+        print(f'The model has {n_pars:,} trainable parameters')
+
+    @staticmethod
+    def count_parameters(model):
+        return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+
+def build_model():
+    model = skorch.NeuralNet(
+        module=SkipGramModel,
+        optimizer=torch.optim.Adam,
+        criterion=torch.nn.CrossEntropyLoss,
+        max_epochs=2,
+        batch_size=100,
+        iterator_train=SkorchBucketIterator,
+        iterator_train__shuffle=True,
+        iterator_train__sort=False,
+        iterator_valid=SkorchBucketIterator,
+        iterator_valid__shuffle=True,
+        iterator_valid__sort=False,
+        train_split=lambda x, y, **kwargs: Dataset.split(x, **kwargs),
+        callbacks=[
+            DynamicParameterSetter(),
+        ],
+    )
+
+    full = make_pipeline(
+        build_preprocessor(),
+        model,
+    )
+    return full
 
 
 def main():
