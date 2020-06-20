@@ -107,6 +107,26 @@ class SkipGramModel(torch.nn.Module):
         return self.out_layer(latent)
 
 
+class SGNSModel(torch.nn.Module):
+    def __init__(self, vocab_size=1, embedding_dim=100):
+        super().__init__()
+        self.embeddings = torch.nn.Embedding(vocab_size, embedding_dim)
+        self.embeddings_v = torch.nn.Embedding(vocab_size, embedding_dim)
+
+    def forward(self, inputs, targets, negatives):
+        u = self.embeddings(inputs)
+        v = self.embeddings_v(targets)
+        vp = self.embeddings_v(negatives)
+
+        pos = torch.nn.functional.logsigmoid((v * u).sum(1))
+
+        # vp[batch, neg, v] * u[batch, v] -> [batch, neg, 1] -> [barch, neg]
+        neg_prod = torch.bmm(vp, u.unsqueeze(dim=2)).squeeze()
+
+        neg = torch.nn.functional.logsigmoid(torch.sum(neg_prod, dim=1))
+        return -(pos - neg).mean()
+
+
 class DynamicParameterSetter(skorch.callbacks.Callback):
     def on_train_begin(self, net, X, y):
         vocab = X.fields["context"].vocab
