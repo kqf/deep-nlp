@@ -1,7 +1,6 @@
 import torch
 import skorch
-
-from operator import attrgetter
+import numpy as np
 
 from torchtext.data import Dataset, Example
 from torchtext.data import Field, BucketIterator
@@ -65,6 +64,36 @@ class SkorchBucketIterator(BucketIterator):
     def __iter__(self):
         for batch in super().__iter__():
             yield batch.context.view(-1), batch.target.view(-1)
+
+
+class NegativeSamplingIterator(BucketIterator):
+    def __init__(self, neg_samples, ns_exponent, dataset, *args, **kwargs):
+        super().__init__(dataset, *args, **kwargs)
+        self.ns_exponent = ns_exponent
+        self.neg_samples = neg_samples
+
+        vocab = dataset.fields["context"].vocab
+        freq = [vocab.freqs[s]**self.ns_exponent for s in vocab.itos]
+
+        # Normalize
+        self.freq = np.array(freq) / np.sum(freq)
+
+    def __iter__(self):
+        for batch in super().__iter__():
+            inputs = {
+                "context": batch.context.view(-1),
+                "target": batch.target.view(-1),
+                "negatives": self.sample(batch.context),
+            }
+            yield inputs, torch.empty(0)
+
+    def sample(self, context):
+        negatives = np.random.choice(
+            np.arange(len(self.freq)),
+            p=self.freq,
+            size=(context.shape[0], self.neg_samples),
+        )
+        return torch.tensor(negatives, dtype=context.dtype).to(context.device)
 
 
 class SkipGramModel(torch.nn.Module):
