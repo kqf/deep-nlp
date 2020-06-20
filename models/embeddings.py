@@ -66,6 +66,17 @@ class SkorchBucketIterator(BucketIterator):
             yield batch.context.view(-1), batch.target.view(-1)
 
 
+class SkipGramModel(torch.nn.Module):
+    def __init__(self, vocab_size=1, embedding_dim=100):
+        super().__init__()
+        self.embeddings = torch.nn.Embedding(vocab_size, embedding_dim)
+        self.out_layer = torch.nn.Linear(embedding_dim, vocab_size)
+
+    def forward(self, context):
+        latent = self.embeddings(context)
+        return self.out_layer(latent)
+
+
 class NegativeSamplingIterator(BucketIterator):
     def __init__(self, dataset, batch_size,
                  neg_samples, ns_exponent, *args, **kwargs):
@@ -97,17 +108,6 @@ class NegativeSamplingIterator(BucketIterator):
         return torch.tensor(negatives, dtype=context.dtype).to(context.device)
 
 
-class SkipGramModel(torch.nn.Module):
-    def __init__(self, vocab_size=1, embedding_dim=100):
-        super().__init__()
-        self.embeddings = torch.nn.Embedding(vocab_size, embedding_dim)
-        self.out_layer = torch.nn.Linear(embedding_dim, vocab_size)
-
-    def forward(self, context):
-        latent = self.embeddings(context)
-        return self.out_layer(latent)
-
-
 class SGNSModel(torch.nn.Module):
     def __init__(self, vocab_size=1, embedding_dim=100):
         super().__init__()
@@ -115,16 +115,25 @@ class SGNSModel(torch.nn.Module):
         self.embeddings_v = torch.nn.Embedding(vocab_size, embedding_dim)
 
     def forward(self, context, target, negatives):
+        # u[batch_size, embedding_dim]
         u = self.embeddings(context)
+        # v[batch_size, embedding_dim]
         v = self.embeddings_v(target)
+        # vp[batch_size, neg_samples, embedding_dim]
         vp = self.embeddings_v(negatives)
 
-        pos = torch.nn.functional.logsigmoid((v * u).sum(1))
+        # log(sigma(sum_{i = emb_dim} u_i * v_i)) -> [batch_size]
+        pos = torch.nn.functional.logsigmoid((v * u).sum(-1))
 
-        neg_prod = torch.bmm(vp, u.unsqueeze(dim=2)).squeeze()
+        # sum_{i = emb_dim} -vp_i * u_i) -> [batch_size, neg_samples]
+        neg_sim = (-vp * u.unsqueeze(dim=1)).sum(-1)
 
-        neg = torch.nn.functional.logsigmoid(torch.sum(neg_prod, dim=1))
-        return -(pos - neg).mean()
+        # sum_{neg_samples} log(sigma(neg_sim_i)) -> [batch_size]
+        neg = torch.nn.functional.logsigmoid(neg_sim).sum(-1)
+
+        # Calculate loss
+        # logsigmoid(v * u) + sum_{neg} logsigmoid(vp * u) -> [batch_size]
+        return -(pos + neg).mean()
 
 
 class DynamicParameterSetter(skorch.callbacks.Callback):
@@ -177,7 +186,7 @@ def build_sgns_model():
         optimizer=torch.optim.Adam,
         criterion=lambda: None,  # Does nothing
         max_epochs=2,
-        batch_size=100,
+        batch_size=128,
         iterator_train=NegativeSamplingIterator,
         iterator_train__neg_samples=5,
         iterator_train__ns_exponent=3. / 4.,
@@ -191,6 +200,8 @@ def build_sgns_model():
         train_split=lambda x, y, **kwargs: Dataset.split(x, **kwargs),
         callbacks=[
             DynamicParameterSetter(),
+            skorch.callbacks.Initializer('*',
+                fn=torch.nn.init.xavier_normal_),
         ],
     )
 
