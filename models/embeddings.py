@@ -67,8 +67,9 @@ class SkorchBucketIterator(BucketIterator):
 
 
 class NegativeSamplingIterator(BucketIterator):
-    def __init__(self, neg_samples, ns_exponent, dataset, *args, **kwargs):
-        super().__init__(dataset, *args, **kwargs)
+    def __init__(self, dataset, batch_size,
+                 neg_samples, ns_exponent, *args, **kwargs):
+        super().__init__(dataset, batch_size, *args, **kwargs)
         self.ns_exponent = ns_exponent
         self.neg_samples = neg_samples
 
@@ -113,14 +114,13 @@ class SGNSModel(torch.nn.Module):
         self.embeddings = torch.nn.Embedding(vocab_size, embedding_dim)
         self.embeddings_v = torch.nn.Embedding(vocab_size, embedding_dim)
 
-    def forward(self, inputs, targets, negatives):
-        u = self.embeddings(inputs)
-        v = self.embeddings_v(targets)
+    def forward(self, context, target, negatives):
+        u = self.embeddings(context)
+        v = self.embeddings_v(target)
         vp = self.embeddings_v(negatives)
 
         pos = torch.nn.functional.logsigmoid((v * u).sum(1))
 
-        # vp[batch, neg, v] * u[batch, v] -> [batch, neg, 1] -> [barch, neg]
         neg_prod = torch.bmm(vp, u.unsqueeze(dim=2)).squeeze()
 
         neg = torch.nn.functional.logsigmoid(torch.sum(neg_prod, dim=1))
@@ -151,6 +151,41 @@ def build_model():
         iterator_train__shuffle=True,
         iterator_train__sort=False,
         iterator_valid=SkorchBucketIterator,
+        iterator_valid__shuffle=True,
+        iterator_valid__sort=False,
+        train_split=lambda x, y, **kwargs: Dataset.split(x, **kwargs),
+        callbacks=[
+            DynamicParameterSetter(),
+        ],
+    )
+
+    full = make_pipeline(
+        build_preprocessor(),
+        model,
+    )
+    return full
+
+
+class SGNSLanguageModel(skorch.NeuralNet):
+    def get_loss(self, y_pred, y_true, X=None, training=False):
+        return y_pred
+
+
+def build_sgns_model():
+    model = SGNSLanguageModel(
+        module=SGNSModel,
+        optimizer=torch.optim.Adam,
+        criterion=lambda: None,  # Does nothing
+        max_epochs=2,
+        batch_size=100,
+        iterator_train=NegativeSamplingIterator,
+        iterator_train__neg_samples=5,
+        iterator_train__ns_exponent=3. / 4.,
+        iterator_train__shuffle=True,
+        iterator_train__sort=False,
+        iterator_valid=NegativeSamplingIterator,
+        iterator_valid__neg_samples=5,
+        iterator_valid__ns_exponent=3. / 4.,
         iterator_valid__shuffle=True,
         iterator_valid__sort=False,
         train_split=lambda x, y, **kwargs: Dataset.split(x, **kwargs),

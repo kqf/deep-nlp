@@ -1,7 +1,7 @@
 import pytest
 
 from torchtext.data import BucketIterator
-from models.embeddings import build_preprocessor, build_model
+from models.embeddings import build_preprocessor, build_model, build_sgns_model
 from models.embeddings import NegativeSamplingIterator
 
 
@@ -24,9 +24,7 @@ def test_representation(data, batch_size=64):
 def test_negative_sampling_iterator(data, batch_size=64, neg_samples=5):
     dataset = build_preprocessor().fit_transform(data)
 
-    ns = NegativeSamplingIterator(
-        neg_samples, 3. / 4., dataset, batch_size=batch_size)
-
+    ns = NegativeSamplingIterator(dataset, batch_size, neg_samples, 3. / 4.)
     batch, _ = next(iter(ns))
 
     assert batch["context"].shape == (batch_size,)
@@ -36,4 +34,9 @@ def test_negative_sampling_iterator(data, batch_size=64, neg_samples=5):
 
 def test_model(data):
     model = build_model()
+    model.fit(data)
+
+
+def test_sgns_model(data):
+    model = build_sgns_model()
     model.fit(data)
