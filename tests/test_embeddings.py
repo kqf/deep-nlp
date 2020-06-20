@@ -40,3 +40,4 @@ def test_model(data):
 def test_sgns_model(data):
     model = build_sgns_model()
     model.fit(data)
+    model.predict_proba(data)

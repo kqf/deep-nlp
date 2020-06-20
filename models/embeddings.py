@@ -67,13 +67,13 @@ class SkorchBucketIterator(BucketIterator):
 
 
 class SkipGramModel(torch.nn.Module):
-    def __init__(self, vocab_size=1, embedding_dim=100):
+    def __init__(self, vocab_size=1, emb_dim=100):
         super().__init__()
-        self.embeddings = torch.nn.Embedding(vocab_size, embedding_dim)
-        self.out_layer = torch.nn.Linear(embedding_dim, vocab_size)
+        self._emb = torch.nn.Embedding(vocab_size, emb_dim)
+        self.out_layer = torch.nn.Linear(emb_dim, vocab_size)
 
     def forward(self, context):
-        latent = self.embeddings(context)
+        latent = self._emb(context)
         return self.out_layer(latent)
 
 
@@ -109,18 +109,18 @@ class NegativeSamplingIterator(BucketIterator):
 
 
 class SGNSModel(torch.nn.Module):
-    def __init__(self, vocab_size=1, embedding_dim=100):
+    def __init__(self, vocab_size=1, emb_dim=100):
         super().__init__()
-        self.embeddings = torch.nn.Embedding(vocab_size, embedding_dim)
-        self.embeddings_v = torch.nn.Embedding(vocab_size, embedding_dim)
+        self._emb = torch.nn.Embedding(vocab_size, emb_dim)
+        self._out_layer = torch.nn.Embedding(vocab_size, emb_dim)
 
     def forward(self, context, target, negatives):
-        # u[batch_size, embedding_dim]
-        u = self.embeddings(context)
-        # v[batch_size, embedding_dim]
-        v = self.embeddings_v(target)
-        # vp[batch_size, neg_samples, embedding_dim]
-        vp = self.embeddings_v(negatives)
+        # u[batch_size, emb_dim]
+        u = self._emb(context)
+        # v[batch_size, emb_dim]
+        v = self._out_layer(target)
+        # vp[batch_size, neg_samples, emb_dim]
+        vp = self._out_layer(negatives)
 
         # log(sigma(sum_{i = emb_dim} u_i * v_i)) -> [batch_size]
         pos = torch.nn.functional.logsigmoid((v * u).sum(-1))
@@ -131,7 +131,6 @@ class SGNSModel(torch.nn.Module):
         # sum_{neg_samples} log(sigma(neg_sim_i)) -> [batch_size]
         neg = torch.nn.functional.logsigmoid(neg_sim).sum(-1)
 
-        # Calculate loss
         # logsigmoid(v * u) + sum_{neg} logsigmoid(vp * u) -> [batch_size]
         return -(pos + neg).mean()
 
@@ -179,6 +178,22 @@ class SGNSLanguageModel(skorch.NeuralNet):
     def get_loss(self, y_pred, y_true, X=None, training=False):
         return y_pred
 
+    def _predict_proba(self, X):
+        self.module_.eval()
+        dataset = self.get_dataset(X)
+        # tg = X.fields["target"]
+        # init_token_idx = tg.vocab.stoi[tg.init_token]
+        for (data, _) in self.get_iterator(dataset, training=False):
+            with torch.no_grad():
+                # [batch_size] -> [batch_size, emb_dim]
+                contexts = self.module_._emb(data["context"])
+
+                # scores [batch_size, vocab_size]
+                yield contexts @ self.module_._out_layer.weight.T
+
+    def predict_proba(self, X):
+        return list(self._predict_proba(X))
+
 
 def build_sgns_model():
     model = SGNSLanguageModel(
@@ -201,7 +216,7 @@ def build_sgns_model():
         callbacks=[
             DynamicParameterSetter(),
             skorch.callbacks.Initializer('*',
-                fn=torch.nn.init.xavier_normal_),
+                                         fn=torch.nn.init.xavier_normal_),
         ],
     )
 
