@@ -25,6 +25,7 @@ def test_preprocessing(data, batch_size=64):
     assert batch.question1.shape[0] == batch_size
     assert batch.question2.shape[0] == batch_size
     assert batch.is_duplicate.shape == (batch_size,)
+    print(batch.question_pair)
 
 
 def test_model(data, batch_size=64):

@@ -61,8 +61,9 @@ class BertDoubleField(Field):
 
     def _trim_tokenize(self, sentence):
         tokens = self.btokenizer.tokenize(sentence)
-        tokens = tokens[:self.max_len - 2]
-        return tokens
+        # init_token + eos_token + eos_token = 3
+        tokens = tokens[:self.max_len - 3]
+        return self.btokenizer.convert_tokens_to_ids(tokens)
 
 
 def build_preprocessor(modelname='distilbert-base-cased', max_len=512):
@@ -77,7 +78,6 @@ def build_preprocessor(modelname='distilbert-base-cased', max_len=512):
         max_len=max_len,
         batch_first=True,
         use_vocab=False,
-        preprocessing=tokenizer.convert_tokens_to_ids,
         init_token=tokenizer.cls_token_id,
         eos_token=tokenizer.sep_token_id,
         pad_token=tokenizer.pad_token_id,
@@ -112,7 +112,7 @@ class BaselineModel(torch.nn.Module):
         self._out = torch.nn.Linear(2 * hidden_dim, n_classes)
 
     def forward(self, inputs):
-        question1, question2, _ = inputs
+        question1, question2, question_pair = inputs
         q1, _ = self._rnn(self._emb(question1))[1]
         q2, _ = self._rnn(self._emb(question2))[1]
 
