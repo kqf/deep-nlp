@@ -6,7 +6,7 @@ import pandas as pd
 from torchtext.data import Field, LabelField, Dataset, Example
 from torchtext.data import BucketIterator
 
-from transformers import DistilBertTokenizer
+from transformers import DistilBertTokenizer, BertModel
 
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.pipeline import make_pipeline
@@ -122,6 +122,20 @@ class BaselineModel(torch.nn.Module):
         return output
 
 
+class BERTSimilarity(torch.nn.Module):
+    def __init__(self, bert, vocab_size=None, n_classes=1, pad_idx=None):
+        super().__init__()
+        self._bert = bert
+        hidden_dim = bert.config.to_dict()['hidden_size']
+        self._out = torch.nn.Linear(hidden_dim, n_classes)
+
+    def forward(self, inputs):
+        question1, question2, question_pair = inputs
+        with torch.no_grad():
+            hidden = self._bert(question_pair)[0].mean(dim=1)
+        return self._out(hidden)
+
+
 class DynamicVariablesSetter(skorch.callbacks.Callback):
     def on_train_begin(self, net, X, y):
         vocab = X.fields["question1"].vocab
@@ -144,8 +158,10 @@ class DeduplicationNet(skorch.NeuralNet):
 
 
 def build_model():
+    bert = BertModel.from_pretrained('distilbert-base-cased')
     model = DeduplicationNet(
-        module=BaselineModel,
+        module=BERTSimilarity,
+        module__bert=bert,
         optimizer=torch.optim.Adam,
         criterion=torch.nn.CrossEntropyLoss,
         max_epochs=2,
@@ -159,6 +175,8 @@ def build_model():
         train_split=lambda x, y, **kwargs: Dataset.split(x, **kwargs),
         callbacks=[
             DynamicVariablesSetter(),
+            skorch.callbacks.Freezer(['bert*']),
+            # skorch.callbacks.ProgressBar(),
         ],
     )
 
