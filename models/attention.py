@@ -462,7 +462,7 @@ def build_model():
         iterator_train__shuffle=True,
         iterator_train__sort=False,
         iterator_valid=SkorchBucketIterator,
-        iterator_valid__shuffle=True,
+        iterator_valid__shuffle=False,
         iterator_valid__sort=False,
         train_split=lambda x, y, **kwargs: Dataset.split(x, **kwargs),
         callbacks=[
