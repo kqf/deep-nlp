@@ -6,7 +6,7 @@ import pandas as pd
 from torchtext.data import Field, LabelField, Dataset, Example
 from torchtext.data import BucketIterator
 
-from transformers import DistilBertTokenizer, BertModel
+from transformers import DistilBertTokenizer, DistilBertModel
 
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.pipeline import make_pipeline
@@ -126,7 +126,7 @@ class BERTSimilarity(torch.nn.Module):
     def __init__(self, bert, vocab_size=None, n_classes=1, pad_idx=None):
         super().__init__()
         self._bert = bert
-        hidden_dim = bert.config.to_dict()['hidden_size']
+        hidden_dim = bert.config.to_dict()['dim']
         self._out = torch.nn.Linear(hidden_dim, n_classes)
 
     def forward(self, inputs):
@@ -158,7 +158,7 @@ class DeduplicationNet(skorch.NeuralNet):
 
 
 def build_model():
-    bert = BertModel.from_pretrained('distilbert-base-cased')
+    bert = DistilBertModel.from_pretrained('distilbert-base-cased')
     model = DeduplicationNet(
         module=BERTSimilarity,
         module__bert=bert,
