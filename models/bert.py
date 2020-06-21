@@ -6,6 +6,8 @@ import pandas as pd
 from torchtext.data import Field, LabelField, Dataset, Example
 from torchtext.data import BucketIterator
 
+from transformers import DistilBertTokenizer
+
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.pipeline import make_pipeline
 
@@ -16,9 +18,25 @@ def data(dataset="train"):
     return df
 
 
+class MergeColumnTransformer(BaseEstimator, TransformerMixin):
+    def __init__(self, col1, col2, out_col, sep_token):
+        self.col1 = col1
+        self.col2 = col2
+        self.out_col = out_col
+        self.sep_token = f" {sep_token} "
+
+    def fit(self, X, y=None):
+        return self
+
+    def transform(self, X):
+        X[self.out_col] = X[self.col1] + self.sep_token + X[self.col2]
+        return X
+
+
 class TextPreprocessor(BaseEstimator, TransformerMixin):
-    def __init__(self, fields, min_freq=0):
+    def __init__(self, fields, pair_field=None, min_freq=0):
         self.fields = fields
+        self.pair_field = pair_field
         self.min_freq = min_freq or {}
 
     def fit(self, X, y=None):
@@ -35,16 +53,54 @@ class TextPreprocessor(BaseEstimator, TransformerMixin):
         return dataset
 
 
-def build_preprocessor():
+class BertDoubleField(Field):
+    def __init__(self, btokenizer, max_len, *args, **kwargs):
+        super().__init__(tokenize=self._trim_tokenize, *args, **kwargs)
+        self.btokenizer = btokenizer
+        self.max_len = max_len
+
+    def _trim_tokenize(self, sentence):
+        tokens = self.btokenizer.tokenize(sentence)
+        tokens = tokens[:self.max_len - 2]
+        return tokens
+
+
+def build_preprocessor(modelname='distilbert-base-cased', max_len=512):
+    tokenizer = DistilBertTokenizer.from_pretrained(modelname)
+
     text_field = Field(
         batch_first=True
     )
+
+    text_pair = BertDoubleField(
+        btokenizer=tokenizer,
+        max_len=max_len,
+        batch_first=True,
+        use_vocab=False,
+        preprocessing=tokenizer.convert_tokens_to_ids,
+        init_token=tokenizer.cls_token_id,
+        eos_token=tokenizer.sep_token_id,
+        pad_token=tokenizer.pad_token_id,
+        unk_token=tokenizer.unk_token_id,
+    )
+
     fields = [
         ('question1', text_field),
         ('question2', text_field),
+        ('question_pair', text_pair),
         ('is_duplicate', LabelField(dtype=torch.long)),
     ]
-    return TextPreprocessor(fields, min_freq=3)
+
+    preprocess = make_pipeline(
+        MergeColumnTransformer(
+            "question1",
+            "question2",
+            "question_pair",
+            sep_token=tokenizer.sep_token
+        ),
+        TextPreprocessor(fields, text_pair, min_freq=3),
+    )
+    return preprocess
 
 
 class BaselineModel(torch.nn.Module):
@@ -56,7 +112,7 @@ class BaselineModel(torch.nn.Module):
         self._out = torch.nn.Linear(2 * hidden_dim, n_classes)
 
     def forward(self, inputs):
-        question1, question2 = inputs
+        question1, question2, _ = inputs
         q1, _ = self._rnn(self._emb(question1))[1]
         q2, _ = self._rnn(self._emb(question2))[1]
 

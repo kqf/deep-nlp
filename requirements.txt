@@ -18,3 +18,4 @@ sacremoses
 subword_nmt
 conlleval
 allennlp
+transformers
