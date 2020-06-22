@@ -10,6 +10,7 @@ from transformers import DistilBertTokenizer, DistilBertModel
 
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.pipeline import make_pipeline
+from sklearn.metrics import f1_score
 
 
 def data(dataset="train"):
@@ -188,7 +189,17 @@ def build_model():
 
 
 def main():
-    print(data())
+    train = data()
+    print(train.head())
+    model = build_model().fit(train)
+
+    train["pred"] = model.predict(train)
+    print("Train F1:", f1_score(train["is_duplicate"], train["pred"]))
+
+    test = data("test")
+    print(test.head())
+    test["pred"] = model.predict(test)
+    print("Test  F1:", f1_score(test["is_duplicate"], test["pred"]))
 
 
 if __name__ == '__main__':
