@@ -12,6 +12,13 @@ from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.pipeline import make_pipeline
 from sklearn.metrics import f1_score
 
+"""
+!pip install -qq torch torchtext skorch numpy pandas transformers
+!pip install -qq sklearn kaggle
+!kaggle competitions download -c quora-question-pairs -p data/
+!unzip data/quora-question-pairs -d data/
+"""
+
 
 def data(dataset="train"):
     df = pd.read_csv(f"data/{dataset}.csv.zip")
@@ -192,7 +199,7 @@ def build_model():
 def main():
     train = data()
     print(train.head())
-    model = build_model().fit(train)
+    model = build_model().fit(train[:1000])
 
     train["pred"] = model.predict(train)
     print("Train F1:", f1_score(train["is_duplicate"], train["pred"]))
