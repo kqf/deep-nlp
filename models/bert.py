@@ -144,12 +144,12 @@ class DynamicVariablesSetter(skorch.callbacks.Callback):
         net.set_params(module__pad_idx=vocab["<pad>"])
         net.set_params(module__n_classes=len(X.fields["is_duplicate"].vocab))
 
-        n_pars = self.count_parameters(net.module_)
-        print(f'The model has {n_pars:,} trainable parameters')
 
-    @staticmethod
-    def count_parameters(model):
-        return sum(p.numel() for p in model.parameters() if p.requires_grad)
+class TrainableCounter(skorch.callbacks.Callback):
+    def on_train_end(self, net, X, y):
+        model = net.module_
+        n_pars = sum(p.numel() for p in model.parameters() if p.requires_grad)
+        print(f'The model has {n_pars:,} trainable parameters')
 
 
 class DeduplicationNet(skorch.NeuralNet):
@@ -176,7 +176,8 @@ def build_model():
         train_split=lambda x, y, **kwargs: Dataset.split(x, **kwargs),
         callbacks=[
             DynamicVariablesSetter(),
-            skorch.callbacks.Freezer(['bert*']),
+            skorch.callbacks.Freezer(['_bert.*']),
+            TrainableCounter(),
             # skorch.callbacks.ProgressBar(),
         ],
     )
