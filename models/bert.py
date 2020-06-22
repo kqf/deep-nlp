@@ -148,7 +148,7 @@ class DynamicVariablesSetter(skorch.callbacks.Callback):
     def on_train_begin(self, net, X, y):
         vocab = X.fields["question1"].vocab
         net.set_params(module__vocab_size=len(vocab))
-        net.set_params(module__pad_idx=vocab["<pad>"])
+        net.set_params(module__pad_idx=vocab.stoi["<pad>"])
         net.set_params(module__n_classes=len(X.fields["is_duplicate"].vocab))
 
 
