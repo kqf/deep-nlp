@@ -1,5 +1,6 @@
 import torch
 import skorch
+import random
 import numpy as np
 import pandas as pd
 
@@ -18,6 +19,13 @@ from sklearn.metrics import f1_score
 !kaggle competitions download -c quora-question-pairs -p data/
 !unzip data/quora-question-pairs -d data/
 """
+SEED = 137
+
+random.seed(SEED)
+np.random.seed(SEED)
+torch.manual_seed(SEED)
+torch.cuda.manual_seed(SEED)
+torch.backends.cudnn.deterministic = True
 
 
 def data(dataset="train"):
@@ -172,6 +180,7 @@ def build_model():
         module__bert=bert,
         optimizer=torch.optim.Adam,
         criterion=torch.nn.CrossEntropyLoss,
+        device=torch.device('cuda:0' if torch.cuda.is_available() else 'cpu'),
         max_epochs=2,
         batch_size=64,
         iterator_train=BucketIterator,
