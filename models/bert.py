@@ -192,7 +192,7 @@ def build_model():
         optimizer=torch.optim.Adam,
         criterion=torch.nn.CrossEntropyLoss,
         device=torch.device('cuda:0' if torch.cuda.is_available() else 'cpu'),
-        max_epochs=20,
+        max_epochs=2,
         batch_size=64,
         iterator_train=BucketIterator,
         iterator_train__shuffle=True,
@@ -205,7 +205,7 @@ def build_model():
             DynamicVariablesSetter(),
             skorch.callbacks.Freezer(['_bert.*']),
             TrainableCounter(),
-            # skorch.callbacks.ProgressBar(),
+            skorch.callbacks.ProgressBar('count'),
         ],
     )
 
