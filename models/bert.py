@@ -184,6 +184,10 @@ class DeduplicationNet(skorch.NeuralNet):
         return np.take(vocab.itos, self.predict_proba(X).argmax(-1))
 
 
+def valid_f1(model, X, y):
+    return f1_score(y, model.predict(X))
+
+
 def build_model():
     bert = DistilBertModel.from_pretrained('distilbert-base-cased')
     model = DeduplicationNet(
@@ -206,6 +210,7 @@ def build_model():
             skorch.callbacks.Freezer(['_bert.*']),
             TrainableCounter(),
             skorch.callbacks.ProgressBar('count'),
+            skorch.callbacks.EpochScoring(valid_f1, lower_is_better=False),
         ],
     )
 
