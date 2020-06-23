@@ -218,6 +218,9 @@ def main():
     test["pred"] = model.predict(test)
     print("Test  F1:", f1_score(test["is_duplicate"], test["pred"]))
 
+    # Quantized mode is available only for CPU
+    model.set_params(device=torch.device("cpu"))
+
     q8bert = torch.quantization.quantize_dynamic(
         module.module_._bert, {torch.nn.Linear}, dtype=torch.qint8
     )

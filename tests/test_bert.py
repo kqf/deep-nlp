@@ -1,3 +1,4 @@
+import torch
 import pytest
 import pandas as pd
 
@@ -31,3 +32,14 @@ def test_model(data, batch_size=64):
     model = build_model().fit(data)
     f1 = f1_score(data["is_duplicate"], model.predict(data))
     print(f"F1 score: {f1}")
+    assert f1 > 0.9
+
+    q8bert = torch.quantization.quantize_dynamic(
+        model[-1].module_._bert, {torch.nn.Linear}, dtype=torch.qint8
+    )
+
+    model[-1].module_._bert = q8bert
+    print(q8bert)
+    f1 = f1_score(data["is_duplicate"], model.predict(data))
+    print(f"F1 score after quantization: {f1}")
+    assert f1 > 0.9
