@@ -6,7 +6,7 @@ import pandas as pd
 from torchtext.data import BucketIterator
 from sklearn.metrics import f1_score
 
-from models.bert import build_preprocessor, build_model
+from models.bert import build_preprocessor, build_model, timer
 
 
 @pytest.fixture
@@ -30,7 +30,8 @@ def test_preprocessing(data, batch_size=64):
 
 def test_model(data, batch_size=64):
     model = build_model().fit(data)
-    f1 = f1_score(data["is_duplicate"], model.predict(data))
+    with timer("Predict normal"):
+        f1 = f1_score(data["is_duplicate"], model.predict(data))
     print(f"F1 score: {f1}")
     assert f1 > 0.9
 
@@ -39,7 +40,7 @@ def test_model(data, batch_size=64):
     )
 
     model[-1].module_._bert = q8bert
-    print(q8bert)
-    f1 = f1_score(data["is_duplicate"], model.predict(data))
+    with timer("Predict quantized"):
+        f1 = f1_score(data["is_duplicate"], model.predict(data))
     print(f"F1 score after quantization: {f1}")
     assert f1 > 0.9

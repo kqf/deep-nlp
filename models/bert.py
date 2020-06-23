@@ -1,9 +1,11 @@
+import time
 import torch
 import skorch
 import random
 import numpy as np
 import pandas as pd
 
+from contextlib import contextmanager
 from torchtext.data import Field, LabelField, Dataset, Example
 from torchtext.data import BucketIterator
 
@@ -32,6 +34,15 @@ def data(dataset="train"):
     df = pd.read_csv(f"data/{dataset}.csv.zip")
     df.replace(np.nan, '', regex=True, inplace=True)
     return df
+
+
+@contextmanager
+def timer(name):
+    t0 = time.time()
+    yield
+    print("{color}[{name}] done in {et:.0f} s{nocolor}".format(
+        name=name, et=time.time() - t0,
+        color='\033[1;33m', nocolor='\033[0m'))
 
 
 class MergeColumnTransformer(BaseEstimator, TransformerMixin):
@@ -181,7 +192,7 @@ def build_model():
         optimizer=torch.optim.Adam,
         criterion=torch.nn.CrossEntropyLoss,
         device=torch.device('cuda:0' if torch.cuda.is_available() else 'cpu'),
-        max_epochs=2,
+        max_epochs=20,
         batch_size=64,
         iterator_train=BucketIterator,
         iterator_train__shuffle=True,
@@ -208,25 +219,33 @@ def build_model():
 def main():
     train = data()
     print(train.head())
-    model = build_model().fit(train[:1000])
+    with time("fit the data"):
+        model = build_model().fit(train[:1000])
 
-    train["pred"] = model.predict(train)
+    with time("Predict train GPU"):
+        train["pred"] = model.predict(train)
     print("Train F1:", f1_score(train["is_duplicate"], train["pred"]))
 
     test = data("test")
     print(test.head())
-    test["pred"] = model.predict(test)
+    with time("Predict normal model GPU"):
+        test["pred"] = model.predict(test)
     print("Test  F1:", f1_score(test["is_duplicate"], test["pred"]))
 
     # Quantized mode is available only for CPU
     model.set_params(device=torch.device("cpu"))
 
-    q8bert = torch.quantization.quantize_dynamic(
-        module.module_._bert, {torch.nn.Linear}, dtype=torch.qint8
-    )
+    with time("Predict normal model CPU"):
+        test["pred"] = model.predict(test)
+    print("Test  F1:", f1_score(test["is_duplicate"], test["pred"]))
 
-    module.module_._bert = q8bert
-    test["pred"] = model.predict(test)
+    q8bert = torch.quantization.quantize_dynamic(
+        model.module_._bert, {torch.nn.Linear}, dtype=torch.qint8
+    )
+    model.module_._bert = q8bert
+
+    with time("Predict quantized model CPU"):
+        test["pred"] = model.predict(test)
     print("TestQ F1:", f1_score(test["is_duplicate"], test["pred"]))
 
 
