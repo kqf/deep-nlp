@@ -1,13 +1,20 @@
 import math
 import nltk
 import torch
+import random
 import numpy as np
 import gensim.downloader as gapi
 
 from tqdm import tqdm
 from sklearn.pipeline import make_pipeline
 
-np.random.seed(42)
+SEED = 137
+
+random.seed(SEED)
+np.random.seed(SEED)
+torch.manual_seed(SEED)
+torch.cuda.manual_seed(SEED)
+torch.backends.cudnn.deterministic = True
 
 
 """
@@ -237,8 +244,8 @@ class TaggerModel():
         return self
 
 
-def build_model():
-    tokenizer = Tokenizer()
+def build_model(**kwargs):
+    tokenizer = Tokenizer(**kwargs)
     return make_pipeline(tokenizer, TaggerModel(tokenizer))
 
 

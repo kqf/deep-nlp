@@ -61,5 +61,5 @@ def test_lstm_tagger(model_type, raw_data, batch_size=4):
 
 
 def test_tagger_model(raw_data):
-    model = build_model()
+    model = build_model(epochs_count=2)
     model.fit(raw_data)
