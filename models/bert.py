@@ -224,32 +224,32 @@ def build_model():
 def main():
     train = data()
     print(train.head())
-    with time("fit the data"):
+    with timer("fit the data"):
         model = build_model().fit(train[:1000])
 
-    with time("Predict train GPU"):
+    with timer("Predict train GPU"):
         train["pred"] = model.predict(train)
     print("Train F1:", f1_score(train["is_duplicate"], train["pred"]))
 
     test = data("test")
     print(test.head())
-    with time("Predict normal model GPU"):
+    with timer("Predict normal model GPU"):
         test["pred"] = model.predict(test)
     print("Test  F1:", f1_score(test["is_duplicate"], test["pred"]))
 
     # Quantized mode is available only for CPU
-    model.set_params(device=torch.device("cpu"))
+    model[-1].set_params(device=torch.device("cpu"))
 
-    with time("Predict normal model CPU"):
+    with timer("Predict normal model CPU"):
         test["pred"] = model.predict(test)
     print("Test  F1:", f1_score(test["is_duplicate"], test["pred"]))
 
     q8bert = torch.quantization.quantize_dynamic(
-        model.module_._bert, {torch.nn.Linear}, dtype=torch.qint8
+        model[-1].module_._bert, {torch.nn.Linear}, dtype=torch.qint8
     )
-    model.module_._bert = q8bert
+    model[-1].module_._bert = q8bert
 
-    with time("Predict quantized model CPU"):
+    with timer("Predict quantized model CPU"):
         test["pred"] = model.predict(test)
     print("TestQ F1:", f1_score(test["is_duplicate"], test["pred"]))
 
