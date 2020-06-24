@@ -28,6 +28,14 @@ import nltk
 nltk.download('punkt')
 """  # noqa
 
+SEED = 137
+
+random.seed(SEED)
+np.random.seed(SEED)
+torch.manual_seed(SEED)
+torch.cuda.manual_seed(SEED)
+torch.backends.cudnn.deterministic = True
+
 
 def quora_data():
     df = pd.read_csv("data/train.csv.zip")
