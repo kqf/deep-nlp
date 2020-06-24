@@ -1,7 +1,9 @@
+import os
 import time
 import torch
 import skorch
 import random
+import tempfile
 import numpy as np
 import pandas as pd
 
@@ -219,6 +221,12 @@ def build_model():
         model,
     )
     return full
+
+
+def print_mode_size(model):
+    with tempfile.NamedTemporaryFile() as tmp:
+        torch.save(model[-1].module_.state_dict(), tmp.name)
+        print('Size (MB):', os.path.getsize(tmp.name) / 1e6)
 
 
 def main():
