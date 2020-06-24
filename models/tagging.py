@@ -245,8 +245,8 @@ class TaggerModel():
 
 
 def build_model(**kwargs):
-    tokenizer = Tokenizer(**kwargs)
-    return make_pipeline(tokenizer, TaggerModel(tokenizer))
+    tokenizer = Tokenizer()
+    return make_pipeline(tokenizer, TaggerModel(tokenizer, **kwargs))
 
 
 def build_embedding_model():
