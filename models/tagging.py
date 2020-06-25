@@ -1,6 +1,7 @@
 import math
 import nltk
 import torch
+import skorch
 import random
 import numpy as np
 import pandas as pd
@@ -271,7 +272,23 @@ class TaggerModel():
         return self
 
 
-def build_preprocessing():
+class DynamicVariablesSetter(skorch.callbacks.Callback):
+    def on_train_begin(self, net, X, y):
+        svocab = X.fields["tokens"].vocab
+        vocab = X.fields["tags"].vocab
+        net.set_params(module__target_vocab_size=len(vocab))
+        net.set_params(module__source_pad_idx=vocab["<pad>"])
+        net.set_params(criterion__ignore_index=vocab["<pad>"])
+
+        n_pars = self.count_parameters(net.module_)
+        print(f'The model has {n_pars:,} trainable parameters')
+
+    @staticmethod
+    def count_parameters(model):
+        return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+
+def build_preprocessor():
     fields = [
         ("tokens", Field()),
         ("tags", Field(is_target=True))
@@ -279,11 +296,43 @@ def build_preprocessing():
     return TextPreprocessor(fields, 1)
 
 
-def build_model(**kwargs):
-    return make_pipeline(
-        build_preprocessing(),
-        TaggerModel(**kwargs)
+class TaggerNet(skorch.NeuralNet):
+    def get_loss(self, y_pred, y_true, X=None, training=False):
+        logits = y_pred.view(-1, y_pred.shape[-1])
+        return self.criterion_(logits, y_true.view(-1))
+
+
+def build_model():
+    model = TaggerNet(
+        module=LSTMTagger,
+        module__d_model=256,
+        module__d_ff=1024,
+        module__blocks_count=4,
+        module__heads_count=8,
+        module__dropout_rate=0.1,
+        optimizer=torch.optim.Adam,
+        optimizer__lr=0.0005,
+        criterion=torch.nn.CrossEntropyLoss,
+        max_epochs=2,
+        batch_size=32,
+        iterator_train=BucketIterator,
+        iterator_train__shuffle=True,
+        iterator_train__sort=False,
+        iterator_valid=BucketIterator,
+        iterator_valid__shuffle=False,
+        iterator_valid__sort=False,
+        train_split=lambda x, y, **kwargs: Dataset.split(x, **kwargs),
+        callbacks=[
+            DynamicVariablesSetter(),
+            skorch.callbacks.GradientNormClipping(1.),
+        ],
     )
+
+    full = make_pipeline(
+        build_preprocessor(),
+        model,
+    )
+    return full
 
 
 def build_embedding_model():

@@ -1,7 +1,7 @@
 import torch
 import pytest
 import gensim.downloader as gapi
-from models.tagging import build_preprocessing, to_pandas
+from models.tagging import build_preprocessor, to_pandas
 from models.tagging import LSTMTagger, build_model, BiLSTMTagger
 from models.tagging import EmbeddingsTokenizer, Tokenizer
 from torchtext.data import BucketIterator
@@ -27,7 +27,7 @@ def data(size=100):
 
 
 def test_preprocessing(data, batch_size=64):
-    dset = build_preprocessing().fit_transform(data)
+    dset = build_preprocessor().fit_transform(data)
     batch = next(iter(BucketIterator(dset, batch_size=batch_size)))
 
     assert batch.tokens.shape[1] == batch_size
