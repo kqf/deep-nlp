@@ -3,10 +3,13 @@ import nltk
 import torch
 import random
 import numpy as np
+import pandas as pd
 import gensim.downloader as gapi
 
 from tqdm import tqdm
 from sklearn.pipeline import make_pipeline
+from sklearn.base import BaseEstimator, TransformerMixin
+from torchtext.data import Field, Example, Dataset, BucketIterator
 
 SEED = 137
 
@@ -35,6 +38,25 @@ Takeaways:
 - [ ] TODO: BERT, no tortext?
 
 """
+
+
+class TextPreprocessor(BaseEstimator, TransformerMixin):
+    def __init__(self, fields, min_freq=0):
+        self.fields = fields
+        self.min_freq = min_freq or {}
+
+    def fit(self, X, y=None):
+        dataset = self.transform(X, y)
+        for name, field in dataset.fields.items():
+            if field.use_vocab:
+                field.build_vocab(dataset, min_freq=self.min_freq)
+        return self
+
+    def transform(self, X, y=None):
+        proc = [X[col].apply(f.preprocess) for col, f in self.fields]
+        examples = [Example.fromlist(f, self.fields) for f in zip(*proc)]
+        dataset = Dataset(examples, self.fields)
+        return dataset
 
 
 class Tokenizer():
@@ -114,6 +136,7 @@ def iterate_batches(data, batch_size):
             X_batch[:len(X[sample_ind]), batch_ind] = X[sample_ind]
             y_batch[:len(y[sample_ind]), batch_ind] = y[sample_ind]
 
+        print(X_batch.shape, y_batch.shape)
         yield X_batch, y_batch
 
 
@@ -258,7 +281,10 @@ def main():
     nltk.download('brown')
     nltk.download('universal_tagset')
 
-    data = nltk.corpus.brown.tagged_sents(tagset='universal')
+    raw = nltk.corpus.brown.tagged_sents(tagset='universal')
+    data = pd.DataFrame((zip(*r) for r in raw), columns=["tokens", "tags"])
+
+    print(data)
 
     model = build_model()
     model.fit(data)
