@@ -40,6 +40,10 @@ Takeaways:
 """
 
 
+def to_pandas(raw):
+    return pd.DataFrame((zip(*r) for r in raw), columns=["tokens", "tags"])
+
+
 class TextPreprocessor(BaseEstimator, TransformerMixin):
     def __init__(self, fields, min_freq=0):
         self.fields = fields
@@ -267,9 +271,19 @@ class TaggerModel():
         return self
 
 
+def build_preprocessing():
+    fields = [
+        ("tokens", Field()),
+        ("tags", Field(is_target=True))
+    ]
+    return TextPreprocessor(fields, 1)
+
+
 def build_model(**kwargs):
-    tokenizer = Tokenizer()
-    return make_pipeline(tokenizer, TaggerModel(tokenizer, **kwargs))
+    return make_pipeline(
+        build_preprocessing(),
+        TaggerModel(**kwargs)
+    )
 
 
 def build_embedding_model():
@@ -281,10 +295,8 @@ def main():
     nltk.download('brown')
     nltk.download('universal_tagset')
 
-    raw = nltk.corpus.brown.tagged_sents(tagset='universal')
-    data = pd.DataFrame((zip(*r) for r in raw), columns=["tokens", "tags"])
-
-    print(data)
+    data = to_pandas(nltk.corpus.brown.tagged_sents(tagset='universal'))
+    print(data.head())
 
     model = build_model()
     model.fit(data)
