@@ -61,7 +61,6 @@ def test_lstm_tagger(model_type, data, batch_size=4):
         assert logits.shape == (seq_len, batch_size, len(tt.tag2ind))
 
 
-@pytest.mark.skip
 def test_tagger_model(data):
-    model = build_model(epochs_count=2)
+    model = build_model()
     model.fit(data)

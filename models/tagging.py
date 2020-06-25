@@ -276,8 +276,9 @@ class DynamicVariablesSetter(skorch.callbacks.Callback):
     def on_train_begin(self, net, X, y):
         svocab = X.fields["tokens"].vocab
         vocab = X.fields["tags"].vocab
-        net.set_params(module__target_vocab_size=len(vocab))
-        net.set_params(module__source_pad_idx=vocab["<pad>"])
+
+        net.set_params(module__vocab_size=len(svocab))
+        net.set_params(module__tagset_size=len(vocab))
         net.set_params(criterion__ignore_index=vocab["<pad>"])
 
         n_pars = self.count_parameters(net.module_)
@@ -305,13 +306,9 @@ class TaggerNet(skorch.NeuralNet):
 def build_model():
     model = TaggerNet(
         module=LSTMTagger,
-        module__d_model=256,
-        module__d_ff=1024,
-        module__blocks_count=4,
-        module__heads_count=8,
-        module__dropout_rate=0.1,
+        module__vocab_size=2,
+        module__tagset_size=2,
         optimizer=torch.optim.Adam,
-        optimizer__lr=0.0005,
         criterion=torch.nn.CrossEntropyLoss,
         max_epochs=2,
         batch_size=32,
