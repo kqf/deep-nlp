@@ -118,88 +118,8 @@ class EmbeddingsTokenizer(Tokenizer):
         return self.embeddings
 
 
-def iterate_batches(data, batch_size):
-    """
-        Return batches in the form [seq_len, batch_size]
-    """
-    X, y = data
-    n_samples = len(X)
-
-    indices = np.arange(n_samples)
-    np.random.shuffle(indices)
-
-    for start in range(0, n_samples, batch_size):
-        end = min(start + batch_size, n_samples)
-
-        batch_indices = indices[start:end]
-
-        max_sent_len = max(len(X[ind]) for ind in batch_indices)
-        X_batch = np.zeros((max_sent_len, len(batch_indices)))
-        y_batch = np.zeros((max_sent_len, len(batch_indices)))
-
-        for batch_ind, sample_ind in enumerate(batch_indices):
-            X_batch[:len(X[sample_ind]), batch_ind] = X[sample_ind]
-            y_batch[:len(y[sample_ind]), batch_ind] = y[sample_ind]
-
-        print(X_batch.shape, y_batch.shape)
-        yield X_batch, y_batch
-
-
-def epoch(model, criterion, data, batch_size, optimizer=None,
-          name=None, pi=None):
-    epoch_loss = 0
-    correct_count = 0
-    sum_count = 0
-
-    is_train = optimizer is not None
-    name = name or ''
-    model.train(is_train)
-
-    batches_count = math.ceil(len(data[0]) / batch_size)
-
-    with torch.autograd.set_grad_enabled(is_train):
-        bar = tqdm(iterate_batches(data, batch_size), total=batches_count)
-        for i, (X_batch, y_batch) in enumerate(bar):
-            X_batch = torch.LongTensor(X_batch)
-            y_batch = torch.LongTensor(y_batch)
-            logits = model(X_batch)
-
-            loss = criterion(
-                logits.view(-1, logits.shape[-1]), y_batch.view(-1))
-
-            epoch_loss += loss.item()
-
-            if optimizer:
-                optimizer.zero_grad()
-                loss.backward()
-                optimizer.step()
-
-            mask = (y_batch != pi) if pi is not None else torch.ones_like(
-                y_batch)
-
-            preds = torch.argmax(logits, dim=-1)
-            cur_correct_count = ((preds == y_batch) * mask).sum().item()
-            cur_sum_count = mask.sum().item()
-
-            correct_count += cur_correct_count
-            sum_count += cur_sum_count
-
-            bar.update()
-            bar.set_description(
-                '{:>5s} Loss = {:.5f}, Accuracy = {:.2%}'.format(
-                    name, loss.item(), cur_correct_count / cur_sum_count)
-            )
-
-        bar.set_description(
-            '{:>5s} Loss = {:.5f}, Accuracy = {:.2%}'.format(
-                name, epoch_loss / batches_count, correct_count / sum_count)
-        )
-
-    return epoch_loss / batches_count, correct_count / sum_count
-
-
 class LSTMTagger(torch.nn.Module):
-    def __init__(self, vocab_size, tagset_size, word_emb_dim=100,
+    def __init__(self, vocab_size=1, tagset_size=1, word_emb_dim=100,
                  lstm_hidden_dim=128, lstm_layers_count=1):
         super().__init__()
 
@@ -241,37 +161,6 @@ class BiLSTMTagger(torch.nn.Module):
         return self._out_layer(self._lstm(self._emb(inputs))[0])
 
 
-class TaggerModel():
-    def __init__(self, tokenizer, batch_size=64, epochs_count=20):
-        self.epochs_count = epochs_count
-        self.batch_size = batch_size
-        self.tokenizer = tokenizer
-
-    def fit(self, X, y=None):
-        device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-        self.model = LSTMTagger(
-            self.tokenizer.emb_size,
-            len(self.tokenizer.tag2ind)).to(device)
-
-        pi = self.tokenizer.padding
-        self.criterion = torch.nn.CrossEntropyLoss(ignore_index=pi).to(device)
-        self.optimizer = torch.optim.Adam(self.model.parameters())
-
-        for i in range(self.epochs_count):
-            name_prefix = '[{} / {}] '.format(i + 1, self.epochs_count)
-            epoch(
-                self.model,
-                self.criterion,
-                X,
-                self.batch_size,
-                self.optimizer,
-                name_prefix,
-                pi=pi,  # padding index
-            )
-
-        return self
-
-
 class DynamicVariablesSetter(skorch.callbacks.Callback):
     def on_train_begin(self, net, X, y):
         svocab = X.fields["tokens"].vocab
@@ -306,8 +195,6 @@ class TaggerNet(skorch.NeuralNet):
 def build_model():
     model = TaggerNet(
         module=LSTMTagger,
-        module__vocab_size=2,
-        module__tagset_size=2,
         optimizer=torch.optim.Adam,
         criterion=torch.nn.CrossEntropyLoss,
         max_epochs=2,

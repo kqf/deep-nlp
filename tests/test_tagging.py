@@ -46,19 +46,21 @@ def test_embedding_tokenizer(w2v, data):
     tokenizer.emb_size.shape[1] == 100
 
 
-@pytest.mark.skip
 @pytest.mark.parametrize("model_type", [
     LSTMTagger,
     BiLSTMTagger,
 ])
 def test_lstm_tagger(model_type, data, batch_size=4):
-    tt = Tokenizer().fit(data)
-    batches = iterate_batches(tt.transform(data), batch_size=batch_size)
-    model = model_type(len(tt.word2ind), len(tt.tag2ind))
-    for X, _ in batches:
-        logits = model(torch.LongTensor(X))
-        seq_len, batch_size = X.shape
-        assert logits.shape == (seq_len, batch_size, len(tt.tag2ind))
+    dset = build_preprocessor().fit_transform(data)
+    vocab_size = len(dset.fields["tokens"].vocab)
+    tags_size = len(dset.fields["tags"].vocab)
+
+    batch = next(iter(BucketIterator(dset, batch_size=batch_size)))
+    model = model_type(vocab_size, tags_size)
+    logits = model(batch.tokens)
+
+    seq_len, batch_size = batch.tokens.shape
+    assert logits.shape == (seq_len, batch_size, tags_size)
 
 
 def test_tagger_model(data):
