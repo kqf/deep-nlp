@@ -4,7 +4,6 @@ import skorch
 import random
 import numpy as np
 import pandas as pd
-import gensim.downloader as gapi
 
 from sklearn.pipeline import make_pipeline
 from sklearn.base import BaseEstimator, TransformerMixin
@@ -131,11 +130,12 @@ class LSTMTagger(torch.nn.Module):
 
 
 class PretrainedEmbLSTMTagger(torch.nn.Module):
-    def __init__(self, embeddings, tagset_size, word_emb_dim=100,
+    def __init__(self, emb, tagset_size, word_emb_dim=100,
                  lstm_hidden_dim=128, lstm_layers_count=1):
         super().__init__()
+        if emb is not None:
+            self._emb = torch.nn.Embedding.from_pretrained(emb)
 
-        self._emb = torch.nn.Embedding.from_pretrained(embeddings)
         self._lstm = torch.nn.LSTM(
             word_emb_dim, lstm_hidden_dim, lstm_layers_count)
         self._out_layer = torch.nn.Linear(lstm_hidden_dim, tagset_size)
@@ -164,16 +164,25 @@ class DynamicVocabSetter(skorch.callbacks.Callback):
         svocab = X.fields["tokens"].vocab
         vocab = X.fields["tags"].vocab
 
-        net.set_params(module__vocab_size=len(svocab))
+        self.setup_embeddings(net, svocab)
         net.set_params(module__tagset_size=len(vocab))
         net.set_params(criterion__ignore_index=vocab["<pad>"])
 
         n_pars = self.count_parameters(net.module_)
         print(f'The model has {n_pars:,} trainable parameters')
 
+    def setup_embeddings(self, net, vocab):
+        return net.set_params(module__vocab_size=len(vocab))
+
     @staticmethod
     def count_parameters(model):
         return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+
+class DynamicEmbSetter(DynamicVocabSetter):
+    def setup_embeddings(self, net, vocab):
+        net.set_params(module__emb=vocab.vectors)
+        return net.set_params(modele__emb_dim=vocab.vectors.shape[-1])
 
 
 def build_preprocessor():
@@ -234,9 +243,11 @@ def build_model():
     return full
 
 
-def build_embedding_model():
+def build_emb_model():
     model = TaggerNet(
         module=PretrainedEmbLSTMTagger,
+        module__emb=torch.empty(100, 100),
+        module__tagset_size=1,
         optimizer=torch.optim.Adam,
         criterion=torch.nn.CrossEntropyLoss,
         max_epochs=2,
@@ -249,7 +260,7 @@ def build_embedding_model():
         iterator_valid__sort=False,
         train_split=lambda x, y, **kwargs: Dataset.split(x, **kwargs),
         callbacks=[
-            DynamicVocabSetter(),
+            DynamicEmbSetter(),
             skorch.callbacks.GradientNormClipping(1.),
         ],
     )
@@ -271,7 +282,7 @@ def main():
     model = build_model()
     model.fit(data)
 
-    emodel = build_embedding_model()
+    emodel = build_emb_model()
     emodel.fit(data)
 
 

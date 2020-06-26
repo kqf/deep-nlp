@@ -3,7 +3,8 @@ import gensim.downloader as gapi
 
 from models.tagging import build_preprocessor, build_preprocessor_emb
 from models.tagging import to_pandas
-from models.tagging import LSTMTagger, build_model, BiLSTMTagger
+from models.tagging import LSTMTagger, BiLSTMTagger
+from models.tagging import build_model, build_emb_model
 from models.tagging import EmbeddingsTokenizer
 from torchtext.data import BucketIterator
 
@@ -68,6 +69,10 @@ def test_lstm_tagger(model_type, data, batch_size=4):
     assert logits.shape == (seq_len, batch_size, tags_size)
 
 
-def test_tagger_model(data):
-    model = build_model()
+@pytest.mark.parametrize("build", [
+    build_model,
+    build_emb_model,
+])
+def test_tagger_model(build, data):
+    model = build()
     model.fit(data)
