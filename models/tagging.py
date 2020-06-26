@@ -116,13 +116,13 @@ class EmbeddingsTokenizer(Tokenizer):
 
 
 class LSTMTagger(torch.nn.Module):
-    def __init__(self, vocab_size=1, tagset_size=1, word_emb_dim=100,
+    def __init__(self, vocab_size, tagset_size, emb_dim=100,
                  lstm_hidden_dim=128, lstm_layers_count=1):
         super().__init__()
 
-        self._emb = torch.nn.Embedding(vocab_size, word_emb_dim)
+        self._emb = torch.nn.Embedding(vocab_size, emb_dim)
         self._lstm = torch.nn.LSTM(
-            word_emb_dim, lstm_hidden_dim, lstm_layers_count)
+            emb_dim, lstm_hidden_dim, lstm_layers_count)
         self._out_layer = torch.nn.Linear(lstm_hidden_dim, tagset_size)
 
     def forward(self, inputs):
@@ -130,14 +130,14 @@ class LSTMTagger(torch.nn.Module):
 
 
 class PretrainedEmbLSTMTagger(torch.nn.Module):
-    def __init__(self, emb, tagset_size, word_emb_dim=100,
+    def __init__(self, emb, tagset_size, emb_dim=100,
                  lstm_hidden_dim=128, lstm_layers_count=1):
         super().__init__()
         if emb is not None:
             self._emb = torch.nn.Embedding.from_pretrained(emb)
 
         self._lstm = torch.nn.LSTM(
-            word_emb_dim, lstm_hidden_dim, lstm_layers_count)
+            emb_dim, lstm_hidden_dim, lstm_layers_count)
         self._out_layer = torch.nn.Linear(lstm_hidden_dim, tagset_size)
 
     def forward(self, inputs):
@@ -145,13 +145,13 @@ class PretrainedEmbLSTMTagger(torch.nn.Module):
 
 
 class BiLSTMTagger(torch.nn.Module):
-    def __init__(self, vocab_size, tagset_size, word_emb_dim=100,
+    def __init__(self, vocab_size, tagset_size, emb_dim=100,
                  lstm_hidden_dim=128, lstm_layers_count=1):
         super().__init__()
 
-        self._emb = torch.nn.Embedding(vocab_size, word_emb_dim)
+        self._emb = torch.nn.Embedding(vocab_size, emb_dim)
         self._lstm = torch.nn.LSTM(
-            word_emb_dim, lstm_hidden_dim, lstm_layers_count,
+            emb_dim, lstm_hidden_dim, lstm_layers_count,
             bidirectional=True)
         self._out_layer = torch.nn.Linear(lstm_hidden_dim * 2, tagset_size)
 
@@ -182,7 +182,7 @@ class DynamicVocabSetter(skorch.callbacks.Callback):
 class DynamicEmbSetter(DynamicVocabSetter):
     def setup_embeddings(self, net, vocab):
         net.set_params(module__emb=vocab.vectors)
-        return net.set_params(modele__emb_dim=vocab.vectors.shape[-1])
+        return net.set_params(module__emb_dim=vocab.vectors.shape[-1])
 
 
 def build_preprocessor():
@@ -219,6 +219,8 @@ class TaggerNet(skorch.NeuralNet):
 def build_model():
     model = TaggerNet(
         module=LSTMTagger,
+        module__vocab_size=1,  # Dummy dimension
+        module__tagset_size=1,
         optimizer=torch.optim.Adam,
         criterion=torch.nn.CrossEntropyLoss,
         max_epochs=2,
@@ -246,7 +248,7 @@ def build_model():
 def build_emb_model():
     model = TaggerNet(
         module=PretrainedEmbLSTMTagger,
-        module__emb=torch.empty(100, 100),
+        module__emb=None,
         module__tagset_size=1,
         optimizer=torch.optim.Adam,
         criterion=torch.nn.CrossEntropyLoss,
@@ -266,7 +268,7 @@ def build_emb_model():
     )
 
     full = make_pipeline(
-        build_preprocessor(),
+        build_preprocessor_emb(),
         model,
     )
     return full
