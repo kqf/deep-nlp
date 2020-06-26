@@ -15,3 +15,4 @@ SlotGated-SLU/
 *.zip
 *.csv
 *.txt
+.vector_cache

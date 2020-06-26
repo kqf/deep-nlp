@@ -1,4 +1,3 @@
-import math
 import nltk
 import torch
 import skorch
@@ -7,7 +6,6 @@ import numpy as np
 import pandas as pd
 import gensim.downloader as gapi
 
-from tqdm import tqdm
 from sklearn.pipeline import make_pipeline
 from sklearn.base import BaseEstimator, TransformerMixin
 from torchtext.data import Field, Example, Dataset, BucketIterator
@@ -24,18 +22,18 @@ torch.backends.cudnn.deterministic = True
 """
 Takeaways:
 
-- [ ] Sequence tagging can be achieved by making use of LSTM output
-- [ ] Input [seq_size, batch_size] -> [batch_size, seq_size, n_targets]
-- [ ] It is possible to mask the padding tokens:
+- [x] Sequence tagging can be achieved by making use of LSTM output
+- [x] Input [seq_size, batch_size] -> [batch_size, seq_size, n_targets]
+- [x] It is possible to mask the padding tokens:
     - Use `ignore_index` in criterion
     - Calculate `mask = y_batch != pad_index` to evaluate the model
-- [ ] Masking should give more accurate evaluation (accuracy 95.3%)
-- [ ] The bidirectional LSTM improves the result (accuracy 96.8%)
-- [ ] Pretrained embeddings (accuracy 96%)
-- [ ] Unfreeze the pretrained embeddings (accuracy 96%):
+- [x] Masking should give more accurate evaluation (accuracy 95.3%)
+- [x] The bidirectional LSTM improves the result (accuracy 96.8%)
+- [x] Pretrained embeddings (accuracy 96%)
+- [x] Unfreeze the pretrained embeddings (accuracy 96%):
     - Beware to use the same embeddings on train and test set
     - use loss += torch.dist(trainable, original)
-- [ ] It is possible to make char embeddings (accuracy 95%)
+- [x] It is possible to make char embeddings (accuracy 95%)
 - [ ] TODO: BERT, no tortext?
 
 """
@@ -181,6 +179,23 @@ class DynamicVariablesSetter(skorch.callbacks.Callback):
 def build_preprocessor():
     fields = [
         ("tokens", Field()),
+        ("tags", Field(is_target=True))
+    ]
+    return TextPreprocessor(fields, 1)
+
+
+class VectorField(Field):
+    def __init__(self, emb_file, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.emb_file = emb_file
+
+    def build_vocab(self, *args, **kwargs):
+        return super().build_vocab(*args, vectors=self.emb_file, **kwargs)
+
+
+def build_preprocessor_emb(emb_file="glove.6B.50d"):
+    fields = [
+        ("tokens", VectorField(emb_file)),
         ("tags", Field(is_target=True))
     ]
     return TextPreprocessor(fields, 1)

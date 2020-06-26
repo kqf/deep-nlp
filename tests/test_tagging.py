@@ -1,7 +1,8 @@
 import pytest
 import gensim.downloader as gapi
 
-from models.tagging import build_preprocessor, to_pandas
+from models.tagging import build_preprocessor, build_preprocessor_emb
+from models.tagging import to_pandas
 from models.tagging import LSTMTagger, build_model, BiLSTMTagger
 from models.tagging import EmbeddingsTokenizer
 from torchtext.data import BucketIterator
@@ -26,8 +27,12 @@ def data(size=64):
     return to_pandas(nltk_raw)
 
 
-def test_preprocessing(data, batch_size=64):
-    dset = build_preprocessor().fit_transform(data)
+@pytest.mark.parametrize("build", [
+    build_preprocessor,
+    build_preprocessor_emb,
+])
+def test_preprocessing(build, data, batch_size=64):
+    dset = build().fit_transform(data)
     batch = next(iter(BucketIterator(dset, batch_size=batch_size)))
 
     assert batch.tokens.shape[1] == batch_size
