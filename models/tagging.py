@@ -159,7 +159,7 @@ class BiLSTMTagger(torch.nn.Module):
         return self._out_layer(self._lstm(self._emb(inputs))[0])
 
 
-class DynamicVariablesSetter(skorch.callbacks.Callback):
+class DynamicVocabSetter(skorch.callbacks.Callback):
     def on_train_begin(self, net, X, y):
         svocab = X.fields["tokens"].vocab
         vocab = X.fields["tags"].vocab
@@ -222,7 +222,7 @@ def build_model():
         iterator_valid__sort=False,
         train_split=lambda x, y, **kwargs: Dataset.split(x, **kwargs),
         callbacks=[
-            DynamicVariablesSetter(),
+            DynamicVocabSetter(),
             skorch.callbacks.GradientNormClipping(1.),
         ],
     )
@@ -235,8 +235,30 @@ def build_model():
 
 
 def build_embedding_model():
-    tokenizer = EmbeddingsTokenizer(w2v=gapi.load('glove-wiki-gigaword-100'))
-    return make_pipeline(tokenizer, PretrainedEmbLSTMTagger(tokenizer))
+    model = TaggerNet(
+        module=PretrainedEmbLSTMTagger,
+        optimizer=torch.optim.Adam,
+        criterion=torch.nn.CrossEntropyLoss,
+        max_epochs=2,
+        batch_size=32,
+        iterator_train=BucketIterator,
+        iterator_train__shuffle=True,
+        iterator_train__sort=False,
+        iterator_valid=BucketIterator,
+        iterator_valid__shuffle=False,
+        iterator_valid__sort=False,
+        train_split=lambda x, y, **kwargs: Dataset.split(x, **kwargs),
+        callbacks=[
+            DynamicVocabSetter(),
+            skorch.callbacks.GradientNormClipping(1.),
+        ],
+    )
+
+    full = make_pipeline(
+        build_preprocessor(),
+        model,
+    )
+    return full
 
 
 def main():
