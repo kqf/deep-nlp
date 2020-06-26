@@ -1,14 +1,14 @@
-import torch
 import pytest
 import gensim.downloader as gapi
+
 from models.tagging import build_preprocessor, to_pandas
 from models.tagging import LSTMTagger, build_model, BiLSTMTagger
-from models.tagging import EmbeddingsTokenizer, Tokenizer
+from models.tagging import EmbeddingsTokenizer
 from torchtext.data import BucketIterator
 
 
 @pytest.fixture
-def data(size=100):
+def data(size=64):
     nltk_raw = [[
         ('The', 'DET'),
         ('grand', 'ADJ'),
