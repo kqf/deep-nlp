@@ -43,4 +43,6 @@ def test_preprocessing(build, data, batch_size=64):
 ])
 def test_tagger_model(build, data):
     model = build().fit(data)
-    print(model.predict(data).T)
+    # print(model.predict(data))
+
+    print(model.score(data, data["tags"]))

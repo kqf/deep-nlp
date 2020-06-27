@@ -7,6 +7,7 @@ import pandas as pd
 
 from sklearn.pipeline import make_pipeline
 from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.metrics import f1_score
 from torchtext.data import Field, Example, Dataset, BucketIterator
 
 SEED = 137
@@ -160,7 +161,15 @@ class TaggerNet(skorch.NeuralNet):
 
     def predict(self, X):
         idx = self.predict_proba(X).argmax(-1)
-        return np.take(X.fields["tags"].vocab.itos, idx)
+        # NB: torchtext batches the sentences together
+        resized = idx.reshape(len(X), -1)
+        return np.take(X.fields["tags"].vocab.itos, resized)
+
+    def score(self, X, y):
+        y_pred_raw = self.predict(X)
+        y_pred = np.stack([yp[:len(yt)] for yp, yt in zip(y_pred_raw, y)])
+        y_true = np.stack(y.values)
+        return f1_score(y_true, y_pred, average="micro")
 
 
 def build_model():
