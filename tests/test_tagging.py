@@ -42,4 +42,5 @@ def test_preprocessing(build, data, batch_size=64):
     build_emb_model,
 ])
 def test_tagger_model(build, data):
-    build().fit(data)
+    model = build().fit(data)
+    print(model.predict(data).T)

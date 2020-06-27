@@ -158,6 +158,10 @@ class TaggerNet(skorch.NeuralNet):
         logits = y_pred.view(-1, y_pred.shape[-1])
         return self.criterion_(logits, y_true.view(-1))
 
+    def predict(self, X):
+        idx = self.predict_proba(X).argmax(-1)
+        return np.take(X.fields["tags"].vocab.itos, idx)
+
 
 def build_model():
     model = TaggerNet(
