@@ -137,7 +137,12 @@ class VectorField(Field):
         self.emb_file = emb_file
 
     def build_vocab(self, *args, **kwargs):
-        return super().build_vocab(*args, vectors=self.emb_file, **kwargs)
+        return super().build_vocab(
+            *args,
+            vectors=self.emb_file,
+            unk_init=torch.Tensor.normal_,
+            **kwargs
+        )
 
 
 def build_preprocessor_emb(emb_file="glove.6B.50d"):
