@@ -1,11 +1,9 @@
 import pytest
-import gensim.downloader as gapi
 
 from models.tagging import build_preprocessor, build_preprocessor_emb
 from models.tagging import to_pandas
 from models.tagging import LSTMTagger, BiLSTMTagger
 from models.tagging import build_model, build_emb_model
-from models.tagging import EmbeddingsTokenizer
 from torchtext.data import BucketIterator
 
 
@@ -38,18 +36,6 @@ def test_preprocessing(build, data, batch_size=64):
 
     assert batch.tokens.shape[1] == batch_size
     assert batch.tags.shape[1] == batch_size
-
-
-@pytest.mark.skip
-@pytest.fixture
-def w2v():
-    return gapi.load('glove-wiki-gigaword-100')
-
-
-@pytest.mark.skip
-def test_embedding_tokenizer(w2v, data):
-    tokenizer = EmbeddingsTokenizer(w2v).fit(data)
-    tokenizer.emb_size.shape[1] == 100
 
 
 @pytest.mark.parametrize("model_type", [

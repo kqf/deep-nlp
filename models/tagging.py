@@ -61,60 +61,6 @@ class TextPreprocessor(BaseEstimator, TransformerMixin):
         return dataset
 
 
-class Tokenizer():
-
-    def __init__(self):
-        self.word2ind = None
-        self.tag2ind = None
-
-    def fit(self, X, y=None):
-        words = {word for sample in X for word, tag in sample}
-        self.word2ind = {word: ind + 1 for ind, word in enumerate(words)}
-        self.word2ind['<pad>'] = 0
-
-        tags = {tag for sample in X for word, tag in sample}
-        self.tag2ind = {tag: ind + 1 for ind, tag in enumerate(tags)}
-        self.tag2ind['<pad>'] = 0
-        return self
-
-    def transform(self, X, y=None):
-        X_ = [[self.word2ind.get(word, 0) for word, _ in sample]
-              for sample in X]
-        y_ = [[self.tag2ind[tag] for _, tag in sample] for sample in X]
-        return X_, y_
-
-    @property
-    def padding(self):
-        return self.word2ind["<pad>"]
-
-    @property
-    def emb_size(self):
-        return len(self.word2ind)
-
-
-class EmbeddingsTokenizer(Tokenizer):
-
-    def __init__(self, w2v):
-        self.w2v = w2v
-        self.embeddings = None
-
-    def fit(self, X, y=None):
-        super().fit(X, y)
-
-        self.embeddings = np.zeros(
-            (len(self.word2ind), self.w2v.vectors.shape[1]))
-
-        for word, ind in self.word2ind.items():
-            word = word.lower()
-            if word in self.w2v.vocab:
-                self.embeddings[ind] = self.w2v.get_vector(word)
-        return self
-
-    @property
-    def emb_size(self):
-        return self.embeddings
-
-
 class LSTMTagger(torch.nn.Module):
     def __init__(self, vocab_size, tagset_size, emb_dim=100,
                  lstm_hidden_dim=128, lstm_layers_count=1):
