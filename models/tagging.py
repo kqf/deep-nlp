@@ -241,6 +241,28 @@ def build_emb_model():
     return full
 
 
+class BERTTagger(torch.nn.Module):
+    def __init__(self, bert, tagset_size, dropout=0.25):
+        super().__init__()
+        self._bert = bert
+        emb_dim = bert.config.to_dict()['hidden_size']
+        self._out_layer = torch.nn.Linear(emb_dim, tagset_size)
+        self.dropout = torch.nn.Dropout(dropout)
+
+    def forward(self, inputs):
+        # inputs -> [batch_size, seq_len]
+        inputs = inputs.permute(1, 0)
+
+        # embedded[batch_size, seq_len, emb_dim]
+        embedded = self.dropout(self._bert(inputs)[0])
+
+        # embedded -> [seq_len, batch_size, emb_dim]
+        embedded = embedded.permute(1, 0, 2)
+
+        # predictions = [seq_len, batch_size, tagset_size]
+        return self._out_layer(self.dropout(embedded))
+
+
 def bert_text_preprocess(tokens, tokenizer, max_len):
     tokens = tokens[:max_len - 1]
     tokens = tokenizer.convert_tokens_to_ids(tokens)
