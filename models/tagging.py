@@ -245,7 +245,7 @@ class BERTTagger(torch.nn.Module):
     def __init__(self, bert, tagset_size, dropout=0.25):
         super().__init__()
         self._bert = bert
-        emb_dim = bert.config.to_dict()['hidden_size']
+        emb_dim = bert.config.to_dict()['dim']
         self._out_layer = torch.nn.Linear(emb_dim, tagset_size)
         self.dropout = torch.nn.Dropout(dropout)
 
@@ -305,6 +305,35 @@ def build_bert_preprocessor(modelname='distilbert-base-cased', max_len=512):
     ]
 
     return TextPreprocessor(fields, 1)
+
+
+def build_bert_model():
+    bert = DistilBertModel.from_pretrained("distilbert-base-cased")
+    model = TaggerNet(
+        module=BERTTagger,
+        module__bert=bert,
+        module__tagset_size=1,
+        optimizer=torch.optim.Adam,
+        criterion=torch.nn.CrossEntropyLoss,
+        max_epochs=2,
+        batch_size=32,
+        iterator_train=BucketIterator,
+        iterator_train__shuffle=True,
+        iterator_train__sort=False,
+        iterator_valid=BucketIterator,
+        iterator_valid__shuffle=False,
+        iterator_valid__sort=False,
+        train_split=lambda x, y, **kwargs: Dataset.split(x, **kwargs),
+        callbacks=[
+            skorch.callbacks.GradientNormClipping(1.),
+        ],
+    )
+
+    full = make_pipeline(
+        build_bert_preprocessor(),
+        model,
+    )
+    return full
 
 
 def main():

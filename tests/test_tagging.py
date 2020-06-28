@@ -2,7 +2,7 @@ import pytest
 
 from models.tagging import to_pandas
 from models.tagging import build_preprocessor, build_preprocessor_emb
-from models.tagging import build_model, build_emb_model
+from models.tagging import build_model, build_emb_model, build_bert_model
 from torchtext.data import BucketIterator
 
 
@@ -40,6 +40,7 @@ def test_preprocessing(build, data, batch_size=64):
 @pytest.mark.parametrize("build", [
     build_model,
     build_emb_model,
+    build_bert_model,
 ])
 def test_tagger_model(build, data):
     model = build().fit(data)
