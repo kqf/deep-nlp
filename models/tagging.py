@@ -5,11 +5,13 @@ import random
 import itertools
 import numpy as np
 import pandas as pd
+from functools import partial
 
 from sklearn.pipeline import make_pipeline
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.metrics import f1_score
 from torchtext.data import Field, Example, Dataset, BucketIterator
+from transformers import DistilBertTokenizer, DistilBertModel
 
 SEED = 137
 
@@ -237,6 +239,50 @@ def build_emb_model():
         model,
     )
     return full
+
+
+def bert_text_preprocess(tokens, tokenizer, max_len):
+    tokens = tokens[:max_len - 1]
+    tokens = tokenizer.convert_tokens_to_ids(tokens)
+    return tokens
+
+
+def bert_tag_preprocessor(tokens, max_len):
+    tokens = tokens[:max_len - 1]
+    return tokens
+
+
+def build_bert_preprocessor(modelname='distilbert-base-cased', max_len=512):
+    tokenizer = DistilBertTokenizer.from_pretrained(modelname)
+
+    tokens_field = Field(
+        batch_first=True,
+        use_vocab=False,
+        preprocessing=partial(
+            bert_text_preprocess,
+            tokenizer=tokenizer,
+            max_len=max_len
+        ),
+        init_token=tokenizer.cls_token_id,
+        eos_token=tokenizer.sep_token_id,
+        pad_token=tokenizer.pad_token_id,
+        unk_token=tokenizer.unk_token_id,
+    )
+
+    tags_field = Field(
+        is_target=True,
+        preprocessing=partial(
+            partial(bert_tag_preprocessor,
+                    max_len=max_len)
+        )
+    )
+
+    fields = [
+        ("tokens", tokens_field),
+        ("tags", tags_field),
+    ]
+
+    return TextPreprocessor(fields, 1)
 
 
 def main():
