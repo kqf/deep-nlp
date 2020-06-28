@@ -45,4 +45,4 @@ def test_tagger_model(build, data):
     model = build().fit(data)
     # print(model.predict(data))
 
-    print(model.score(data, data["tags"]))
+    print(model.score(data, data["tags"].values))

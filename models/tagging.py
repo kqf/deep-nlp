@@ -2,6 +2,7 @@ import nltk
 import torch
 import skorch
 import random
+import itertools
 import numpy as np
 import pandas as pd
 
@@ -159,17 +160,25 @@ class TaggerNet(skorch.NeuralNet):
         logits = y_pred.view(-1, y_pred.shape[-1])
         return self.criterion_(logits, y_true.view(-1))
 
-    def predict(self, X):
+    def _predict(self, X):
         idx = self.predict_proba(X).argmax(-1)
         # NB: torchtext batches the sentences together
-        resized = idx.reshape(len(X), -1)
-        return np.take(X.fields["tags"].vocab.itos, resized)
+        return idx.reshape(len(X), -1)
+
+    def predict(self, X):
+        idx = self._predict(X)
+        return np.take(X.fields["tags"].vocab.itos, idx)
 
     def score(self, X, y):
-        y_pred_raw = self.predict(X)
-        y_pred = np.stack([yp[:len(yt)] for yp, yt in zip(y_pred_raw, y)])
-        y_true = np.stack(y.values)
-        return f1_score(y_true, y_pred, average="micro")
+        idx = self._predict(X)
+
+        # Ensure seq length
+        y_pred = itertools.chain(*[yp[:len(yt)] for yp, yt in zip(idx, y)])
+
+        # Convert answers to index (according to the new sklearn interface)
+        stoi = X.fields["tags"].vocab.stoi
+        y_true = [stoi[t] for yt in y for t in yt]
+        return f1_score(y_true, list(y_pred), average="micro")
 
 
 def build_model():
