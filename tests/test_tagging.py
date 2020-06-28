@@ -40,7 +40,7 @@ def test_preprocessing(build, data, batch_size=64):
 @pytest.mark.parametrize("build", [
     build_model,
     build_emb_model,
-    build_bert_model,
+    # build_bert_model,
 ])
 def test_tagger_model(build, data):
     model = build().fit(data)

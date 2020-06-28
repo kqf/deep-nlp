@@ -101,12 +101,11 @@ class PretrainedEmbLSTMTagger(torch.nn.Module):
         return self._out_layer(self._lstm(self._emb(inputs))[0])
 
 
-class DynamicVocabSetter(skorch.callbacks.Callback):
+class DynamicTagSetter(skorch.callbacks.Callback):
     def on_train_begin(self, net, X, y):
-        svocab = X.fields["tokens"].vocab
-        vocab = X.fields["tags"].vocab
+        self.setup_embeddings(net, X.fields["tokens"])
 
-        self.setup_embeddings(net, svocab)
+        vocab = X.fields["tags"].vocab
         net.set_params(module__tagset_size=len(vocab))
         net.set_params(criterion__ignore_index=vocab["<pad>"])
 
@@ -114,17 +113,22 @@ class DynamicVocabSetter(skorch.callbacks.Callback):
         print(f'The model has {n_pars:,} trainable parameters')
 
     def setup_embeddings(self, net, vocab):
-        return net.set_params(module__vocab_size=len(vocab))
+        pass
 
     @staticmethod
     def count_parameters(model):
         return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 
-class DynamicEmbSetter(DynamicVocabSetter):
-    def setup_embeddings(self, net, vocab):
-        net.set_params(module__emb=vocab.vectors)
-        return net.set_params(module__emb_dim=vocab.vectors.shape[-1])
+class DynamicVocabSetter(DynamicTagSetter):
+    def setup_embeddings(self, net, field):
+        return net.set_params(module__vocab_size=len(field.vocab))
+
+
+class DynamicEmbSetter(DynamicTagSetter):
+    def setup_embeddings(self, net, field):
+        net.set_params(module__emb=field.vocab.vectors)
+        return net.set_params(module__emb_dim=field.vocab.vectors.shape[-1])
 
 
 def build_preprocessor():
@@ -260,6 +264,7 @@ class BERTTagger(torch.nn.Module):
         embedded = embedded.permute(1, 0, 2)
 
         # predictions = [seq_len, batch_size, tagset_size]
+        import ipdb; ipdb.set_trace(); import IPython; IPython.embed() # noqa
         return self._out_layer(self.dropout(embedded))
 
 
@@ -325,6 +330,7 @@ def build_bert_model():
         iterator_valid__sort=False,
         train_split=lambda x, y, **kwargs: Dataset.split(x, **kwargs),
         callbacks=[
+            DynamicTagSetter(),
             skorch.callbacks.GradientNormClipping(1.),
         ],
     )
