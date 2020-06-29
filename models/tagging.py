@@ -264,7 +264,7 @@ class BERTTagger(torch.nn.Module):
         embedded = embedded.permute(1, 0, 2)
 
         # predictions = [seq_len, batch_size, tagset_size]
-        import ipdb; ipdb.set_trace(); import IPython; IPython.embed() # noqa
+        # import ipdb; ipdb.set_trace(); import IPython; IPython.embed() # noqa
         return self._out_layer(self.dropout(embedded))
 
 
@@ -283,7 +283,6 @@ def build_bert_preprocessor(modelname='distilbert-base-cased', max_len=512):
     tokenizer = DistilBertTokenizer.from_pretrained(modelname)
 
     tokens_field = Field(
-        batch_first=True,
         use_vocab=False,
         preprocessing=partial(
             bert_text_preprocess,
@@ -291,13 +290,13 @@ def build_bert_preprocessor(modelname='distilbert-base-cased', max_len=512):
             max_len=max_len
         ),
         init_token=tokenizer.cls_token_id,
-        eos_token=tokenizer.sep_token_id,
         pad_token=tokenizer.pad_token_id,
         unk_token=tokenizer.unk_token_id,
     )
 
     tags_field = Field(
         is_target=True,
+        init_token="<pad>",
         preprocessing=partial(
             partial(bert_tag_preprocessor,
                     max_len=max_len)
