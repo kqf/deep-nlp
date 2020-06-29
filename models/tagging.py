@@ -1,3 +1,4 @@
+import time
 import nltk
 import torch
 import skorch
@@ -6,10 +7,13 @@ import itertools
 import numpy as np
 import pandas as pd
 from functools import partial
+from contextlib import contextmanager
 
 from sklearn.pipeline import make_pipeline
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.metrics import f1_score
+from sklearn.model_selection import train_test_split
+
 from torchtext.data import Field, Example, Dataset, BucketIterator
 from transformers import DistilBertTokenizer, DistilBertModel
 
@@ -44,6 +48,15 @@ Takeaways:
 
 def to_pandas(raw):
     return pd.DataFrame((zip(*r) for r in raw), columns=["tokens", "tags"])
+
+
+@contextmanager
+def timer(name):
+    t0 = time.time()
+    yield
+    print("{color}[{name}] done in {et:.0f} s{nocolor}".format(
+        name=name, et=time.time() - t0,
+        color='\033[1;33m', nocolor='\033[0m'))
 
 
 class TextPreprocessor(BaseEstimator, TransformerMixin):
@@ -339,6 +352,17 @@ def build_bert_model():
     return full
 
 
+def evaluate_model(name, model, train, test):
+    with timer(f"training {name}"):
+        model.fit(train)
+
+    with timer(f"evaluation on train for {name}"):
+        print("F1 train: ", model.score(train))
+
+    print("F1 test:", model.score(train))
+    return model
+
+
 def main():
     nltk.download('brown')
     nltk.download('universal_tagset')
@@ -346,11 +370,17 @@ def main():
     data = to_pandas(nltk.corpus.brown.tagged_sents(tagset='universal'))
     print(data.head())
 
-    model = build_model()
-    model.fit(data)
+    models = [
+        ("base", build_model()),
+        ("embeddings", build_emb_model()),
+        ("bert", build_bert_model()),
+    ]
 
-    emodel = build_emb_model()
-    emodel.fit(data)
+    train, test = train_test_split(data)
+    models = {
+        name: evaluate_model(name, model, train, test)
+        for name, model in models
+    }
 
 
 if __name__ == '__main__':
