@@ -329,6 +329,7 @@ def build_bert_model():
         module__bert=bert,
         module__tagset_size=1,
         optimizer=torch.optim.Adam,
+        optimizer__lr=5e-5,  # Original learning rate
         criterion=torch.nn.CrossEntropyLoss,
         max_epochs=2,
         batch_size=32,
