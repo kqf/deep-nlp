@@ -296,11 +296,9 @@ def build_bert_preprocessor(modelname='distilbert-base-cased', max_len=512):
 
     tags_field = Field(
         is_target=True,
+        unk_token=None,
         init_token="<pad>",
-        preprocessing=partial(
-            partial(bert_tag_preprocessor,
-                    max_len=max_len)
-        )
+        preprocessing=partial(bert_tag_preprocessor, max_len=max_len),
     )
 
     fields = [
