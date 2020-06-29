@@ -277,7 +277,6 @@ class BERTTagger(torch.nn.Module):
         embedded = embedded.permute(1, 0, 2)
 
         # predictions = [seq_len, batch_size, tagset_size]
-        # import ipdb; ipdb.set_trace(); import IPython; IPython.embed() # noqa
         return self._out_layer(self.dropout(embedded))
 
 
@@ -358,9 +357,9 @@ def evaluate_model(name, model, train, test):
         model.fit(train)
 
     with timer(f"evaluation on train for {name}"):
-        print("F1 train: ", model.score(train))
+        print("F1 train:", model.score(train))
 
-    print("F1 test:", model.score(train))
+    print("F1 test: ", model.score(train))
     return model
 
 
