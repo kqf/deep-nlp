@@ -2,7 +2,7 @@ import pytest
 import pandas as pd
 
 from torchtext.data import BucketIterator
-from models.sentiment import build_preprocessor
+from models.sentiment import build_preprocessor, build_model
 
 
 @pytest.fixture
@@ -21,3 +21,7 @@ def test_preprocessing(data, batch_size=32):
     batch = next(iter(BucketIterator(dataset, batch_size=batch_size)))
     assert batch.review.shape[-1] == batch_size
     assert batch.sentiment.shape[-1] == batch_size
+
+
+def test_model(data):
+    build_model().fit(data)
