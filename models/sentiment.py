@@ -34,6 +34,21 @@ class TextPreprocessor(BaseEstimator, TransformerMixin):
         return Dataset(examples, self.fields)
 
 
+class VanilaRNN(torch.nn.Module):
+    def __init__(self, vocab_size, n_sentiments, emb_dim=100, hid_dim=256):
+        super().__init__()
+        self._emb = torch.nn.Embedding(vocab_size, emb_dim)
+        self._rnn = torch.nn.RNN(emb_dim, hid_dim)
+        self._out = torch.nn.Linear(hid_dim, n_sentiments)
+
+    def forward(self, text):
+        # text[seq_len, batch size] -> [seq_len, batch size, emb dim] -> RNN
+        output, hidden = self._rnn(self._emb(text))
+        # output = [seq_len, batch size, hid dim]
+        # hidden = [1, batch size, hid dim]
+        return self._out(hidden.squeeze(0))
+
+
 def build_preprocessor():
     fields = [
         ("review", Field()),
@@ -44,10 +59,9 @@ def build_preprocessor():
 
 def build_model():
     model = skorch.NeuralNet(
-        module=MLPModule,
-        module__input_units=32,
-        # module__vocab_size=1,  # Dummy dimension
-        # module__n_sentiments=1,
+        module=VanilaRNN,
+        module__vocab_size=10,  # Dummy dimension
+        module__n_sentiments=2,
         optimizer=torch.optim.Adam,
         criterion=torch.nn.CrossEntropyLoss,
         max_epochs=2,
