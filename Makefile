@@ -1,11 +1,17 @@
 .PHONY: all submit
 
-competition = quora-question-pairs
+qqp = quora-question-pairs
+imdb = imdb-dataset-of-50k-movie-reviews
 
 
 data:
-	-kaggle competitions download -c $(competition) -p data/
-	unzip data/$(competition) -d data/
+	-kaggle competitions download -c $(qqp) -p data/
+	mkdir -p data/$(qqp)
+	unzip data/$(qqp) -d data/$(qqp)
+
+	-kaggle datasets download -d lakshmi25npathi/$(imdb) -p data/
+	mkdir -p data/$(imdb)
+	unzip data/$(imdb) -d data/$(imdb)/
 
 	curl -k -L "https://drive.google.com/uc?export=download&id=1z7avv1JiI30V4cmHJGFIfDEs9iE4SHs5" -o data/surnames.txt
 	curl -k -L "https://drive.google.com/uc?export=download&id=1ji7dhr9FojPeV51dDlKRERIqr3vdZfhu" -o data/surnames-multilang.txt
