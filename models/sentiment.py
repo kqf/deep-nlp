@@ -48,6 +48,26 @@ class VanilaRNN(torch.nn.Module):
         return self._out(hidden.squeeze(0))
 
 
+class LSTM(torch.nn.Module):
+    def __init__(self, vocab_size, n_sentiments,
+                 emb_dim=100,
+                 lstm_hidden_dim=256,
+                 lstm_layers_count=1, bidirectional=False):
+        super().__init__()
+
+        self._emb = torch.nn.Embedding(vocab_size, emb_dim)
+        self._rnn = torch.nn.LSTM(
+            emb_dim, lstm_hidden_dim,
+            lstm_layers_count, bidirectional=bidirectional)
+
+        hidden = 2 * lstm_hidden_dim if bidirectional else lstm_hidden_dim
+        self._out = torch.nn.Linear(hidden, n_sentiments)
+
+    def forward(self, inputs):
+        _, (hidden, _) = self._rnn(self._emb(inputs))
+        return self._out(hidden)
+
+
 def build_preprocessor():
     fields = [
         ("review", Field()),
@@ -56,9 +76,9 @@ def build_preprocessor():
     return TextPreprocessor(fields)
 
 
-def build_model():
+def build_model(module=VanilaRNN):
     model = skorch.NeuralNet(
-        module=VanilaRNN,
+        module=module,
         module__vocab_size=10,  # Dummy dimension
         module__n_sentiments=2,
         optimizer=torch.optim.Adam,
