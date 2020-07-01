@@ -38,7 +38,7 @@ torch.backends.cudnn.deterministic = True
 
 
 def quora_data():
-    df = pd.read_csv("data/train.csv.zip")
+    df = pd.read_csv("data/quora-question-pairs/train.csv.zip")
     df.replace(np.nan, '', regex=True, inplace=True)
     texts = list(pd.concat([df.question1, df.question2]).str.lower().unique())
     return texts
