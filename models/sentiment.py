@@ -1,5 +1,7 @@
 import torch
 import skorch
+import random
+import numpy as np
 import pandas as pd
 
 from sklearn.base import BaseEstimator, TransformerMixin
@@ -8,6 +10,15 @@ from sklearn.pipeline import make_pipeline
 
 from torchtext.data import Dataset, Example, Field, LabelField
 from torchtext.data import BucketIterator
+
+
+SEED = 137
+
+random.seed(SEED)
+np.random.seed(SEED)
+torch.manual_seed(SEED)
+torch.cuda.manual_seed(SEED)
+torch.backends.cudnn.deterministic = True
 
 
 def data():
