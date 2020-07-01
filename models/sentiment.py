@@ -8,7 +8,6 @@ from sklearn.pipeline import make_pipeline
 
 from torchtext.data import Dataset, Example, Field, LabelField
 from torchtext.data import BucketIterator
-from skorch.toy import MLPModule
 
 
 def data():
