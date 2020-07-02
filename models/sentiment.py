@@ -44,6 +44,12 @@ class TextPreprocessor(BaseEstimator, TransformerMixin):
         return Dataset(examples, self.fields)
 
 
+def context(inputs, bidirectional=False):
+    if bidirectional:
+        return torch.cat([inputs[-1, :, :], inputs[-2, :, :]], dim=1)
+    return inputs[-1, :, :]
+
+
 class VanilaRNN(torch.nn.Module):
     def __init__(self, vocab_size, n_sentiments, emb_dim=100, hid_dim=256):
         super().__init__()
@@ -53,10 +59,10 @@ class VanilaRNN(torch.nn.Module):
 
     def forward(self, text):
         # text[seq_len, batch size] -> [seq_len, batch size, emb dim] -> RNN
-        output, hidden = self._rnn(self._emb(text))
+        output, _ = self._rnn(self._emb(text))
         # output = [seq_len, batch size, hid dim]
         # hidden = [1, batch size, hid dim]
-        return self._out(hidden.squeeze(0))
+        return self._out(context(output))
 
 
 class LSTM(torch.nn.Module):
@@ -76,10 +82,7 @@ class LSTM(torch.nn.Module):
 
     def forward(self, inputs):
         output, _ = self._rnn(self._emb(inputs))
-        hidden = output[-1, :, :]
-        if self._rnn.bidirectional:
-            hidden = torch.cat([hidden, output[-2, :, :]], dim=1)
-        return self._out(output[-1, :, :])
+        return self._out(context(output))
 
 
 def build_preprocessor(packed=False):
