@@ -85,9 +85,22 @@ class LSTM(torch.nn.Module):
         return self._out(context(hidden, self._rnn.bidirectional))
 
 
+class PackedLSTM(LSTM):
+    def forward(self, inputs):
+        text, lengths = inputs
+        # Transpose to handle batch first required by skorch
+        embs = self._emb(text.T)
+        packed = torch.nn.utils.rnn.pack_padded_sequence(embs, lengths)
+        output, (hidden, _) = self._rnn(packed)
+
+        # for unpacking:
+        # output, out = nn.utils.rnn.pad_packed_sequence(output)
+        return self._out(context(hidden))
+
+
 def build_preprocessor(packed=False):
     fields = [
-        ("review", Field(include_lengths=packed)),
+        ("review", Field(include_lengths=packed, batch_first=packed)),
         ("sentiment", LabelField(is_target=True)),
     ]
     return TextPreprocessor(fields)
