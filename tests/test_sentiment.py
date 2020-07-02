@@ -3,6 +3,7 @@ import pandas as pd
 
 from torchtext.data import BucketIterator
 from models.sentiment import build_preprocessor, build_model
+from models.sentiment import VanilaRNN, LSTM
 
 
 @pytest.fixture
@@ -23,5 +24,9 @@ def test_preprocessing(data, batch_size=32):
     assert batch.sentiment.shape[-1] == batch_size
 
 
-def test_model(data):
-    build_model().fit(data)
+@pytest.mark.parametrize("module", [
+    VanilaRNN,
+    LSTM
+])
+def test_model(module, data):
+    build_model(module=module).fit(data)

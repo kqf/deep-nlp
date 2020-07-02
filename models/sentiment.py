@@ -75,13 +75,16 @@ class LSTM(torch.nn.Module):
         self._out = torch.nn.Linear(hidden, n_sentiments)
 
     def forward(self, inputs):
-        _, (hidden, _) = self._rnn(self._emb(inputs))
-        return self._out(hidden)
+        output, _ = self._rnn(self._emb(inputs))
+        hidden = output[-1, :, :]
+        if self._rnn.bidirectional:
+            hidden = torch.cat([hidden, output[-2, :, :]], dim=1)
+        return self._out(output[-1, :, :])
 
 
-def build_preprocessor():
+def build_preprocessor(packed=False):
     fields = [
-        ("review", Field()),
+        ("review", Field(include_lengths=packed)),
         ("sentiment", LabelField(is_target=True)),
     ]
     return TextPreprocessor(fields)
