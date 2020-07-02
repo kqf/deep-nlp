@@ -46,43 +46,43 @@ class TextPreprocessor(BaseEstimator, TransformerMixin):
 
 def context(inputs, bidirectional=False):
     if bidirectional:
-        return torch.cat([inputs[-1, :, :], inputs[-2, :, :]], dim=1)
+        return torch.cat([inputs[-1, :, :], inputs[-2, :, :]], dim=-1)
     return inputs[-1, :, :]
 
 
 class VanilaRNN(torch.nn.Module):
-    def __init__(self, vocab_size, n_sentiments, emb_dim=100, hid_dim=256):
+    def __init__(self, vocab_size, n_sentiments, emb_dim=100, hid_dim=256,
+                 bidirectional=False):
         super().__init__()
         self._emb = torch.nn.Embedding(vocab_size, emb_dim)
-        self._rnn = torch.nn.RNN(emb_dim, hid_dim)
+        self._rnn = torch.nn.RNN(emb_dim, hid_dim,
+                                 bidirectional=bidirectional)
+        hid_dim = 2 * hid_dim if bidirectional else hid_dim
         self._out = torch.nn.Linear(hid_dim, n_sentiments)
 
     def forward(self, text):
         # text[seq_len, batch size] -> [seq_len, batch size, emb dim] -> RNN
-        output, _ = self._rnn(self._emb(text))
+        _, hidden = self._rnn(self._emb(text))
         # output = [seq_len, batch size, hid dim]
-        # hidden = [1, batch size, hid dim]
-        return self._out(context(output))
+        return self._out(context(hidden, self._rnn.bidirectional))
 
 
 class LSTM(torch.nn.Module):
-    def __init__(self, vocab_size, n_sentiments,
-                 emb_dim=100,
-                 lstm_hidden_dim=256,
+    def __init__(self, vocab_size, n_sentiments, emb_dim=100, hid_dim=256,
                  lstm_layers_count=1, bidirectional=False):
         super().__init__()
 
         self._emb = torch.nn.Embedding(vocab_size, emb_dim)
         self._rnn = torch.nn.LSTM(
-            emb_dim, lstm_hidden_dim,
+            emb_dim, hid_dim,
             lstm_layers_count, bidirectional=bidirectional)
 
-        hidden = 2 * lstm_hidden_dim if bidirectional else lstm_hidden_dim
-        self._out = torch.nn.Linear(hidden, n_sentiments)
+        hid_dim = 2 * hid_dim if bidirectional else hid_dim
+        self._out = torch.nn.Linear(hid_dim, n_sentiments)
 
     def forward(self, inputs):
-        output, _ = self._rnn(self._emb(inputs))
-        return self._out(context(output))
+        _, (hidden, _) = self._rnn(self._emb(inputs))
+        return self._out(context(hidden, self._rnn.bidirectional))
 
 
 def build_preprocessor(packed=False):
@@ -93,11 +93,12 @@ def build_preprocessor(packed=False):
     return TextPreprocessor(fields)
 
 
-def build_model(module=VanilaRNN):
+def build_model(module=VanilaRNN, packed=False, bidirectional=False):
     model = skorch.NeuralNet(
         module=module,
         module__vocab_size=10,  # Dummy dimension
         module__n_sentiments=2,
+        module__bidirectional=bidirectional,
         optimizer=torch.optim.Adam,
         criterion=torch.nn.CrossEntropyLoss,
         max_epochs=2,
@@ -115,7 +116,7 @@ def build_model(module=VanilaRNN):
     )
 
     full = make_pipeline(
-        build_preprocessor(),
+        build_preprocessor(packed),
         model,
     )
     return full

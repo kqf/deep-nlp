@@ -1,6 +1,7 @@
 import pytest
 import pandas as pd
 
+from functools import partial
 from torchtext.data import BucketIterator
 from models.sentiment import build_preprocessor, build_model
 from models.sentiment import VanilaRNN, LSTM
@@ -24,9 +25,11 @@ def test_preprocessing(data, batch_size=32):
     assert batch.sentiment.shape[-1] == batch_size
 
 
-@pytest.mark.parametrize("module", [
-    VanilaRNN,
-    LSTM
+@pytest.mark.parametrize("build", [
+    partial(build_model, module=VanilaRNN),
+    partial(build_model, module=LSTM),
+    partial(build_model, module=VanilaRNN, bidirectional=True),
+    partial(build_model, module=LSTM, bidirectional=True),
 ])
-def test_model(module, data):
-    build_model(module=module).fit(data)
+def test_model(build, data):
+    build().fit(data)
