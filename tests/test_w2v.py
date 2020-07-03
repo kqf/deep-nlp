@@ -1,12 +1,14 @@
+import itertools
 import pytest
 
-from models.w2v import quora_data, Tokenizer
+from models.w2v import Tokenizer
 from models.w2v import SkipGram, CBoW, Word2VecGeneric, NegativeSamplingCBoW
 
 
 @pytest.fixture
 def data(size=5000):
-    return quora_data()[:size]
+    dd = itertools.repeat("All work and no play makes Jack a dull boy", size)
+    return list(dd)
 
 
 def test_tokenizer(data):
