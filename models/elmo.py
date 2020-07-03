@@ -235,7 +235,7 @@ def build_baseline(
         module=module,
         optimizer=torch.optim.Adam,
         criterion=criterion,
-        max_epochs=4,
+        max_epochs=2,
         batch_size=64,
         iterator_train=BucketIterator,
         iterator_train__shuffle=True,

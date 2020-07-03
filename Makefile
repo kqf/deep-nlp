@@ -16,7 +16,6 @@ data:
 	curl http://www.manythings.org/anki/rus-eng.zip -o data/rus-eng.zip
 	unzip data/rus-eng.zip -d data/
 	python -m spacy download en
-	python -c "import gensim.downloader as gapi; gapi.load('glove-wiki-gigaword-100')"
 
 	git clone https://github.com/MiuLab/SlotGated-SLU.git
 	mv SlotGated-SLU data

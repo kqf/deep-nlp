@@ -27,7 +27,7 @@ def data(size=64):
 
 @pytest.mark.parametrize("build", [
     build_preprocessor,
-    build_preprocessor_emb,
+    # build_preprocessor_emb, # CI performance issues
 ])
 def test_preprocessing(build, data, batch_size=64):
     dset = build().fit_transform(data)
@@ -39,11 +39,9 @@ def test_preprocessing(build, data, batch_size=64):
 
 @pytest.mark.parametrize("build", [
     build_model,
-    # build_emb_model,
-    # build_bert_model,
+    # build_emb_model # CI performance issues,
+    build_bert_model,
 ])
 def test_tagger_model(build, data):
     model = build().fit(data)
-    # print(model.predict(data))
-
     print(model.score(data, data["tags"].values))
