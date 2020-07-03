@@ -9,4 +9,4 @@ install:
 
 script:
   - make data
-  - pytest
+  - pytest --durations=0
