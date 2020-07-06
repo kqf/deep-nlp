@@ -98,6 +98,28 @@ class PackedLSTM(LSTM):
         return self._out(context(hidden))
 
 
+class FastText(torch.nn.Module):
+    def __init__(self,
+                 vocab_size, n_sentiments,
+                 emb_dim=100, bidirectional="dummy"):
+        super().__init__()
+        self._emb = torch.nn.Embedding(vocab_size, emb_dim)
+        self._out = torch.nn.Linear(emb_dim, n_sentiments)
+
+    def forward(self, text):
+        # embe = [sent len, batch size, emb dim]
+        emb = self._emb(text)
+
+        # emb = [batch size, sent len, emb dim]
+        emb = emb.permute(1, 0, 2)
+
+        # pooled = [batch size, 1, emb_dim]
+        pooled = torch.nn.functional.avg_pool2d(emb, (emb.shape[1], 1))
+
+        # pooled -> [batch size, emb_dim]
+        return self._out(pooled.squeeze(1))
+
+
 def ngrams(x, n=2):
     n_grams = set(zip(*[x[i:] for i in range(n)]))
     for n_gram in n_grams:

@@ -4,7 +4,7 @@ import pandas as pd
 from functools import partial
 from torchtext.data import BucketIterator
 from models.sentiment import build_preprocessor, build_model, ngrams
-from models.sentiment import VanilaRNN, LSTM, PackedLSTM
+from models.sentiment import VanilaRNN, LSTM, PackedLSTM, FastText
 
 
 @pytest.fixture
@@ -30,11 +30,12 @@ def test_preprocessing(prep, data, batch_size=32):
 
 
 @pytest.mark.parametrize("build", [
-    partial(build_model, module=VanilaRNN),
-    partial(build_model, module=LSTM),
+    partial(build_model, module=VanilaRNN, bidirectional=True),
+    partial(build_model, module=LSTM, bidirectional=True),
     partial(build_model, module=VanilaRNN, bidirectional=True),
     partial(build_model, module=LSTM, bidirectional=True),
     partial(build_model, module=PackedLSTM, packed=True),
+    partial(build_model, module=FastText),
 ])
 def test_model(build, data):
     build().fit(data)
