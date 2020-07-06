@@ -52,9 +52,11 @@ def context(inputs, bidirectional=False):
 
 class VanilaRNN(torch.nn.Module):
     def __init__(self, vocab_size, n_sentiments, emb_dim=100, hid_dim=256,
+                 padding_idx=0,
                  bidirectional=False):
         super().__init__()
-        self._emb = torch.nn.Embedding(vocab_size, emb_dim)
+        self._emb = torch.nn.Embedding(
+            vocab_size, emb_dim, padding_idx=padding_idx)
         self._rnn = torch.nn.RNN(emb_dim, hid_dim,
                                  bidirectional=bidirectional)
         hid_dim = 2 * hid_dim if bidirectional else hid_dim
@@ -69,10 +71,11 @@ class VanilaRNN(torch.nn.Module):
 
 class LSTM(torch.nn.Module):
     def __init__(self, vocab_size, n_sentiments, emb_dim=100, hid_dim=256,
-                 lstm_layers_count=1, bidirectional=False):
+                 lstm_layers_count=1, padding_idx=0, bidirectional=False):
         super().__init__()
 
-        self._emb = torch.nn.Embedding(vocab_size, emb_dim)
+        self._emb = torch.nn.Embedding(
+            vocab_size, emb_dim, padding_idx=padding_idx)
         self._rnn = torch.nn.LSTM(
             emb_dim, hid_dim,
             lstm_layers_count, bidirectional=bidirectional)
@@ -101,9 +104,11 @@ class PackedLSTM(LSTM):
 class FastText(torch.nn.Module):
     def __init__(self,
                  vocab_size, n_sentiments,
-                 emb_dim=100, bidirectional="dummy"):
+                 emb_dim=100, padding_index=0, padding_idx=0,
+                 bidirectional="dummy"):
         super().__init__()
-        self._emb = torch.nn.Embedding(vocab_size, emb_dim)
+        self._emb = torch.nn.Embedding(
+            vocab_size, emb_dim, padding_idx=padding_idx)
         self._out = torch.nn.Linear(emb_dim, n_sentiments)
 
     def forward(self, text):
