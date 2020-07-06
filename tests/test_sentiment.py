@@ -3,7 +3,7 @@ import pandas as pd
 
 from functools import partial
 from torchtext.data import BucketIterator
-from models.sentiment import build_preprocessor, build_model
+from models.sentiment import build_preprocessor, build_model, ngrams
 from models.sentiment import VanilaRNN, LSTM, PackedLSTM
 
 
@@ -16,9 +16,13 @@ def data(size=320):
     return df
 
 
-def test_preprocessing(data, batch_size=32):
+@pytest.mark.parametrize("prep", [
+    build_preprocessor(),
+    build_preprocessor(preprocessing=ngrams),
+])
+def test_preprocessing(prep, data, batch_size=32):
     print(data)
-    dataset = build_preprocessor().fit_transform(data)
+    dataset = prep.fit_transform(data)
 
     batch = next(iter(BucketIterator(dataset, batch_size=batch_size)))
     assert batch.review.shape[-1] == batch_size

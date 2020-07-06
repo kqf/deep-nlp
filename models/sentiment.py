@@ -98,9 +98,22 @@ class PackedLSTM(LSTM):
         return self._out(context(hidden))
 
 
-def build_preprocessor(packed=False):
+def ngrams(x, n=2):
+    n_grams = set(zip(*[x[i:] for i in range(n)]))
+    for n_gram in n_grams:
+        x.append(' '.join(n_gram))
+    return x
+
+
+def build_preprocessor(packed=False, preprocessing=None):
+    text_field = Field(
+        include_lengths=packed,
+        batch_first=packed,
+        preprocessing=preprocessing,
+    )
+
     fields = [
-        ("review", Field(include_lengths=packed, batch_first=packed)),
+        ("review", text_field),
         ("sentiment", LabelField(is_target=True)),
     ]
     return TextPreprocessor(fields)
