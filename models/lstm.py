@@ -1,6 +1,7 @@
 import time
 import math
 import torch
+import random
 import numpy as np
 import pandas as pd
 from functools import partial
@@ -13,6 +14,15 @@ from sklearn.metrics import f1_score
 
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.linear_model import LogisticRegression
+
+
+SEED = 137
+
+random.seed(SEED)
+np.random.seed(SEED)
+torch.manual_seed(SEED)
+torch.cuda.manual_seed(SEED)
+torch.backends.cudnn.deterministic = True
 
 
 @contextmanager

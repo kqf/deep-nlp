@@ -126,14 +126,14 @@ class FastText(torch.nn.Module):
 
 
 class CNN(torch.nn.Module):
-    def __init__(self,
-                 vocab_size, n_sentiments,
-                 emb_dim=100, n_filters=100, filter_sizes=None,
-                 dropout=0.5, padding_idx=0,
-                 bidirectional="dummy",
-                 conv=torch.nn.Conv2d
-                 ):
-
+    def __init__(
+        self,
+        vocab_size, n_sentiments,
+        emb_dim=100, n_filters=100, filter_sizes=None,
+        dropout=0.5, padding_idx=0,
+        bidirectional="dummy",
+        conv=torch.nn.Conv2d
+    ):
         super().__init__()
         filter_sizes = filter_sizes or [1, 2, 3]
         self._emb = torch.nn.Embedding(
@@ -249,6 +249,12 @@ def main():
 
     print(train.head())
     print(train.info())
+
+    vrnn = build_model(module=VanilaRNN, bidirectional=True)
+    vrnn.fit(train)
+    y_pred = vrnn.predict(test)
+
+    print(y_pred)
 
 
 if __name__ == '__main__':
