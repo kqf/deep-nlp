@@ -63,9 +63,9 @@ class VanilaRNN(torch.nn.Module):
         self._out = torch.nn.Linear(hid_dim, n_sentiments)
 
     def forward(self, text):
-        # text[seq_len, batch size] -> [seq_len, batch size, emb dim] -> RNN
+        # text[seq_len, batch_size] -> [seq_len, batch_size, emb_dim] -> RNN
         _, hidden = self._rnn(self._emb(text))
-        # output = [seq_len, batch size, hid dim]
+        # output = [seq_len, batch_size, hid dim]
         return self._out(context(hidden, self._rnn.bidirectional))
 
 
@@ -112,17 +112,74 @@ class FastText(torch.nn.Module):
         self._out = torch.nn.Linear(emb_dim, n_sentiments)
 
     def forward(self, text):
-        # embe = [sent len, batch size, emb dim]
+        # embe = [seq_len, batch_size, emb_dim]
         emb = self._emb(text)
 
-        # emb = [batch size, sent len, emb dim]
+        # emb = [batch_size, seq_len, emb_dim]
         emb = emb.permute(1, 0, 2)
 
-        # pooled = [batch size, 1, emb_dim]
+        # pooled = [batch_size, 1, emb_dim]
         pooled = torch.nn.functional.avg_pool2d(emb, (emb.shape[1], 1))
 
-        # pooled -> [batch size, emb_dim]
+        # pooled -> [batch_size, emb_dim]
         return self._out(pooled.squeeze(1))
+
+
+class CNN(torch.nn.Module):
+    def __init__(self,
+                 vocab_size, n_sentiments,
+                 emb_dim=100, n_filters=100, filter_sizes=None,
+                 dropout=0.5, padding_idx=0, bidirectional="dummy"):
+
+        super().__init__()
+        filter_sizes = filter_sizes or [1, 2, 3]
+        self._emb = torch.nn.Embedding(
+            vocab_size, emb_dim, padding_idx=padding_idx)
+        self._conv_0 = torch.nn.Conv2d(
+            in_channels=1,
+            out_channels=n_filters,
+            kernel_size=(filter_sizes[0], emb_dim))
+        self._conv_1 = torch.nn.Conv2d(
+            in_channels=1,
+            out_channels=n_filters,
+            kernel_size=(filter_sizes[1], emb_dim))
+        self._conv_2 = torch.nn.Conv2d(
+            in_channels=1,
+            out_channels=n_filters,
+            kernel_size=(filter_sizes[2], emb_dim))
+
+        self._out = torch.nn.Linear(
+            len(filter_sizes) * n_filters, n_sentiments)
+        self._dropout = torch.nn.Dropout(dropout)
+
+    def forward(self, text):
+
+        # [seq_len, batch_size] -> [seq_len, batch_size, emb_dim]
+        emb = self._emb(text)
+
+        # emb = [batch_size, seq_len, emb_dim]
+        emb = emb.permute(1, 0, 2)
+
+        # emb = [batch_size, 1, seq_len, emb_dim]
+        emb = emb.unsqueeze(1)
+
+        # conved_n = [batch_size, n_filters, seq_len - filter_sizes[n] + 1]
+        conved_0 = torch.nn.functional.relu(self._conv_0(emb).squeeze(3))
+        conved_1 = torch.nn.functional.relu(self._conv_1(emb).squeeze(3))
+        conved_2 = torch.nn.functional.relu(self._conv_2(emb).squeeze(3))
+
+        # pooled_n = [batch_size, n_filters]
+        pooled_0 = torch.nn.functional.max_pool1d(
+            conved_0, conved_0.shape[2]).squeeze(2)
+        pooled_1 = torch.nn.functional.max_pool1d(
+            conved_1, conved_1.shape[2]).squeeze(2)
+        pooled_2 = torch.nn.functional.max_pool1d(
+            conved_2, conved_2.shape[2]).squeeze(2)
+
+        # cat = [batch_size, n_filters * len(filter_sizes)]
+
+        cat = self._dropout(torch.cat((pooled_0, pooled_1, pooled_2), dim=1))
+        return self._out(cat)
 
 
 def ngrams(x, n=2):
