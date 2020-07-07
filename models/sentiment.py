@@ -104,7 +104,7 @@ class PackedLSTM(LSTM):
 class FastText(torch.nn.Module):
     def __init__(self,
                  vocab_size, n_sentiments,
-                 emb_dim=100, padding_index=0, padding_idx=0,
+                 emb_dim=100, padding_idx=0,
                  bidirectional="dummy"):
         super().__init__()
         self._emb = torch.nn.Embedding(
@@ -146,6 +146,22 @@ def build_preprocessor(packed=False, preprocessing=None):
     return TextPreprocessor(fields)
 
 
+class DynamicParSertter(skorch.callbacks.Callback):
+    def on_train_begin(self, net, X, y):
+        vocab = X.fields["review"].vocab
+        svocab = X.fields["sentiment"].vocab
+        net.set_params(module__vocab_size=len(vocab))
+        net.set_params(module__n_sentiments=len(svocab))
+        net.set_params(module__padding_idx=vocab["<pad>"])
+
+        n_pars = self.count_parameters(net.module_)
+        print(f'The model has {n_pars:,} trainable parameters')
+
+    @staticmethod
+    def count_parameters(model):
+        return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+
 def build_model(module=VanilaRNN, packed=False, bidirectional=False):
     model = skorch.NeuralNet(
         module=module,
@@ -165,6 +181,7 @@ def build_model(module=VanilaRNN, packed=False, bidirectional=False):
         train_split=lambda x, y, **kwargs: Dataset.split(x, **kwargs),
         callbacks=[
             skorch.callbacks.GradientNormClipping(1.),
+            DynamicParSertter(),
         ],
     )
 
