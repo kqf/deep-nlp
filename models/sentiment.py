@@ -135,19 +135,14 @@ class CNN(torch.nn.Module):
         filter_sizes = filter_sizes or [1, 2, 3]
         self._emb = torch.nn.Embedding(
             vocab_size, emb_dim, padding_idx=padding_idx)
-        self._conv_0 = torch.nn.Conv2d(
-            in_channels=1,
-            out_channels=n_filters,
-            kernel_size=(filter_sizes[0], emb_dim))
-        self._conv_1 = torch.nn.Conv2d(
-            in_channels=1,
-            out_channels=n_filters,
-            kernel_size=(filter_sizes[1], emb_dim))
-        self._conv_2 = torch.nn.Conv2d(
-            in_channels=1,
-            out_channels=n_filters,
-            kernel_size=(filter_sizes[2], emb_dim))
-
+        self._convs = torch.nn.ModuleList([
+            torch.nn.Conv2d(
+                in_channels=1,
+                out_channels=n_filters,
+                kernel_size=(fs, emb_dim)
+            )
+            for fs in filter_sizes
+        ])
         self._out = torch.nn.Linear(
             len(filter_sizes) * n_filters, n_sentiments)
         self._dropout = torch.nn.Dropout(dropout)
@@ -163,22 +158,18 @@ class CNN(torch.nn.Module):
         # emb = [batch_size, 1, seq_len, emb_dim]
         emb = emb.unsqueeze(1)
 
-        # conved_n = [batch_size, n_filters, seq_len - filter_sizes[n] + 1]
-        conved_0 = torch.nn.functional.relu(self._conv_0(emb).squeeze(3))
-        conved_1 = torch.nn.functional.relu(self._conv_1(emb).squeeze(3))
-        conved_2 = torch.nn.functional.relu(self._conv_2(emb).squeeze(3))
+        # conved_i = [batch_size, n_filters, seq_len - filter_sizes[n] + 1]
+        conved = [
+            torch.nn.functional.relu(conv(emb)).squeeze(3)
+            for conv in self._convs]
 
-        # pooled_n = [batch_size, n_filters]
-        pooled_0 = torch.nn.functional.max_pool1d(
-            conved_0, conved_0.shape[2]).squeeze(2)
-        pooled_1 = torch.nn.functional.max_pool1d(
-            conved_1, conved_1.shape[2]).squeeze(2)
-        pooled_2 = torch.nn.functional.max_pool1d(
-            conved_2, conved_2.shape[2]).squeeze(2)
+        # pooled_i = [batch_size, n_filters]
+        pooled = [
+            torch.nn.functional.max_pool1d(c, c.shape[2]).squeeze(2)
+            for c in conved]
 
         # cat = [batch_size, n_filters * len(filter_sizes)]
-
-        cat = self._dropout(torch.cat((pooled_0, pooled_1, pooled_2), dim=1))
+        cat = self._dropout(torch.cat(pooled, dim=1))
         return self._out(cat)
 
 
