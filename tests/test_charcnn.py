@@ -9,26 +9,18 @@ from torchtext.data import BucketIterator
 
 
 @pytest.fixture
-def data(size=1000):
+def data(size=128):
     return pd.DataFrame({
         "surname": ["smith", "aardwark", "chair"] * size,
         "label": [1, 0, 0] * size
     })
 
 
-def test_converts_data(data):
-    tokenizer = Tokenizer().fit(data["surname"])
-    assert tokenizer.max_len == 8
-
-    tokenized = tokenizer.transform(data["surname"])
-    assert tokenized.shape, (data.shape, tokenizer.max_len)
-
-
 def test_generates_batches(data, batch_size=128):
     dset = build_preprocessor().fit_transform(data)
     batch = next(iter(BucketIterator(dset, batch_size=batch_size)))
 
-    assert batch.surname.shape[1] == batch_size
+    assert batch.surname.shape[0] == batch_size
 
 
 @pytest.mark.skip

@@ -4,7 +4,6 @@ import skorch
 import random
 import numpy as np
 import pandas as pd
-from collections import Counter
 
 from sklearn.pipeline import make_pipeline
 from sklearn.base import BaseEstimator, TransformerMixin, ClassifierMixin
@@ -86,37 +85,6 @@ class ConvClassifier(torch.nn.Module):
             self._max_pooling,
         )
         return model(embs.unsqueeze(dim=1))
-
-
-class Tokenizer(BaseEstimator, TransformerMixin):
-    def fit(self, X, y=None):
-        chars = set("".join(X))
-        self.c2i = {c: i + 1 for i, c in enumerate(chars)}
-        self.c2i['<pad>'] = 0
-
-        word_len_counter = Counter(list(map(len, X)))
-
-        threshold = 0.99
-        self.max_len = self._find_max_len(word_len_counter, threshold)
-        return self
-
-    @staticmethod
-    def _find_max_len(counter, threshold):
-        sum_count = sum(counter.values())
-        cum_count = 0
-        for i in range(max(counter)):
-            cum_count += counter[i]
-            if cum_count > sum_count * threshold:
-                return i
-        return max(counter)
-
-    def transform(self, X):
-        shorted_data = []
-        for word in X:
-            cc = np.array([self.c2i.get(s, 0) for s in word[:self.max_len]])
-            padded = np.pad(cc, (0, self.max_len - len(cc)), mode="constant")
-            shorted_data.append(padded)
-        return np.array(shorted_data)
 
 
 def custom_f1(y_pred, y):
@@ -207,7 +175,7 @@ class CharClassifier(BaseEstimator, ClassifierMixin):
 
 
 def build_preprocessor():
-    text_field = Field(tokenize=lambda x: x)
+    text_field = Field(batch_first=True, tokenize=lambda x: x)
 
     fields = [
         ("surname", text_field),
