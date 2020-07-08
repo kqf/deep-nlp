@@ -1,6 +1,7 @@
-import random
 import time
 import torch
+import skorch
+import random
 import numpy as np
 import pandas as pd
 from collections import Counter
@@ -12,6 +13,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import plot_precision_recall_curve
 
 from torchtext.data import Dataset, Example, Field, LabelField
+from torchtext.data import BucketIterator
 
 
 """
@@ -204,14 +206,6 @@ class CharClassifier(BaseEstimator, ClassifierMixin):
         return self.predict_proba(X).argmax(axis=1)
 
 
-def build_model(**kwargs):
-    model = make_pipeline(
-        Tokenizer(),
-        CharClassifier(**kwargs),
-    )
-    return model
-
-
 def build_preprocessor():
     text_field = Field(tokenize=lambda x: x)
 
@@ -220,6 +214,35 @@ def build_preprocessor():
         ("label", LabelField(is_target=True)),
     ]
     return TextPreprocessor(fields)
+
+
+def build_model(module=ConvClassifier):
+    model = skorch.NeuralNet(
+        module=module,
+        module__vocab_size=10,  # Dummy dimension
+        module__n_sentiments=2,
+        optimizer=torch.optim.Adam,
+        criterion=torch.nn.CrossEntropyLoss,
+        max_epochs=2,
+        batch_size=32,
+        iterator_train=BucketIterator,
+        iterator_train__shuffle=True,
+        iterator_train__sort=False,
+        iterator_valid=BucketIterator,
+        iterator_valid__shuffle=False,
+        iterator_valid__sort=False,
+        train_split=lambda x, y, **kwargs: Dataset.split(x, **kwargs),
+        callbacks=[
+            skorch.callbacks.GradientNormClipping(1.),
+            # DynamicParSertter(),
+        ],
+    )
+
+    full = make_pipeline(
+        build_preprocessor(),
+        model,
+    )
+    return full
 
 
 def main():

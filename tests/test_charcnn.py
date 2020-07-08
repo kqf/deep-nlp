@@ -31,6 +31,7 @@ def test_generates_batches(data, batch_size=128):
     assert batch.surname.shape[1] == batch_size
 
 
+@pytest.mark.skip
 def test_model(data):
     model = build_model().fit(data["surname"], data["label"].values)
     assert model is not None
