@@ -2,40 +2,43 @@ import pytest
 import numpy as np
 import pandas as pd
 from models.charcnn import Tokenizer, CharClassifier, custom_f1, build_model
+from models.charcnn import build_preprocessor
 from sklearn.metrics import f1_score
 
 
 @pytest.fixture
 def data(size=1000):
     return pd.DataFrame({
-        "names": ["smith", "aardwark", "chair"] * size,
-        "labels": [1, 0, 0] * size
+        "surname": ["smith", "aardwark", "chair"] * size,
+        "label": [1, 0, 0] * size
     })
 
 
 def test_converts_data(data):
-    tokenizer = Tokenizer().fit(data["names"])
+    tokenizer = Tokenizer().fit(data["surname"])
     assert tokenizer.max_len == 8
 
-    tokenized = tokenizer.transform(data["names"])
+    tokenized = tokenizer.transform(data["surname"])
     assert tokenized.shape, (data.shape, tokenizer.max_len)
 
 
 @pytest.mark.parametrize("bsize", [1, 2, 3, 4, 31, 128])
 def test_generates_batches(data, bsize):
-    x, y = next(CharClassifier.batches(data["names"], data["labels"], bsize))
+    x, y = next(CharClassifier.batches(data["surname"], data["label"], bsize))
     assert len(x) == len(y)
+
+    build_preprocessor().fit_transform(data)
 
 
 def test_model(data):
-    model = build_model().fit(data["names"], data["labels"].values)
+    model = build_model().fit(data["surname"], data["label"].values)
     assert model is not None
 
-    probs = model.predict_proba(data["names"])
+    probs = model.predict_proba(data["surname"])
     assert probs.shape == (data.shape[0], 2)
 
-    y_pred = model.predict(data["names"])
-    np.testing.assert_array_equal(y_pred, data["labels"].values)
+    y_pred = model.predict(data["surname"])
+    np.testing.assert_array_equal(y_pred, data["label"].values)
 
 
 @pytest.mark.parametrize("y_pred, y", [

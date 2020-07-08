@@ -4,11 +4,14 @@ import torch
 import numpy as np
 import pandas as pd
 from collections import Counter
+
 from sklearn.pipeline import make_pipeline
 from sklearn.base import BaseEstimator, TransformerMixin, ClassifierMixin
 from sklearn.metrics import f1_score, precision_score, recall_score
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import plot_precision_recall_curve
+
+from torchtext.data import Dataset, Example, Field, LabelField
 
 
 """
@@ -31,6 +34,24 @@ torch.backends.cudnn.deterministic = True
 
 def data(filename="data/surnames.txt"):
     return pd.read_csv(filename, sep="\t", names=["surname", "label"])
+
+
+class TextPreprocessor(BaseEstimator, TransformerMixin):
+    def __init__(self, fields, min_freq=1):
+        self.fields = fields
+        self.min_freq = min_freq
+
+    def fit(self, X, y=None):
+        dataset = self.transform(X, y)
+        for name, field in dataset.fields.items():
+            if field.use_vocab:
+                field.build_vocab(dataset, min_freq=self.min_freq)
+        return self
+
+    def transform(self, X, y=None):
+        proc = [X[col].apply(f.preprocess) for col, f in self.fields]
+        examples = [Example.fromlist(f, self.fields) for f in zip(*proc)]
+        return Dataset(examples, self.fields)
 
 
 class ConvClassifier(torch.nn.Module):
@@ -189,6 +210,20 @@ def build_model(**kwargs):
         CharClassifier(**kwargs),
     )
     return model
+
+
+def build_preprocessor(packed=False, preprocessing=None):
+    text_field = Field(
+        include_lengths=packed,
+        batch_first=packed,
+        preprocessing=preprocessing,
+    )
+
+    fields = [
+        ("surname", text_field),
+        ("label", LabelField(is_target=True)),
+    ]
+    return TextPreprocessor(fields)
 
 
 def main():
