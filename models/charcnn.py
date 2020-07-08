@@ -216,12 +216,27 @@ def build_preprocessor():
     return TextPreprocessor(fields)
 
 
+class DynamicParSertter(skorch.callbacks.Callback):
+    def on_train_begin(self, net, X, y):
+        vocab = X.fields["surname"].vocab
+        net.set_params(module__vocab_size=len(vocab))
+        # net.set_params(module__padding_idx=vocab["<pad>"])
+
+        n_pars = self.count_parameters(net.module_)
+        print(f'The model has {n_pars:,} trainable parameters')
+
+    @staticmethod
+    def count_parameters(model):
+        return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+
 def build_model(module=ConvClassifier):
     model = skorch.NeuralNet(
         module=module,
         module__vocab_size=10,  # Dummy dimension
-        module__n_sentiments=2,
+        module__emb_dim=24,
         optimizer=torch.optim.Adam,
+        optimizer__lr=0.01,
         criterion=torch.nn.CrossEntropyLoss,
         max_epochs=2,
         batch_size=32,
@@ -234,7 +249,7 @@ def build_model(module=ConvClassifier):
         train_split=lambda x, y, **kwargs: Dataset.split(x, **kwargs),
         callbacks=[
             skorch.callbacks.GradientNormClipping(1.),
-            # DynamicParSertter(),
+            DynamicParSertter(),
         ],
     )
 
