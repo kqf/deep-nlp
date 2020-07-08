@@ -212,12 +212,8 @@ def build_model(**kwargs):
     return model
 
 
-def build_preprocessor(packed=False, preprocessing=None):
-    text_field = Field(
-        include_lengths=packed,
-        batch_first=packed,
-        preprocessing=preprocessing,
-    )
+def build_preprocessor():
+    text_field = Field(tokenize=lambda x: x)
 
     fields = [
         ("surname", text_field),

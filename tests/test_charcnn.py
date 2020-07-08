@@ -3,7 +3,9 @@ import numpy as np
 import pandas as pd
 from models.charcnn import Tokenizer, CharClassifier, custom_f1, build_model
 from models.charcnn import build_preprocessor
+
 from sklearn.metrics import f1_score
+from torchtext.data import BucketIterator
 
 
 @pytest.fixture
@@ -22,12 +24,11 @@ def test_converts_data(data):
     assert tokenized.shape, (data.shape, tokenizer.max_len)
 
 
-@pytest.mark.parametrize("bsize", [1, 2, 3, 4, 31, 128])
-def test_generates_batches(data, bsize):
-    x, y = next(CharClassifier.batches(data["surname"], data["label"], bsize))
-    assert len(x) == len(y)
+def test_generates_batches(data, batch_size=128):
+    dset = build_preprocessor().fit_transform(data)
+    batch = next(iter(BucketIterator(dset, batch_size=batch_size)))
 
-    build_preprocessor().fit_transform(data)
+    assert batch.surname.shape[1] == batch_size
 
 
 def test_model(data):
