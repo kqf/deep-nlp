@@ -1,7 +1,7 @@
 import pytest
 import numpy as np
 import pandas as pd
-from models.charcnn import Tokenizer, CharClassifier, custom_f1, build_model
+from models.charcnn import CharClassifier, custom_f1, build_model
 from models.charcnn import build_preprocessor
 
 from sklearn.metrics import f1_score
