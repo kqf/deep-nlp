@@ -1,4 +1,3 @@
-import time
 import torch
 import skorch
 import random
@@ -6,7 +5,7 @@ import numpy as np
 import pandas as pd
 
 from sklearn.pipeline import make_pipeline
-from sklearn.base import BaseEstimator, TransformerMixin, ClassifierMixin
+from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.metrics import f1_score, precision_score, recall_score
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import plot_precision_recall_curve

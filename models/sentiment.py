@@ -214,7 +214,7 @@ class DynamicParSertter(skorch.callbacks.Callback):
 
 
 def build_model(module=VanilaRNN, packed=False, bidirectional=False):
-    model = skorch.NeuralNet(
+    model = skorch.NeuralNetClassifier(
         module=module,
         module__vocab_size=10,  # Dummy dimension
         module__n_sentiments=2,
