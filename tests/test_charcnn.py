@@ -31,7 +31,7 @@ def test_model(data):
     assert probs.shape == (data.shape[0], 2)
 
     y_pred = model.predict(data)
-    # np.testing.assert_array_equal(y_pred, data["label"].values)
+    np.testing.assert_array_equal(y_pred, data["label"].values)
 
 
 @pytest.mark.parametrize("y_pred, y", [
