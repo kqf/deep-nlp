@@ -56,35 +56,27 @@ class TextPreprocessor(BaseEstimator, TransformerMixin):
 
 
 class ConvClassifier(torch.nn.Module):
-    def __init__(self, vocab_size, emb_dim, word_size=22, filters_count=3):
+    def __init__(self, vocab_size, emb_dim, filter_size=3, filters_count=100):
         super().__init__()
 
         self._embedding = torch.nn.Embedding(vocab_size, emb_dim)
-        self._conv = torch.nn.Conv2d(1, 1, (filters_count, 1))
+        self._conv = torch.nn.Conv2d(1, filters_count, (filter_size, emb_dim))
         self._relu = torch.nn.ReLU()
-        self._max_pooling = torch.nn.MaxPool2d(
-            kernel_size=(word_size - filters_count + 1, 1))
-        self._out_layer = torch.nn.Linear(emb_dim, 2, bias=False)
-
-    def forward(self, inputs):
-        '''
-        inputs - LongTensor with shape (batch_size, max_word_len)
-        outputs - FloatTensor with shape (batch_size,)
-        '''
-        outputs = self.embed(inputs)
-        return self._out_layer(outputs).squeeze(1).squeeze(1)
-
-    def embed(self, inputs):
-
-        embs = self._embedding(inputs)
-        model = torch.nn.Sequential(
+        self._max_pooling = torch.nn.MaxPool2d((filter_size, emb_dim))
+        self._model = torch.nn.Sequential(
             # torch.nn.Dropout(0.2),
             self._conv,
             # torch.nn.Dropout(0.2),
             self._relu,
-            self._max_pooling,
+            # self._max_pooling,
         )
-        return model(embs.unsqueeze(dim=1))
+        self._out = torch.nn.Linear(filters_count, 2, bias=False)
+
+    def forward(self, inputs):
+        embs = self._embedding(inputs)
+        conv = self._model(embs.unsqueeze(1)).squeeze(3)
+        pool = torch.nn.functional.max_pool1d(conv, conv.shape[2]).squeeze(2)
+        return self._out(pool)
 
 
 def custom_f1(y_pred, y):
