@@ -1,6 +1,6 @@
 import time
-import math
 import torch
+import skorch
 import random
 import numpy as np
 import pandas as pd
@@ -9,13 +9,14 @@ from contextlib import contextmanager
 from sklearn.pipeline import make_pipeline
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
-from sklearn.base import BaseEstimator, TransformerMixin, ClassifierMixin
+from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.metrics import f1_score
 
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.linear_model import LogisticRegression
 
 from torchtext.data import Dataset, Example, Field, LabelField
+from torchtext.data import BucketIterator
 
 SEED = 137
 
@@ -103,7 +104,7 @@ def bilstm_out(x, backward=False):
 
 class RecurrentClassifier(torch.nn.Module):
     def __init__(self, vocab_size, emb_dim,
-                 hidden_size, classes_count, rnn=None):
+                 hidden_size=256, classes_count=2, rnn=None):
         super().__init__()
         self.classes_count = classes_count
         self._embedding = torch.nn.Embedding(vocab_size, emb_dim)
@@ -130,115 +131,6 @@ class RecurrentClassifier(torch.nn.Module):
         return self._embedding(inputs)
 
 
-class Tokenizer(BaseEstimator, TransformerMixin):
-    def fit(self, X, y=None):
-        chars = set("".join(X))
-        self.c2i = {c: i + 1 for i, c in enumerate(chars)}
-        self.c2i['<pad>'] = 0
-        self.max_len = max(map(len, X))
-        return self
-
-    def transform(self, X):
-        padded_data = []
-        for word in X:
-            cc = np.array([self.c2i.get(s, 0) for s in word[:self.max_len]])
-            padded = np.pad(cc, (0, self.max_len - len(cc)), mode="constant")
-            padded_data.append(padded)
-        return np.array(padded_data)
-
-
-class CharClassifier(BaseEstimator, ClassifierMixin):
-    def __init__(self,
-                 emb_dim=100,
-                 hidden_size=20,
-                 activation=None,
-                 batch_size=128,
-                 epochs_count=50,
-                 rnn=None,
-                 print_frequency=10):
-
-        self.rnn = rnn
-        self.hidden_size = hidden_size
-        self.emb_dim = emb_dim
-        self.activation = activation
-        self.batch_size = batch_size
-        self.epochs_count = epochs_count
-        self.print_frequency = print_frequency
-
-    def fit(self, X, y):
-        X = np.array(X)
-        y = np.array(y)
-
-        self.model = RecurrentClassifier(
-            vocab_size=len(np.unique(X)),
-            emb_dim=self.emb_dim,
-            hidden_size=self.hidden_size,
-            classes_count=len(np.unique(y)),
-            rnn=self.rnn,
-        )
-
-        self.criterion = torch.nn.CrossEntropyLoss()
-        optimizer = torch.optim.Adam(self.model.parameters())
-
-        indices = np.arange(len(X))
-        np.random.shuffle(indices)
-        batchs_count = int(math.ceil(len(X) / self.batch_size))
-        device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-
-        total_loss = 0
-        for epoch in range(self.epochs_count):
-            for batch_indices in np.array_split(indices, batchs_count):
-                X_batch, y_batch = X[batch_indices], y[batch_indices]
-                # Convention all RNNs: [integer sequence, batch]
-                x_rnn = X_batch.T
-
-                batch = torch.LongTensor(x_rnn).to(device)
-                labels = torch.LongTensor(y_batch).to(device)
-
-                optimizer.zero_grad()
-
-                self.model.eval()
-                logits = self.model(batch)
-                loss = self.criterion(logits, labels)
-                loss.backward()
-
-                # torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.)
-                optimizer.step()
-
-                total_loss += loss.item()
-            self._status(loss, epoch)
-
-        return self
-
-    def _status(self, loss, epoch=-1):
-        if (epoch + 1) % self.print_frequency != 0:
-            return
-        self.model.eval()
-
-        with torch.no_grad():
-            msg = '[{}/{}] Training loss: {:.3f}'
-            print(msg.format(
-                epoch + 1,
-                self.epochs_count,
-                loss / self.epochs_count)
-            )
-
-    def predict_proba(self, X):
-        X = np.array(X)
-        self.model.eval()
-
-        # Convention all RNNs: [sequence, batch, input_size]
-        x_rnn = X.T
-        device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-        batch = torch.LongTensor(x_rnn).to(device)
-        with torch.no_grad():
-            preds = torch.nn.functional.softmax(self.model(batch), dim=-1)
-        return preds.detach().cpu().data.numpy()
-
-    def predict(self, X):
-        return np.argmax(self.predict_proba(X), axis=-1)
-
-
 def build_preprocessor():
     text_field = Field(batch_first=False, tokenize=lambda x: x)
 
@@ -250,9 +142,29 @@ def build_preprocessor():
 
 
 def build_model(**kwargs):
+    base_model = skorch.NeuralNetClassifier(
+        module=RecurrentClassifier,
+        module__vocab_size=1000,  # Dummy dimension
+        module__emb_dim=24,
+        optimizer=torch.optim.Adam,
+        optimizer__lr=0.01,
+        criterion=torch.nn.CrossEntropyLoss,
+        max_epochs=2,
+        batch_size=32,
+        iterator_train=BucketIterator,
+        iterator_train__shuffle=True,
+        iterator_train__sort=False,
+        iterator_valid=BucketIterator,
+        iterator_valid__shuffle=False,
+        iterator_valid__sort=False,
+        train_split=lambda x, y, **kwargs: Dataset.split(x, **kwargs),
+        callbacks=[
+            skorch.callbacks.GradientNormClipping(1.),
+        ],
+    )
     model = make_pipeline(
-        Tokenizer(),
-        CharClassifier(**kwargs),
+        build_preprocessor(),
+        base_model,
     )
     return model
 
