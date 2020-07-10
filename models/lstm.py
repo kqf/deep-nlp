@@ -141,6 +141,23 @@ def build_preprocessor():
     return TextPreprocessor(fields)
 
 
+class ClassificationParamSetter(skorch.callbacks.Callback):
+    def __init__(self, textfield, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.textfield = textfield
+
+    def on_train_begin(self, net, X, y):
+        vocab = X.fields[self.textfield].vocab
+        net.set_params(module__vocab_size=len(vocab))
+
+        n_pars = self.count_parameters(net.module_)
+        print(f'The model has {n_pars:,} trainable parameters')
+
+    @staticmethod
+    def count_parameters(model):
+        return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+
 def build_model(**kwargs):
     base_model = skorch.NeuralNetClassifier(
         module=RecurrentClassifier,
@@ -160,6 +177,7 @@ def build_model(**kwargs):
         train_split=lambda x, y, **kwargs: Dataset.split(x, **kwargs),
         callbacks=[
             skorch.callbacks.GradientNormClipping(1.),
+            ClassificationParamSetter("names"),
         ],
     )
     model = make_pipeline(
