@@ -1,12 +1,8 @@
 import torch
 import pytest
-import numpy as np
 from sklearn.metrics import f1_score
 from models.charrnn import generate_data, BasicRNNClassifier
 from models.charrnn import SimpleRNNModel, MemorizerModel
-
-torch.manual_seed(0)
-np.random.seed(0)
 
 
 @pytest.fixture
