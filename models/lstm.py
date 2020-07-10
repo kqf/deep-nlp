@@ -239,6 +239,16 @@ class CharClassifier(BaseEstimator, ClassifierMixin):
         return np.argmax(self.predict_proba(X), axis=-1)
 
 
+def build_preprocessor():
+    text_field = Field(batch_first=False, tokenize=lambda x: x)
+
+    fields = [
+        ("names", text_field),
+        ("labels", LabelField(is_target=True)),
+    ]
+    return TextPreprocessor(fields)
+
+
 def build_model(**kwargs):
     model = make_pipeline(
         Tokenizer(),
