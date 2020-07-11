@@ -195,6 +195,15 @@ def baseline_model():
     return model
 
 
+def evaluate(model_name, model, X_tr, y_tr, X_te, y_te):
+    with timer(f"Fit {model_name}"):
+        model.fit(X_tr, y_tr)
+
+    print(f"\nEvaluate: {model_name}")
+    print("Train score", f1_score(model.predict(X_tr), y_tr, average="micro"))
+    print("Test score", f1_score(model.predict(X_tr), y_tr, average="micro"))
+    print()
+
 def main():
 
     torch.manual_seed(42)
@@ -207,36 +216,12 @@ def main():
         X, y, test_size=0.3, stratify=y, random_state=42
     )
 
-    model = baseline_model()
-    with timer("Fit logistic regression"):
-        model.fit(X_tr, y_tr)
-    print("Logistic Regression:")
-    print("Train score", f1_score(model.predict(X_tr), y_tr, average="micro"))
-    print("Test score", f1_score(model.predict(X_tr), y_tr, average="micro"))
+    evaluate("logistic regression", baseline_model(), X_tr, y_tr, X_te, y_te)
+    evaluate("simple rnn", build_model(), X_tr, y_tr, X_te, y_te)
+    evaluate("lstm", build_model(torch.nn.LSTM), X_tr, y_tr, X_te, y_te)
 
-    model = build_model()
-    with timer("Fit fit the LSTM"):
-        model.fit(X_tr, y_tr)
-
-    print("LSTM:")
-    print("Train score", f1_score(model.predict(X_tr), y_tr, average="micro"))
-    print("Test score", f1_score(model.predict(X_tr), y_tr, average="micro"))
-
-    print("SimpleRNN:")
-    model = build_model(module=SimpleRNNModel)
-    with timer("Fit fit the simple RNN"):
-        model.fit(X_tr, y_tr)
-
-    print("Train score", f1_score(model.predict(X_tr), y_tr, average="micro"))
-    print("Test score", f1_score(model.predict(X_tr), y_tr, average="micro"))
-
-    print("Bidirectional LSTM:")
-    model = build_model(module=partial(torch.nn.LSTM, bidirectional=True))
-    with timer("Fit fit the simple RNN"):
-        model.fit(X_tr, y_tr)
-
-    print("Train score", f1_score(model.predict(X_tr), y_tr, average="micro"))
-    print("Test score", f1_score(model.predict(X_tr), y_tr, average="micro"))
+    bilstm = partial(torch.nn.LSTM, bidirectional=True)
+    evaluate("bi-lstm", build_model(bilstm), X_tr, y_tr, X_te, y_te)
 
 
 if __name__ == '__main__':
