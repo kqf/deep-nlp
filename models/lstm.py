@@ -89,17 +89,13 @@ class SimpleRNNModel(torch.nn.Module):
         for i in range(seq_len):
             layer_input = torch.cat((hidden[(i - 1) * (i > 0)], inputs[i]), 1)
             hidden[i] = self._activate(self._hidden(layer_input))
-        return hidden, None
+        return hidden[-1], (hidden, None)
 
 
-def bilstm_out(x, backward=False):
-    idx = int(backward)
-    hid_size = x.shape[-1]
-    if hid_size % 2 != 0:
-        raise RuntimeError(f"Output of Bi-LSTM should be multiple of 2")
-
-    shaped = x.reshape(x.shape[:-1] + (int(hid_size / 2), 2))
-    return shaped[:, :, idx]
+def context(inputs, bidirectional=False):
+    if bidirectional:
+        return torch.cat([inputs[-1, :, :], inputs[-2, :, :]], dim=-1)
+    return inputs[-1, :, :]
 
 
 class RecurrentClassifier(torch.nn.Module):
@@ -109,22 +105,16 @@ class RecurrentClassifier(torch.nn.Module):
         self.classes_count = classes_count
         self._embedding = torch.nn.Embedding(vocab_size, emb_dim)
         self._rnn = rnn_type(emb_dim, hid_size)
+        n_directins = int(self._rnn.bidirectional) + 1
         self._output = torch.nn.Linear(
-            hid_size + hid_size * int(self._rnn.bidirectional),
+            hid_size * n_directins,
             self.classes_count
         )
 
     def forward(self, inputs):
         embeded = self.embed(inputs)
-        lstm_outputs, _ = self._rnn(embeded)
-
-        recurrent = lstm_outputs[-1]
-        if self._rnn.bidirectional:
-            first = bilstm_out(lstm_outputs[0], backward=False)
-            last = bilstm_out(lstm_outputs[-1], backward=True)
-            recurrent = torch.cat([first, last], dim=-1)
-
-        return self._output(recurrent)
+        _, (hidden, _) = self._rnn(embeded)
+        return self._output(context(hidden, self._rnn.bidirectional))
 
     def embed(self, inputs):
         return self._embedding(inputs)
