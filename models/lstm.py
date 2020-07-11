@@ -71,12 +71,12 @@ class TextPreprocessor(BaseEstimator, TransformerMixin):
 class SimpleRNNModel(torch.nn.Module):
     bidirectional = False
 
-    def __init__(self, input_size, hidden_size, activation=None):
+    def __init__(self, input_size, hid_size, activation=None):
         super().__init__()
 
-        self._hidden_size = hidden_size
+        self._hidden_size = hid_size
         # Convention: X[batch, inputs] * W[inputs, outputs]
-        self._hidden = torch.nn.Linear(input_size + hidden_size, hidden_size)
+        self._hidden = torch.nn.Linear(input_size + hid_size, hid_size)
         self._activate = activation or torch.nn.ReLU()
 
     def forward(self, inputs, hidden=None):
@@ -94,24 +94,23 @@ class SimpleRNNModel(torch.nn.Module):
 
 def bilstm_out(x, backward=False):
     idx = int(backward)
-    hidden_size = x.shape[-1]
-    if hidden_size % 2 != 0:
+    hid_size = x.shape[-1]
+    if hid_size % 2 != 0:
         raise RuntimeError(f"Output of Bi-LSTM should be multiple of 2")
 
-    shaped = x.reshape(x.shape[:-1] + (int(hidden_size / 2), 2))
+    shaped = x.reshape(x.shape[:-1] + (int(hid_size / 2), 2))
     return shaped[:, :, idx]
 
 
 class RecurrentClassifier(torch.nn.Module):
     def __init__(self, vocab_size, emb_dim,
-                 hidden_size=256, classes_count=2, rnn=None):
+                 hid_size=256, classes_count=2, rnn=None):
         super().__init__()
         self.classes_count = classes_count
         self._embedding = torch.nn.Embedding(vocab_size, emb_dim)
-        model_type = rnn or torch.nn.LSTM
-        self._rnn = model_type(emb_dim, hidden_size)
+        self._rnn = rnn(emb_dim, hid_size)
         self._output = torch.nn.Linear(
-            hidden_size + hidden_size * int(self._rnn.bidirectional),
+            hid_size + hid_size * int(self._rnn.bidirectional),
             self.classes_count
         )
 
@@ -158,9 +157,10 @@ class ClassificationParamSetter(skorch.callbacks.Callback):
         return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 
-def build_model(module=RecurrentClassifier):
+def build_model(rnn=SimpleRNNModel):
     base_model = skorch.NeuralNetClassifier(
         module=RecurrentClassifier,
+        module__rnn=rnn,
         module__vocab_size=1000,  # Dummy dimension
         module__emb_dim=24,
         optimizer=torch.optim.Adam,
