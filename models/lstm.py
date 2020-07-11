@@ -104,11 +104,11 @@ def bilstm_out(x, backward=False):
 
 class RecurrentClassifier(torch.nn.Module):
     def __init__(self, vocab_size, emb_dim,
-                 hid_size=256, classes_count=2, rnn=None):
+                 hid_size=256, classes_count=2, rnn_type=None):
         super().__init__()
         self.classes_count = classes_count
         self._embedding = torch.nn.Embedding(vocab_size, emb_dim)
-        self._rnn = rnn(emb_dim, hid_size)
+        self._rnn = rnn_type(emb_dim, hid_size)
         self._output = torch.nn.Linear(
             hid_size + hid_size * int(self._rnn.bidirectional),
             self.classes_count
@@ -157,10 +157,10 @@ class ClassificationParamSetter(skorch.callbacks.Callback):
         return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 
-def build_model(rnn=SimpleRNNModel):
+def build_model(rnn_type=SimpleRNNModel):
     base_model = skorch.NeuralNetClassifier(
         module=RecurrentClassifier,
-        module__rnn=rnn,
+        module__rnn_type=rnn_type,
         module__vocab_size=1000,  # Dummy dimension
         module__emb_dim=24,
         optimizer=torch.optim.Adam,

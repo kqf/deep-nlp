@@ -1,7 +1,8 @@
+import torch
 import pytest
 import pandas as pd
 
-from models.lstm import build_model
+from models.lstm import build_model, SimpleRNNModel
 from models.lstm import build_preprocessor
 from torchtext.data import BucketIterator
 
@@ -23,6 +24,10 @@ def test_generates_batches(data, batch_size=128):
     assert batch.names.shape[1] == batch_size
 
 
-def test_surname_classifier(data):
-    model = build_model().fit(data)
+@pytest.mark.parametrize("rnn_type", [
+    SimpleRNNModel,
+    torch.nn.LSTM,
+])
+def test_surname_classifier(rnn_type, data):
+    model = build_model(rnn_type=rnn_type).fit(data)
     assert f1_score(data["labels"], model.predict(data)) > 0.95
