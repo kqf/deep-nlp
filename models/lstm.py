@@ -158,7 +158,7 @@ class ClassificationParamSetter(skorch.callbacks.Callback):
         return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 
-def build_model(**kwargs):
+def build_model(module=RecurrentClassifier):
     base_model = skorch.NeuralNetClassifier(
         module=RecurrentClassifier,
         module__vocab_size=1000,  # Dummy dimension
@@ -223,7 +223,7 @@ def main():
     print("Test score", f1_score(model.predict(X_tr), y_tr, average="micro"))
 
     print("SimpleRNN:")
-    model = build_model(rnn=SimpleRNNModel)
+    model = build_model(module=SimpleRNNModel)
     with timer("Fit fit the simple RNN"):
         model.fit(X_tr, y_tr)
 
@@ -231,7 +231,7 @@ def main():
     print("Test score", f1_score(model.predict(X_tr), y_tr, average="micro"))
 
     print("Bidirectional LSTM:")
-    model = build_model(rnn=partial(torch.nn.LSTM, bidirectional=True))
+    model = build_model(module=partial(torch.nn.LSTM, bidirectional=True))
     with timer("Fit fit the simple RNN"):
         model.fit(X_tr, y_tr)
 
