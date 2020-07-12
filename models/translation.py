@@ -349,10 +349,10 @@ class TranslationModel(torch.nn.Module):
             target_vocab_size, emb_dim,
             rnn_hidden_dim, num_layers)
 
-    def forward(self, source_inputs, target_inputs):
-        encoder_mask = (source_inputs == 1.)  # find mask for padding inputs
-        output, hidden = self.encoder(source_inputs)
-        return self.decoder(target_inputs, output, encoder_mask, hidden)
+    def forward(self, source, target):
+        encoder_mask = (source == 1.)  # find mask for padding inputs
+        output, hidden = self.encoder(source)
+        return self.decoder(target, output, encoder_mask, hidden)
 
 
 def shift(seq, by, batch_dim=1):
@@ -583,7 +583,8 @@ class Translator():
 
 class LanguageModelNet(skorch.NeuralNet):
     def get_loss(self, y_pred, y_true, X=None, training=False):
-        logits = y_pred.view(-1, y_pred.shape[-1])
+        out, _ = y_pred
+        logits = out.view(-1, out.shape[-1])
         return self.criterion_(logits, shift(y_true, by=1).view(-1))
 
     def transform(self, X, max_len=10):
@@ -623,8 +624,8 @@ class DynamicVariablesSetter(skorch.callbacks.Callback):
         svocab = X.fields["source"].vocab
         net.set_params(module__source_vocab_size=len(svocab))
         net.set_params(module__target_vocab_size=len(tvocab))
-        net.set_params(module__source_pad_idx=svocab["<pad>"])
-        net.set_params(module__target_pad_idx=tvocab["<pad>"])
+        # net.set_params(module__source_pad_idx=svocab["<pad>"])
+        # net.set_params(module__target_pad_idx=tvocab["<pad>"])
         net.set_params(criterion__ignore_index=tvocab["<pad>"])
 
         n_pars = self.count_parameters(net.module_)
@@ -638,11 +639,9 @@ class DynamicVariablesSetter(skorch.callbacks.Callback):
 def build_model_lm():
     model = LanguageModelNet(
         module=TranslationModel,
-        module__d_model=256,
-        module__d_ff=1024,
-        module__blocks_count=4,
-        module__heads_count=8,
-        module__dropout_rate=0.1,
+        module__source_vocab_size=1,  # Dummy size
+        module__target_vocab_size=1,  # Dummy size
+        # module__source_pad_idx=0,  # Dummy size
         optimizer=torch.optim.Adam,
         optimizer__lr=0.01,
         criterion=torch.nn.CrossEntropyLoss,
@@ -672,6 +671,7 @@ def build_preprocessor(preprocessing=None,
                        init_token="<s>",
                        eos_token="</s>"):
     source = Field(
+        batch_first=True,
         preprocessing=preprocessing,
         tokenize="spacy",
         init_token=None,
@@ -679,6 +679,7 @@ def build_preprocessor(preprocessing=None,
     )
 
     target = Field(
+        batch_first=True,
         preprocessing=preprocessing,
         tokenize="moses",
         init_token=init_token,

@@ -8,7 +8,7 @@ from models.translation import Encoder, Decoder, AttentionDecoder
 from models.translation import AdditiveAttention, DotAttention
 from models.translation import MultiplicativeAttention
 from models.translation import TranslationModel
-from models.translation import build_model, build_model_bpe
+from models.translation import build_model, build_model_bpe, build_model_lm
 from models.translation import ScheduledSamplingDecoder
 
 from functools import partial
@@ -32,8 +32,8 @@ def test_preprocessing(prep, data, batch_size=32):
     dataset = prep.fit_transform(data)
 
     batch = next(iter(BucketIterator(dataset, batch_size=batch_size)))
-    assert batch.source.shape[-1] == batch_size
-    assert batch.target.shape[-1] == batch_size
+    assert batch.source.shape[0] == batch_size
+    assert batch.target.shape[0] == batch_size
 
 
 def test_subwordtransformer(data):
@@ -165,3 +165,9 @@ def test_translates(create_model, mtype, data, examples):
     print("After training, beam search")
     print(model.transform(examples))
     assert model.score(examples) > -1
+
+
+@pytest.mark.skip("unify the input shapes (batch_first)")
+def test_translates_lm(data, examples):
+    model = build_model_lm().fit(data)
+    model.predict(examples)
