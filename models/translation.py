@@ -9,7 +9,7 @@ from tqdm import tqdm
 
 from functools import partial
 
-from torchtext.data import Dataset, Example, Field, LabelField
+from torchtext.data import Dataset, Example, Field
 from torchtext.data import BucketIterator
 
 from sklearn.pipeline import make_pipeline
@@ -578,13 +578,21 @@ class Translator():
         return " ".join(X.fields["target"].vocab.itos[ind] for ind in final)
 
 
-def build_preprocessor(preprocessing=None):
+def build_preprocessor(preprocessing=None,
+                       init_token="<s>",
+                       eos_token="</s>"):
     source = Field(
         preprocessing=preprocessing,
+        tokenize="spacy",
+        init_token=None,
+        eos_token=eos_token,
     )
 
     target = Field(
         preprocessing=preprocessing,
+        tokenize="moses",
+        init_token=init_token,
+        eos_token=eos_token
     )
 
     fields = [
