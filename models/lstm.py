@@ -89,7 +89,7 @@ class SimpleRNNModel(torch.nn.Module):
         for i in range(seq_len):
             layer_input = torch.cat((hidden[(i - 1) * (i > 0)], inputs[i]), 1)
             hidden[i] = self._activate(self._hidden(layer_input))
-        return hidden[-1], (hidden, None)
+        return hidden, (hidden[-1].unsqueeze(0), None)
 
 
 def context(inputs, bidirectional=False):
