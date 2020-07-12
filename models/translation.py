@@ -8,7 +8,10 @@ import pandas as pd
 from tqdm import tqdm
 
 from functools import partial
-from torchtext.data import Field, Example, Dataset, BucketIterator
+
+from torchtext.data import Dataset, Example, Field, LabelField
+from torchtext.data import BucketIterator
+
 from sklearn.pipeline import make_pipeline
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.model_selection import train_test_split
@@ -55,6 +58,24 @@ def data():
     return pd.read_table("data/rus.txt", names=["source", "target", "caption"])
 
 
+class TextPreprocessor(BaseEstimator, TransformerMixin):
+    def __init__(self, fields, min_freq=1):
+        self.fields = fields
+        self.min_freq = min_freq
+
+    def fit(self, X, y=None):
+        dataset = self.transform(X, y)
+        for name, field in dataset.fields.items():
+            if field.use_vocab:
+                field.build_vocab(dataset, min_freq=self.min_freq)
+        return self
+
+    def transform(self, X, y=None):
+        proc = [X[col].apply(f.preprocess) for col, f in self.fields]
+        examples = [Example.fromlist(f, self.fields) for f in zip(*proc)]
+        return Dataset(examples, self.fields)
+
+
 def fit_bpe(data, num_symbols):
     outfile = io.StringIO()
     learn_bpe(data, outfile, num_symbols)
@@ -80,7 +101,7 @@ class SubwordTransformer(BaseEstimator, TransformerMixin):
         return X
 
 
-class TextPreprocessor(BaseEstimator, TransformerMixin):
+class TextPreprocessorOld(BaseEstimator, TransformerMixin):
     def __init__(self, min_freq=3, max_tokens=16, bpe_col_prefix=None,
                  init_token="<s>", eos_token="</s>"):
         self.bpe_col_prefix = bpe_col_prefix
@@ -557,9 +578,25 @@ class Translator():
         return " ".join(X.fields["target"].vocab.itos[ind] for ind in final)
 
 
+def build_preprocessor(preprocessing=None):
+    source = Field(
+        preprocessing=preprocessing,
+    )
+
+    target = Field(
+        preprocessing=preprocessing,
+    )
+
+    fields = [
+        ("source", source),
+        ("target", target),
+    ]
+    return TextPreprocessor(fields)
+
+
 def build_model(**kwargs):
     text = make_pipeline(
-        TextPreprocessor(),
+        TextPreprocessorOld(),
     )
 
     steps = make_pipeline(
@@ -572,7 +609,7 @@ def build_model(**kwargs):
 def build_model_bpe(**kwargs):
     text = make_pipeline(
         SubwordTransformer(),
-        TextPreprocessor(bpe_col_prefix="bpe"),
+        TextPreprocessorOld(bpe_col_prefix="bpe"),
     )
     # Keep the two-level pipeline for uniform tests
     steps = make_pipeline(

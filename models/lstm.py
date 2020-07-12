@@ -103,7 +103,7 @@ class RecurrentClassifier(torch.nn.Module):
                  hid_size=256, classes_count=2, rnn_type=None):
         super().__init__()
         self.classes_count = classes_count
-        self._embedding = torch.nn.Embedding(vocab_size, emb_dim)
+        self._emb = torch.nn.Embedding(vocab_size, emb_dim)
         self._rnn = rnn_type(emb_dim, hid_size)
         n_directins = int(self._rnn.bidirectional) + 1
         self._output = torch.nn.Linear(
@@ -112,12 +112,9 @@ class RecurrentClassifier(torch.nn.Module):
         )
 
     def forward(self, inputs):
-        embeded = self.embed(inputs)
+        embeded = self._emb(inputs)
         _, (hidden, _) = self._rnn(embeded)
         return self._output(context(hidden, self._rnn.bidirectional))
-
-    def embed(self, inputs):
-        return self._embedding(inputs)
 
 
 def build_preprocessor():
