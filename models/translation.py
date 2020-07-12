@@ -1,10 +1,13 @@
 import io
 import math
 import torch
+import skorch
 import torch.nn.functional as F
 import random
 import numpy as np
 import pandas as pd
+
+from operator import attrgetter
 from tqdm import tqdm
 
 from functools import partial
@@ -576,6 +579,93 @@ class Translator():
 
         final = result[:end_index[0][0]]
         return " ".join(X.fields["target"].vocab.itos[ind] for ind in final)
+
+
+class LanguageModelNet(skorch.NeuralNet):
+    def get_loss(self, y_pred, y_true, X=None, training=False):
+        logits = y_pred.view(-1, y_pred.shape[-1])
+        return self.criterion_(logits, shift(y_true, by=1).view(-1))
+
+    def transform(self, X, max_len=10):
+        tg = X.fields["target"]
+        pred = []
+        for X, sentences in self._greedy_decode_iterator(X, max_len):
+            for seq in sentences[:, 1:]:
+                stop = np.argmax(seq == tg.vocab.stoi[tg.eos_token])
+                pred.append((" ".join(np.take(tg.vocab.itos, seq[: stop]))))
+        return pred
+
+    def score(self, X, y=None, max_len=10):
+        tg = X.fields["target"]
+        y_true, pred = [], []
+        for X, sentences in self._greedy_decode_iterator(X, max_len):
+            for seq in sentences[:, 1:]:
+                stop = np.argmax(seq == tg.vocab.stoi[tg.eos_token])
+                pred.append(seq[: stop].tolist())
+                y_true.append(X["target"].tolist())
+
+        return corpus_bleu(y_true, pred) * 100
+
+
+class SkorchBucketIterator(BucketIterator):
+    def __iter__(self):
+        for batch in super().__iter__():
+            yield self.batch2dict(batch), batch.target
+
+    @staticmethod
+    def batch2dict(batch):
+        return {f: attrgetter(f)(batch) for f in batch.fields}
+
+
+class DynamicVariablesSetter(skorch.callbacks.Callback):
+    def on_train_begin(self, net, X, y):
+        tvocab = X.fields["target"].vocab
+        svocab = X.fields["source"].vocab
+        net.set_params(module__source_vocab_size=len(svocab))
+        net.set_params(module__target_vocab_size=len(tvocab))
+        net.set_params(module__source_pad_idx=svocab["<pad>"])
+        net.set_params(module__target_pad_idx=tvocab["<pad>"])
+        net.set_params(criterion__ignore_index=tvocab["<pad>"])
+
+        n_pars = self.count_parameters(net.module_)
+        print(f'The model has {n_pars:,} trainable parameters')
+
+    @staticmethod
+    def count_parameters(model):
+        return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+
+def build_model_lm():
+    model = LanguageModelNet(
+        module=TranslationModel,
+        module__d_model=256,
+        module__d_ff=1024,
+        module__blocks_count=4,
+        module__heads_count=8,
+        module__dropout_rate=0.1,
+        optimizer=torch.optim.Adam,
+        optimizer__lr=0.01,
+        criterion=torch.nn.CrossEntropyLoss,
+        max_epochs=2,
+        batch_size=32,
+        iterator_train=SkorchBucketIterator,
+        iterator_train__shuffle=True,
+        iterator_train__sort=False,
+        iterator_valid=SkorchBucketIterator,
+        iterator_valid__shuffle=False,
+        iterator_valid__sort=False,
+        train_split=lambda x, y, **kwargs: Dataset.split(x, **kwargs),
+        callbacks=[
+            DynamicVariablesSetter(),
+            skorch.callbacks.GradientNormClipping(1.),
+        ],
+    )
+
+    full = make_pipeline(
+        build_preprocessor(),
+        model,
+    )
+    return full
 
 
 def build_preprocessor(preprocessing=None,
