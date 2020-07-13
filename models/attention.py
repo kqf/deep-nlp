@@ -102,14 +102,13 @@ class LanguageModelNet(skorch.NeuralNet):
             source = data["source"]
             source_mask = self.module_.source_mask(source)
             with torch.no_grad():
-                enc_src = self.module_.encoder(source, source_mask)
+                enc_src, hidden = self.module_.encoder(source, source_mask)
 
             target = source.new_ones(source.shape[0], 1) * init_token_idx
             for i in range(max_len + 1):
-                target_mask = self.module_.target_mask(target)
                 with torch.no_grad():
                     output = self.module_.decoder(
-                        target, enc_src, source_mask, target_mask)
+                        target, enc_src, source_mask, hidden)
 
                 last_pred = output[:, [-1]]
                 target = torch.cat([target, last_pred.argmax(-1)], dim=-1)

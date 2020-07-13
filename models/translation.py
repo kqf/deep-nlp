@@ -229,7 +229,9 @@ class Encoder(torch.nn.Module):
             input_size=emb_dim,
             hidden_size=rnn_hidden_dim,
             num_layers=num_layers,
-            bidirectional=bidirectional)
+            bidirectional=bidirectional,
+            batch_first=True,
+        )
 
     def forward(self, inputs, hidden=None):
         return self._rnn(self._emb(inputs))
@@ -244,7 +246,8 @@ class Decoder(torch.nn.Module):
         self._rnn = torch.nn.GRU(
             input_size=emb_dim,
             hidden_size=rnn_hidden_dim,
-            num_layers=num_layers
+            num_layers=num_layers,
+            batch_first=True,
         )
         self._out = torch.nn.Linear(rnn_hidden_dim, vocab_size)
 
@@ -350,7 +353,6 @@ class TranslationModel(torch.nn.Module):
             rnn_hidden_dim, num_layers)
 
     def forward(self, source, target):
-        source, target = source.T, target.T
         encoder_mask = (source == 1.)  # find mask for padding inputs
         output, hidden = self.encoder(source)
         return self.decoder(target, output, encoder_mask, hidden)
@@ -587,6 +589,31 @@ class LanguageModelNet(skorch.NeuralNet):
         out, _ = y_pred
         logits = out.view(-1, out.shape[-1])
         return self.criterion_(logits, shift(y_true.T, by=1).view(-1))
+
+    def _greedy_decode_iterator(self, X, max_len=100):
+        self.module_.eval()
+        dataset = self.get_dataset(X)
+        tg = X.fields["target"]
+        init_token_idx = tg.vocab.stoi[tg.init_token]
+        for (data, _) in self.get_iterator(dataset, training=False):
+            source = data["source"].T
+            source_mask = (source == 1)
+            with torch.no_grad():
+                enc_src, hidden = self.module_.encoder(source)
+
+            target = source.new_ones(source.shape[0], 1) * init_token_idx
+            for i in range(max_len + 1):
+                with torch.no_grad():
+                    output, hidden = self.module_.decoder(
+                        target, enc_src, source_mask, hidden)
+
+                last_pred = output[:, [-1]]
+                target = torch.cat([target, last_pred.argmax(-1)], dim=-1)
+
+            # Ensure the sequence has an end
+            sentences = target.numpy()
+            sentences[:, -1] = tg.vocab.stoi[tg.eos_token]
+            yield data, sentences
 
     def transform(self, X, max_len=10):
         tg = X.fields["target"]
