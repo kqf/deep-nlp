@@ -229,9 +229,7 @@ class Encoder(torch.nn.Module):
             input_size=emb_dim,
             hidden_size=rnn_hidden_dim,
             num_layers=num_layers,
-            bidirectional=bidirectional,
-            batch_first=True,
-        )
+            bidirectional=bidirectional)
 
     def forward(self, inputs, hidden=None):
         return self._rnn(self._emb(inputs))
@@ -246,8 +244,7 @@ class Decoder(torch.nn.Module):
         self._rnn = torch.nn.GRU(
             input_size=emb_dim,
             hidden_size=rnn_hidden_dim,
-            num_layers=num_layers,
-            batch_first=True,
+            num_layers=num_layers
         )
         self._out = torch.nn.Linear(rnn_hidden_dim, vocab_size)
 
@@ -353,6 +350,7 @@ class TranslationModel(torch.nn.Module):
             rnn_hidden_dim, num_layers)
 
     def forward(self, source, target):
+        source, target = source.T, target.T
         encoder_mask = (source == 1.)  # find mask for padding inputs
         output, hidden = self.encoder(source)
         return self.decoder(target, output, encoder_mask, hidden)
@@ -601,13 +599,13 @@ class LanguageModelNet(skorch.NeuralNet):
             with torch.no_grad():
                 enc_src, hidden = self.module_.encoder(source)
 
-            target = source.new_ones(source.shape[0], 1) * init_token_idx
+            target = source.new_ones(source.shape[1], 1) * init_token_idx
             for i in range(max_len + 1):
                 with torch.no_grad():
                     output, hidden = self.module_.decoder(
-                        target, enc_src, source_mask, hidden)
+                        target.T, enc_src, source_mask, hidden)
 
-                last_pred = output[:, [-1]]
+                last_pred = output[[-1], :]
                 target = torch.cat([target, last_pred.argmax(-1)], dim=-1)
 
             # Ensure the sequence has an end
