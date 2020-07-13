@@ -102,7 +102,6 @@ def test_attention(
     assert weights.shape == weights_shape
 
 
-@pytest.mark.skip
 @pytest.mark.parametrize("batch_size", [32])
 @pytest.mark.parametrize("source_seq_size", [121])
 @pytest.mark.parametrize("target_seq_size", [122])
@@ -136,7 +135,7 @@ def examples():
     return pd.DataFrame(data)
 
 
-@pytest.mark.skip("unify the input shapes (batch_first)")
+@pytest.mark.skip("Remove these tests")
 @pytest.mark.parametrize("mtype", [
     TranslationModel,
     partial(TranslationModel, decodertype=ScheduledSamplingDecoder),
@@ -178,4 +177,4 @@ def test_translates_lm(module, data, examples):
     model = build_model_lm(module=module).fit(data)
     model.predict(examples)
     print(model.transform(examples))
-    # assert model.score(examples) > -1
+    assert model.score(examples) > -1
