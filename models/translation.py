@@ -637,9 +637,9 @@ class DynamicVariablesSetter(skorch.callbacks.Callback):
         return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 
-def build_model_lm():
+def build_model_lm(module=TranslationModel):
     model = LanguageModelNet(
-        module=TranslationModel,
+        module=module,
         module__source_vocab_size=1,  # Dummy size
         module__target_vocab_size=1,  # Dummy size
         # module__source_pad_idx=0,  # Dummy size

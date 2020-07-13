@@ -168,6 +168,11 @@ def test_translates(create_model, mtype, data, examples):
     assert model.score(examples) > -1
 
 
-def test_translates_lm(data, examples):
-    model = build_model_lm().fit(data)
+@pytest.mark.parametrize("module", [
+    TranslationModel,
+    partial(TranslationModel, decodertype=ScheduledSamplingDecoder),
+    partial(TranslationModel, decodertype=AttentionDecoder),
+])
+def test_translates_lm(module, data, examples):
+    model = build_model_lm(module=module).fit(data)
     model.predict(examples)
