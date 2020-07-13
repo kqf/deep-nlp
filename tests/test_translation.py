@@ -135,6 +135,7 @@ def examples():
     return pd.DataFrame(data)
 
 
+@pytest.mark.skip("unify the input shapes (batch_first)")
 @pytest.mark.parametrize("mtype", [
     TranslationModel,
     partial(TranslationModel, decodertype=ScheduledSamplingDecoder),
@@ -167,7 +168,6 @@ def test_translates(create_model, mtype, data, examples):
     assert model.score(examples) > -1
 
 
-@pytest.mark.skip("unify the input shapes (batch_first)")
 def test_translates_lm(data, examples):
     model = build_model_lm().fit(data)
     model.predict(examples)

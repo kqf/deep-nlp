@@ -350,6 +350,7 @@ class TranslationModel(torch.nn.Module):
             rnn_hidden_dim, num_layers)
 
     def forward(self, source, target):
+        source, target = source.T, target.T
         encoder_mask = (source == 1.)  # find mask for padding inputs
         output, hidden = self.encoder(source)
         return self.decoder(target, output, encoder_mask, hidden)
@@ -585,7 +586,7 @@ class LanguageModelNet(skorch.NeuralNet):
     def get_loss(self, y_pred, y_true, X=None, training=False):
         out, _ = y_pred
         logits = out.view(-1, out.shape[-1])
-        return self.criterion_(logits, shift(y_true, by=1).view(-1))
+        return self.criterion_(logits, shift(y_true.T, by=1).view(-1))
 
     def transform(self, X, max_len=10):
         tg = X.fields["target"]
