@@ -112,25 +112,6 @@ class SubwordPreprocessor(BaseEstimator, TransformerMixin):
         return Dataset(examples, self.fields)
 
 
-class SubwordTransformer(BaseEstimator, TransformerMixin):
-    def __init__(self, cols=["source", "target"], out="bpe", num_symbols=3000):
-        self.num_symbols = num_symbols
-        self.out = out
-        self.cols = cols
-        self._rules = {}
-
-    def fit(self, X, y=None):
-        for c in self.cols:
-            # Since the dataset is small -- do this in memory
-            self._rules[c] = fit_bpe(X[c].values, self.num_symbols)
-        return self
-
-    def transform(self, X, y=None):
-        for c in self.cols:
-            X[f"{c}_{self.out}"] = self._rules[c]
-        return X
-
-
 class TextPreprocessorOld(BaseEstimator, TransformerMixin):
     def __init__(self, min_freq=3, max_tokens=16, bpe_col_prefix=None,
                  init_token="<s>", eos_token="</s>"):
@@ -756,19 +737,6 @@ def build_model(**kwargs):
     return steps
 
 
-def build_model_bpe(**kwargs):
-    text = make_pipeline(
-        SubwordTransformer(),
-        TextPreprocessorOld(bpe_col_prefix="bpe"),
-    )
-    # Keep the two-level pipeline for uniform tests
-    steps = make_pipeline(
-        text,
-        Translator(**kwargs),
-    )
-    return steps
-
-
 def validate(title, model, train, test, sample):
     print(title)
     sample = pd.DataFrame(sample)
@@ -792,8 +760,8 @@ def main():
     smodel = build_model(mtype=stype)
     validate("Scheduled sampling", smodel, train, test, sample)
 
-    bpe_model = build_model_bpe()
-    validate("BPE encoding", bpe_model, train, test, sample)
+    # bpe_model = build_model_bpe()
+    # validate("BPE encoding", bpe_model, train, test, sample)
 
     stype = partial(TranslationModel, decodertype=AttentionDecoder)
     aamodel = build_model(mtype=stype)

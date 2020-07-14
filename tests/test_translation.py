@@ -8,7 +8,7 @@ from models.translation import Encoder, Decoder, AttentionDecoder
 from models.translation import AdditiveAttention, DotAttention
 from models.translation import MultiplicativeAttention
 from models.translation import TranslationModel
-from models.translation import build_model, build_model_bpe, build_model_lm
+from models.translation import build_model, build_model_lm
 from models.translation import ScheduledSamplingDecoder
 
 from functools import partial
@@ -138,7 +138,6 @@ def examples():
 ])
 @pytest.mark.parametrize("create_model", [
     build_model,
-    build_model_bpe,
 ])
 def test_translates(create_model, mtype, data, examples):
     model = create_model(mtype=mtype, epochs_count=2)
