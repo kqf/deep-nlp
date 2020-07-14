@@ -670,7 +670,7 @@ class DynamicVariablesSetter(skorch.callbacks.Callback):
         return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 
-def build_model_lm(module=TranslationModel, preprocessing=None):
+def build_model_lm(module=TranslationModel, ptype=TextPreprocessor):
     model = LanguageModelNet(
         module=module,
         module__source_vocab_size=1,  # Dummy size
@@ -695,7 +695,7 @@ def build_model_lm(module=TranslationModel, preprocessing=None):
     )
 
     full = make_pipeline(
-        build_preprocessor(),
+        build_preprocessor(ptype),
         model,
     )
     return full

@@ -3,12 +3,13 @@ import torch
 import pandas as pd
 
 from torchtext.data import BucketIterator
-from models.translation import build_preprocessor, SubwordPreprocessor
+from models.translation import build_preprocessor
+from models.translation import SubwordPreprocessor, TextPreprocessor
 from models.translation import Encoder, Decoder, AttentionDecoder
 from models.translation import AdditiveAttention, DotAttention
 from models.translation import MultiplicativeAttention
 from models.translation import TranslationModel
-from models.translation import build_model, build_model_lm
+from models.translation import build_model_lm
 from models.translation import ScheduledSamplingDecoder
 
 from functools import partial
@@ -130,45 +131,17 @@ def examples():
     return pd.DataFrame(data)
 
 
-@pytest.mark.skip("Remove these tests")
-@pytest.mark.parametrize("mtype", [
-    TranslationModel,
-    partial(TranslationModel, decodertype=ScheduledSamplingDecoder),
-    partial(TranslationModel, decodertype=AttentionDecoder),
-])
-@pytest.mark.parametrize("create_model", [
-    build_model,
-])
-def test_translates(create_model, mtype, data, examples):
-    model = create_model(mtype=mtype, epochs_count=2)
-    # First fit the text pipeline
-    text = model[0]
-    text.fit(data, None)
-    # Then use to initialize the model
-    model[-1].model_init(
-        source_vocab_size=len(text[-1].source.vocab),
-        target_vocab_size=len(text[-1].target.vocab),
-    )
-    # Now we are able to generate from the untrained model
-    print("Before training")
-    print(model.transform(examples))
-
-    model.fit(data, None)
-    print("After training")
-    print(model.transform(examples))
-    model.n_beams = 5
-    print("After training, beam search")
-    print(model.transform(examples))
-    assert model.score(examples) > -1
-
-
 @pytest.mark.parametrize("module", [
     TranslationModel,
     partial(TranslationModel, decodertype=ScheduledSamplingDecoder),
     partial(TranslationModel, decodertype=AttentionDecoder),
 ])
-def test_translates_lm(module, data, examples):
-    model = build_model_lm(module=module).fit(data)
+@pytest.mark.parametrize("ptype", [
+    TextPreprocessor,
+    SubwordPreprocessor,
+])
+def test_translates_lm(module, ptype, data, examples):
+    model = build_model_lm(module=module, ptype=ptype).fit(data)
     model.predict(examples)
     print(model.transform(examples))
     assert model.score(examples) > -1
