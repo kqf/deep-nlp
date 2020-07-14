@@ -716,7 +716,8 @@ def build_preprocessor(preprocessing=None,
         ("source", source),
         ("target", target),
     ]
-    return TextPreprocessor(fields)
+    text = TextPreprocessor(fields)
+    return make_pipeline(preprocessing, text)
 
 
 def build_model(**kwargs):
