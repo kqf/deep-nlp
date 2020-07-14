@@ -112,52 +112,6 @@ class SubwordPreprocessor(BaseEstimator, TransformerMixin):
         return Dataset(examples, self.fields)
 
 
-class TextPreprocessorOld(BaseEstimator, TransformerMixin):
-    def __init__(self, min_freq=3, max_tokens=16, bpe_col_prefix=None,
-                 init_token="<s>", eos_token="</s>"):
-        self.bpe_col_prefix = bpe_col_prefix
-        self.min_freq = min_freq
-        self.max_tokens = max_tokens
-        self.source_name = "source"
-        self.source = Field(
-            tokenize="spacy", init_token=None, eos_token=eos_token)
-
-        self.target_name = "target"
-        self.target = Field(
-            tokenize="moses", init_token=init_token, eos_token=eos_token)
-
-        self.fields = [
-            (self.source_name, self.source),
-            (self.target_name, self.target),
-        ]
-
-    def fit(self, X, y=None):
-        dataset = self.transform(X, y)
-        self.source.build_vocab(dataset, min_freq=self.min_freq)
-        self.target.build_vocab(dataset, min_freq=self.min_freq)
-        return self
-
-    def transform(self, X, y=None):
-        sources = X[self.source_name].apply(self.source.preprocess)
-        targets = X[self.target_name].apply(self.target.preprocess)
-
-        if self.bpe_col_prefix is not None:
-            source_bpe = X[f"{self.source_name}_{self.bpe_col_prefix}"].iloc[0]
-            sources = sources.apply(source_bpe.segment_tokens)
-
-            target_bpe = X[f"{self.target_name}_{self.bpe_col_prefix}"].iloc[0]
-            targets = targets.apply(target_bpe.segment_tokens)
-
-        valid_idx = (
-            (sources.str.len() < self.max_tokens) & (
-                targets.str.len() < self.max_tokens)
-        )
-        examples = [Example.fromlist(pair, self.fields)
-                    for pair in zip(sources[valid_idx], targets[valid_idx])]
-        dataset = Dataset(examples, self.fields)
-        return dataset
-
-
 class AdditiveAttention(torch.nn.Module):
     def __init__(self, query_size, key_size, hidden_dim):
         super().__init__()
@@ -670,7 +624,7 @@ class DynamicVariablesSetter(skorch.callbacks.Callback):
         return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 
-def build_model_lm(module=TranslationModel, ptype=TextPreprocessor):
+def build_model(module=TranslationModel, ptype=TextPreprocessor):
     model = LanguageModelNet(
         module=module,
         module__source_vocab_size=1,  # Dummy size
@@ -725,18 +679,6 @@ def build_preprocessor(ptype=TextPreprocessor,
     return ptype(fields)
 
 
-def build_model(**kwargs):
-    text = make_pipeline(
-        TextPreprocessorOld(),
-    )
-
-    steps = make_pipeline(
-        text,
-        Translator(**kwargs),
-    )
-    return steps
-
-
 def validate(title, model, train, test, sample):
     print(title)
     sample = pd.DataFrame(sample)
@@ -760,8 +702,8 @@ def main():
     smodel = build_model(mtype=stype)
     validate("Scheduled sampling", smodel, train, test, sample)
 
-    # bpe_model = build_model_bpe()
-    # validate("BPE encoding", bpe_model, train, test, sample)
+    bpe_model = build_model(ptype=SubwordPreprocessor)
+    validate("BPE encoding", bpe_model, train, test, sample)
 
     stype = partial(TranslationModel, decodertype=AttentionDecoder)
     aamodel = build_model(mtype=stype)

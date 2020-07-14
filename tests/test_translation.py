@@ -3,20 +3,20 @@ import torch
 import pandas as pd
 
 from torchtext.data import BucketIterator
+from models.translation import build_model
 from models.translation import build_preprocessor
 from models.translation import SubwordPreprocessor, TextPreprocessor
 from models.translation import Encoder, Decoder, AttentionDecoder
 from models.translation import AdditiveAttention, DotAttention
 from models.translation import MultiplicativeAttention
 from models.translation import TranslationModel
-from models.translation import build_model_lm
 from models.translation import ScheduledSamplingDecoder
 
 from functools import partial
 
 
 @pytest.fixture
-def data(size=100):
+def data(size=32):
     corpus = {
         "source": ["All work and no play makes Jack a dull boy"] * size,
         "target":
@@ -141,7 +141,7 @@ def examples():
     SubwordPreprocessor,
 ])
 def test_translates_lm(module, ptype, data, examples):
-    model = build_model_lm(module=module, ptype=ptype).fit(data)
+    model = build_model(module=module, ptype=ptype).fit(data)
     model.predict(examples)
     print(model.transform(examples))
     assert model.score(examples) > -1
