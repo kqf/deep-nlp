@@ -3,7 +3,7 @@ import torch
 import pandas as pd
 
 from torchtext.data import BucketIterator
-from models.translation import build_preprocessor, SubwordTransformer
+from models.translation import build_preprocessor, SubwordPreprocessor
 from models.translation import Encoder, Decoder, AttentionDecoder
 from models.translation import AdditiveAttention, DotAttention
 from models.translation import MultiplicativeAttention
@@ -26,19 +26,14 @@ def data(size=100):
 
 @pytest.mark.parametrize("prep", [
     build_preprocessor(),
+    build_preprocessor(SubwordPreprocessor),
 ])
 def test_preprocessing(prep, data, batch_size=32):
-    print(data)
     dataset = prep.fit_transform(data)
 
     batch = next(iter(BucketIterator(dataset, batch_size=batch_size)))
     assert batch.source.shape[0] == batch_size
     assert batch.target.shape[0] == batch_size
-
-
-def test_subwordtransformer(data):
-    tp = SubwordTransformer(num_symbols=4).fit(data)
-    assert tp.transform(data) is not None
 
 
 @pytest.fixture

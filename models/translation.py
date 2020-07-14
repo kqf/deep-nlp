@@ -85,6 +85,33 @@ def fit_bpe(data, num_symbols):
     return BPE(outfile)
 
 
+class SubwordPreprocessor(BaseEstimator, TransformerMixin):
+    def __init__(self, fields, min_freq=1, num_symbols=3000):
+        self.fields = fields
+        self.min_freq = min_freq
+        self.num_symbols = num_symbols
+        self._bpe = {}
+
+    def fit(self, X, y=None):
+        # First learn the bpe
+        for c, _ in self.fields:
+            self._bpe[c] = fit_bpe(X[c].values, self.num_symbols)
+
+        dataset = self.transform(X, y)
+        for name, field in dataset.fields.items():
+            if field.use_vocab:
+                field.build_vocab(dataset, min_freq=self.min_freq)
+        return self
+
+    def transform(self, X, y=None):
+        proc = [
+            X[col].apply(f.preprocess).apply(self._bpe[col].segment_tokens)
+            for col, f in self.fields
+        ]
+        examples = [Example.fromlist(f, self.fields) for f in zip(*proc)]
+        return Dataset(examples, self.fields)
+
+
 class SubwordTransformer(BaseEstimator, TransformerMixin):
     def __init__(self, cols=["source", "target"], out="bpe", num_symbols=3000):
         self.num_symbols = num_symbols
@@ -662,7 +689,7 @@ class DynamicVariablesSetter(skorch.callbacks.Callback):
         return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 
-def build_model_lm(module=TranslationModel):
+def build_model_lm(module=TranslationModel, preprocessing=None):
     model = LanguageModelNet(
         module=module,
         module__source_vocab_size=1,  # Dummy size
@@ -693,12 +720,11 @@ def build_model_lm(module=TranslationModel):
     return full
 
 
-def build_preprocessor(preprocessing=None,
+def build_preprocessor(ptype=TextPreprocessor,
                        init_token="<s>",
                        eos_token="</s>"):
     source = Field(
         batch_first=True,
-        preprocessing=preprocessing,
         tokenize="spacy",
         init_token=None,
         eos_token=eos_token,
@@ -706,7 +732,6 @@ def build_preprocessor(preprocessing=None,
 
     target = Field(
         batch_first=True,
-        preprocessing=preprocessing,
         tokenize="moses",
         init_token=init_token,
         eos_token=eos_token
@@ -716,8 +741,7 @@ def build_preprocessor(preprocessing=None,
         ("source", source),
         ("target", target),
     ]
-    text = TextPreprocessor(fields)
-    return make_pipeline(preprocessing, text)
+    return ptype(fields)
 
 
 def build_model(**kwargs):
