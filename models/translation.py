@@ -1,15 +1,12 @@
 import io
-import math
 import torch
 import skorch
-import torch.nn.functional as F
 import random
 import numpy as np
 import pandas as pd
 
 from collections import namedtuple
 from operator import attrgetter
-from tqdm import tqdm
 
 from functools import partial
 
@@ -139,7 +136,7 @@ class AdditiveAttention(torch.nn.Module):
         f_att.data.masked_fill_(mask.unsqueeze(2), -float('inf'))
 
         # softmax-normalized f_att weight
-        weights = F.softmax(f_att, 0)
+        weights = torch.nn.functional.softmax(f_att, 0)
 
         # find the context vector as a weighed sum of value (s_1, ..., s_m)
         return (weights * value).sum(0), weights
@@ -159,7 +156,7 @@ class DotAttention(torch.nn.Module):
         f_att = f_att.transpose(0, 1)
 
         f_att.data.masked_fill_(mask.unsqueeze(-1), -float('inf'))
-        weights = F.softmax(f_att, -1)
+        weights = torch.nn.functional.softmax(f_att, -1)
         return (weights * value).sum(0), weights
 
 
@@ -178,7 +175,7 @@ class MultiplicativeAttention(torch.nn.Module):
         # [B, 1, Q] @ [B, Q, T] -> [B, 1, T] -> [T, B, 1]
         f_att = (Q @ K).permute(2, 0, 1)
         f_att.data.masked_fill_(mask.unsqueeze(-1), -float('inf'))
-        weights = F.softmax(f_att, -1)
+        weights = torch.nn.functional.softmax(f_att, -1)
         return (weights * value).sum(0), weights
 
 
@@ -323,53 +320,6 @@ def shift(seq, by, batch_dim=1):
     return torch.cat((seq[by:], seq.new_ones(by, seq.shape[batch_dim])))
 
 
-def epoch(model, criterion, data_iter, optimizer=None, name=None):
-    epoch_loss = 0
-
-    is_train = optimizer is not None
-    name = name or ""
-    model.train(is_train)
-
-    batches_count = len(data_iter)
-
-    with torch.autograd.set_grad_enabled(is_train):
-        bar = tqdm(enumerate(data_iter), total=batches_count)
-        for i, batch in bar:
-            logits, _ = model(batch.source, batch.target)
-
-            # [target_seq_size, batch] -> [target_seq_size, batch]
-            target = shift(batch.target, by=1)
-
-            loss = criterion(
-                # [target_seq_size * batch, target_vocab_size]
-                logits.view(-1, logits.shape[-1]),
-                # [target_seq_size * batch]
-                target.view(-1)
-            )
-
-            epoch_loss += loss.item()
-
-            if optimizer:
-                optimizer.zero_grad()
-                loss.backward()
-                torch.nn.utils.clip_grad_norm_(model.parameters(), 1.)
-                optimizer.step()
-
-            bar.update()
-            bar.set_description(
-                "{:>5s} Loss = {:.5f}, PPX = {:.2f}".format(
-                    name, loss.item(), math.exp(loss.item())))
-
-        bar.set_description(
-            "{:>5s} Loss = {:.5f}, PPX = {:.2f}".format(
-                name, epoch_loss / batches_count,
-                math.exp(epoch_loss / batches_count))
-        )
-        bar.refresh()
-
-    return epoch_loss / batches_count
-
-
 class LanguageModelNet(skorch.NeuralNet):
     n_beams = None
 
@@ -435,7 +385,7 @@ class LanguageModelNet(skorch.NeuralNet):
                             beams[0].hidden
                         )
 
-                    step = F.log_softmax(output, -1)
+                    step = torch.nn.functional.log_softmax(output, -1)
                     vals, pos = torch.topk(step, n_beams, dim=-1)
 
                     for i in range(n_beams):
