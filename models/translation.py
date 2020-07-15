@@ -545,10 +545,17 @@ class Translator():
 
 
 class LanguageModelNet(skorch.NeuralNet):
+    n_beams = None
+
     def get_loss(self, y_pred, y_true, X=None, training=False):
         out, _ = y_pred
         logits = out.view(-1, out.shape[-1])
         return self.criterion_(logits, shift(y_true.T, by=1).view(-1))
+
+    def _decode_iterator(self, X, max_len):
+        if self.n_beams is None:
+            return self._greedy_decode_iterator(X, max_len)
+        return self._greedy_decode_iterator(X, max_len)
 
     def _greedy_decode_iterator(self, X, max_len=100):
         self.module_.eval()
@@ -578,7 +585,7 @@ class LanguageModelNet(skorch.NeuralNet):
     def transform(self, X, max_len=10):
         tg = X.fields["target"]
         pred = []
-        for X, sentences in self._greedy_decode_iterator(X, max_len):
+        for X, sentences in self._decode_iterator(X, max_len):
             for seq in sentences[:, 1:]:
                 stop = np.argmax(seq == tg.vocab.stoi[tg.eos_token])
                 pred.append((" ".join(np.take(tg.vocab.itos, seq[: stop]))))
@@ -587,7 +594,7 @@ class LanguageModelNet(skorch.NeuralNet):
     def score(self, X, y=None, max_len=10):
         tg = X.fields["target"]
         y_true, pred = [], []
-        for X, sentences in self._greedy_decode_iterator(X, max_len):
+        for X, sentences in self._decode_iterator(X, max_len):
             for seq in sentences[:, 1:]:
                 stop = np.argmax(seq == tg.vocab.stoi[tg.eos_token])
                 pred.append(seq[: stop].tolist())
