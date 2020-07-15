@@ -133,12 +133,12 @@ def examples():
 
 @pytest.mark.parametrize("module", [
     TranslationModel,
-    # partial(TranslationModel, decodertype=ScheduledSamplingDecoder),
-    # partial(TranslationModel, decodertype=AttentionDecoder),
+    partial(TranslationModel, decodertype=ScheduledSamplingDecoder),
+    partial(TranslationModel, decodertype=AttentionDecoder),
 ])
 @pytest.mark.parametrize("ptype", [
     TextPreprocessor,
-    # SubwordPreprocessor,
+    SubwordPreprocessor,
 ])
 def test_translates_lm(module, ptype, data, examples):
     model = build_model(module=module, ptype=ptype).fit(data)
