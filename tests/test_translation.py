@@ -133,18 +133,18 @@ def examples():
 
 @pytest.mark.parametrize("module", [
     TranslationModel,
-    partial(TranslationModel, decodertype=ScheduledSamplingDecoder),
-    partial(TranslationModel, decodertype=AttentionDecoder),
+    # partial(TranslationModel, decodertype=ScheduledSamplingDecoder),
+    # partial(TranslationModel, decodertype=AttentionDecoder),
 ])
 @pytest.mark.parametrize("ptype", [
     TextPreprocessor,
-    SubwordPreprocessor,
+    # SubwordPreprocessor,
 ])
 def test_translates_lm(module, ptype, data, examples):
     model = build_model(module=module, ptype=ptype).fit(data)
     model.predict(examples)
     print(model.transform(examples))
     # Now try beam search decoding
-    model.n_beams = 3
+    model[-1].n_beams = 3
     print(model.transform(examples))
     assert model.score(examples) > -1

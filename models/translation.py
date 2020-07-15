@@ -7,6 +7,7 @@ import random
 import numpy as np
 import pandas as pd
 
+from collections import namedtuple
 from operator import attrgetter
 from tqdm import tqdm
 
@@ -555,7 +556,7 @@ class LanguageModelNet(skorch.NeuralNet):
     def _decode_iterator(self, X, max_len):
         if self.n_beams is None:
             return self._greedy_decode_iterator(X, max_len)
-        return self._greedy_decode_iterator(X, max_len)
+        return self._beam_decode_iterator(X, max_len, self.n_beams)
 
     def _greedy_decode_iterator(self, X, max_len=100):
         self.module_.eval()
@@ -576,6 +577,49 @@ class LanguageModelNet(skorch.NeuralNet):
 
                 last_pred = output[[-1], :]
                 target = torch.cat([target, last_pred.argmax(-1)], dim=-1)
+
+            # Ensure the sequence has an end
+            sentences = target.numpy()
+            sentences[:, -1] = tg.vocab.stoi[tg.eos_token]
+            yield data, sentences
+
+    def _beam_decode_iterator(self, X, max_len=100, n_beams=3):
+        self.module_.eval()
+        dataset = self.get_dataset(X)
+        tg = X.fields["target"]
+        init_token_idx = tg.vocab.stoi[tg.init_token]
+
+        Beam = namedtuple("Beam", ("seq", "score", "hidden"))
+
+        for (data, _) in self.get_iterator(dataset, training=False):
+            source = data["source"].T
+            source_mask = (source == 1)
+            with torch.no_grad():
+                enc_src, hidden = self.module_.encoder(source)
+
+            target = source.new_ones(source.shape[1], 1) * init_token_idx
+            beams = [Beam(target, 0, hidden)]
+            for i in range(max_len + 1):
+                _beams = []
+                for beam in beams:
+                    with torch.no_grad():
+                        output, hidden = self.module_.decoder(
+                            beams[0].seq.T[[-1]],  # Take the last token
+                            enc_src,
+                            source_mask,
+                            beams[0].hidden
+                        )
+
+                    step = F.log_softmax(output, -1)
+                    vals, pos = torch.topk(step, n_beams, dim=-1)
+
+                    for i in range(n_beams):
+                        seq = torch.cat([beam.seq, pos[:, :, i]], -1)
+                        score = beam.score - vals[0, 0, i].item()
+                        _beams.append(Beam(seq, score, hidden))
+
+                    beams = sorted(_beams, key=attrgetter("score"))[:n_beams]
+                target = sorted(beams, key=attrgetter("score"))[0].seq
 
             # Ensure the sequence has an end
             sentences = target.numpy()
