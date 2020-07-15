@@ -600,7 +600,7 @@ class LanguageModelNet(skorch.NeuralNet):
             target = source.new_ones(source.shape[1], 1) * init_token_idx
             beams = [Beam(target, 0, hidden)]
             for i in range(max_len + 1):
-                _beams = []
+                new_beams = []
                 for beam in beams:
                     with torch.no_grad():
                         output, hidden = self.module_.decoder(
@@ -616,10 +616,9 @@ class LanguageModelNet(skorch.NeuralNet):
                     for i in range(n_beams):
                         seq = torch.cat([beam.seq, pos[:, :, i]], -1)
                         score = beam.score - vals[0, 0, i].item()
-                        _beams.append(Beam(seq, score, hidden))
-
-                    beams = sorted(_beams, key=attrgetter("score"))[:n_beams]
-                target = sorted(beams, key=attrgetter("score"))[0].seq
+                        new_beams.append(Beam(seq, score, hidden))
+                beams = sorted(new_beams, key=attrgetter("score"))[:n_beams]
+            target = beams[0].seq
 
             # Ensure the sequence has an end
             sentences = target.numpy()
