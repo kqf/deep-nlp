@@ -1,7 +1,7 @@
 import pytest
 import pandas as pd
 
-from models.summarization import TextPreprocessor
+from models.summarization import build_preprocessor
 from models.summarization import build_model
 
 
@@ -15,17 +15,18 @@ def data(size=100):
 
 
 def test_textpreprocessor(data):
-    tp = TextPreprocessor().fit(data)
+    tp = build_preprocessor().fit(data)
     assert tp.transform(data) is not None
 
 
+@pytest.mark.skip
 def test_summarizes(data):
     model = build_model(epochs_count=2)
     # First fit the text pipeline
     text = model[0]
     text.fit(data, None)
     # Then use to initialize the model
-    model[-1].model_init(vocab_size=len(text[-1].text.vocab))
+    model[-1].model_init(vocab_size=len(text[-1].fields[0][-1].vocab))
     # Now we are able to generate from the untrained model
     print("Before training")
     print(model.transform(data.head()))

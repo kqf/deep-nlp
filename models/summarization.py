@@ -41,29 +41,21 @@ def data():
 
 
 class TextPreprocessor(BaseEstimator, TransformerMixin):
-    def __init__(self, min_freq=3, bpe_col_prefix=None,
-                 init_token="<s>", eos_token="</s>"):
-        self.bpe_col_prefix = bpe_col_prefix
+    def __init__(self, fields, min_freq=1):
+        self.fields = fields
         self.min_freq = min_freq
-        self.source = "source"
-        self.target = "target"
-        self.text = Field(
-            tokenize='moses',
-            init_token=init_token, eos_token=eos_token, lower=True)
-        self.fields = [(self.source, self.text), (self.target, self.text)]
 
     def fit(self, X, y=None):
         dataset = self.transform(X, y)
-        self.text.build_vocab(dataset, min_freq=self.min_freq)
+        for name, field in dataset.fields.items():
+            if field.use_vocab:
+                field.build_vocab(dataset, min_freq=self.min_freq)
         return self
 
     def transform(self, X, y=None):
-        sources = X[self.source].apply(self.text.preprocess)
-        targets = X[self.target].apply(self.text.preprocess)
-        examples = [Example.fromlist(pair, self.fields)
-                    for pair in zip(sources, targets)]
-        dataset = Dataset(examples, self.fields)
-        return dataset
+        proc = [X[col].apply(f.preprocess) for col, f in self.fields]
+        examples = [Example.fromlist(f, self.fields) for f in zip(*proc)]
+        return Dataset(examples, self.fields)
 
 
 def shift(seq, by, batch_dim=1):
@@ -307,9 +299,31 @@ class Summarizer(BaseEstimator, TransformerMixin):
         return outputs
 
 
+def build_preprocessor(init_token="<s>", eos_token="</s>"):
+    source = Field(
+        batch_first=False,
+        tokenize="spacy",
+        init_token=None,
+        eos_token=eos_token,
+    )
+
+    target = Field(
+        batch_first=False,
+        tokenize="moses",
+        init_token=init_token,
+        eos_token=eos_token
+    )
+
+    fields = [
+        ("source", source),
+        ("target", target),
+    ]
+    return TextPreprocessor(fields)
+
+
 def build_model(**kwargs):
     model = make_pipeline(
-        make_pipeline(TextPreprocessor()),
+        make_pipeline(build_preprocessor()),
         Summarizer(**kwargs),
     )
     return model
