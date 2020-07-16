@@ -375,6 +375,20 @@ class SkorchBucketIterator(BucketIterator):
         return {f: attrgetter(f)(batch) for f in batch.fields}
 
 
+class DynamicVariablesSetter(skorch.callbacks.Callback):
+    def on_train_begin(self, net, X, y):
+        vocab = X.fields["source"].vocab
+        net.set_params(module__vocab_size=len(vocab))
+        net.set_params(criterion__ignore_index=vocab["<pad>"])
+
+        n_pars = self.count_parameters(net.module_)
+        print(f'The model has {n_pars:,} trainable parameters')
+
+    @staticmethod
+    def count_parameters(model):
+        return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+
 def build_model(module=SummarizationModel, packed=False, bidirectional=False):
     model = LanguageModelNet(
         module=module,
@@ -392,6 +406,7 @@ def build_model(module=SummarizationModel, packed=False, bidirectional=False):
         train_split=lambda x, y, **kwargs: Dataset.split(x, **kwargs),
         callbacks=[
             skorch.callbacks.GradientNormClipping(1.),
+            DynamicVariablesSetter(),
         ],
     )
 
