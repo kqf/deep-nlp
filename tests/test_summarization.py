@@ -21,4 +21,4 @@ def test_textpreprocessor(data):
 
 def test_summarizes(data):
     model = build_model().fit(data)
-    # print(model.transform(data))
+    print(model.transform(data.head()))

@@ -333,7 +333,7 @@ class LanguageModelNet(skorch.NeuralNet):
                         target.T, enc_src, source_mask, hidden)
 
                 last_pred = output[[-1], :]
-                target = torch.cat([target, last_pred.argmax(-1)], dim=-1)
+                target = torch.cat([target, last_pred.argmax(-1).T], dim=-1)
 
             # Ensure the sequence has an end
             sentences = target.numpy()
@@ -392,7 +392,6 @@ def build_model(module=SummarizationModel, packed=False, bidirectional=False):
         train_split=lambda x, y, **kwargs: Dataset.split(x, **kwargs),
         callbacks=[
             skorch.callbacks.GradientNormClipping(1.),
-            # DynamicParSertter(),
         ],
     )
 
