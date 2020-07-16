@@ -19,18 +19,6 @@ def test_textpreprocessor(data):
     assert tp.transform(data) is not None
 
 
-@pytest.mark.skip
 def test_summarizes(data):
-    model = build_model(epochs_count=2)
-    # First fit the text pipeline
-    text = model[0]
-    text.fit(data, None)
-    # Then use to initialize the model
-    model[-1].model_init(vocab_size=len(text[-1].fields[0][-1].vocab))
-    # Now we are able to generate from the untrained model
-    print("Before training")
-    print(model.transform(data.head()))
-
-    model.fit(data, None)
-    print("After training")
-    print(model.transform(data.head()))
+    model = build_model().fit(data)
+    # print(model.transform(data))
