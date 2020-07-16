@@ -140,11 +140,11 @@ def examples():
     TextPreprocessor,
     SubwordPreprocessor,
 ])
-def test_translates_lm(module, ptype, data, examples):
+def test_translates(module, ptype, data, examples):
     model = build_model(module=module, ptype=ptype).fit(data)
     model.predict(examples)
     print(model.transform(examples))
     # Now try beam search decoding
-    model[-1].n_beams = 3
+    model[-1].n_beams = 1
     print(model.transform(examples))
     assert model.score(examples) > -1

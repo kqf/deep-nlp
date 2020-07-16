@@ -209,7 +209,10 @@ class Decoder(torch.nn.Module):
         self._out = torch.nn.Linear(rnn_hidden_dim, vocab_size)
 
     def forward(self, inputs, encoder_output, encoder_mask, hidden=None):
+        # inputs[seq_size, batch_size] ->
+        # -> [seq_size, batch_size, hidden_size], [1, batch_size, hidden_size]
         outputs, hidden = self._rnn(self._emb(inputs), hidden)
+        # [seq_size, batch_size, vocab_size], [1, batch_size, hidden_size])
         return self._out(outputs), hidden
 
 
@@ -310,8 +313,12 @@ class TranslationModel(torch.nn.Module):
             rnn_hidden_dim, num_layers)
 
     def forward(self, source, target):
+        # [batch_size, seq_size] -> [seq_size, batch_size]
         source, target = source.T, target.T
         encoder_mask = (source == 1.)  # find mask for padding inputs
+
+        # output[seq_size, batch_size, hidden_size]
+        # hidden[1, batch_size, hidden_size]
         output, hidden = self.encoder(source)
         return self.decoder(target, output, encoder_mask, hidden)
 
@@ -378,17 +385,22 @@ class LanguageModelNet(skorch.NeuralNet):
                 new_beams = []
                 for beam in beams:
                     with torch.no_grad():
+                        # beam.seq[batch_size, seq_size] -> [seq_size, batch]
                         output, hidden = self.module_.decoder(
-                            beams[0].seq.T[[-1]],  # Take the last token
+                            beam.seq.T[[-1]],  # Take the last token [1, batch]
                             enc_src,
                             source_mask,
-                            beams[0].hidden
+                            beam.hidden
                         )
+                        # output[seq_size, batch_size, vocab_size]
 
+                    # step[seq_size, batch_size, vocab_size]
                     step = torch.nn.functional.log_softmax(output, -1)
+                    # vals[1, 1, n_beams], pos[1, 1, n_beams]
                     vals, pos = torch.topk(step, n_beams, dim=-1)
 
                     for i in range(n_beams):
+                        # [batch_size, seq_size] -> [batch_size, seq_size + 1]
                         seq = torch.cat([beam.seq, pos[:, :, i]], -1)
                         score = beam.score - vals[0, 0, i].item()
                         new_beams.append(Beam(seq, score, hidden))
