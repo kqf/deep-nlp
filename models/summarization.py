@@ -1,16 +1,13 @@
-import math
 import torch
 import skorch
 import random
 import numpy as np
 import pandas as pd
-from tqdm import tqdm
 from operator import attrgetter
 
-from torchtext.data import Field, Example, Dataset, BucketIterator
 from sklearn.pipeline import make_pipeline
+from torchtext.data import Field, Example, Dataset, BucketIterator
 from sklearn.base import BaseEstimator, TransformerMixin
-from nltk.translate.bleu_score import corpus_bleu
 
 
 SEED = 137
@@ -125,134 +122,6 @@ class SummarizationModel(torch.nn.Module):
         encoder_mask = (source == 1.)  # find mask for padding inputs
         output, hidden = self.encoder(source)
         return self.decoder(target, output, encoder_mask, hidden)
-
-
-class Summarizer(BaseEstimator, TransformerMixin):
-    def __init__(self, mtype=SummarizationModel,
-                 batch_size=32, epochs_count=8):
-        self.epochs_count = epochs_count
-        self.batch_size = batch_size
-        self.mtype = mtype
-        self.n_beams = None
-        self.model = None
-
-    def model_init(self, vocab_size):
-        if self.model is None:
-            self.model = self.mtype(vocab_size=vocab_size)
-        return self.model
-
-    def fit(self, X, y=None):
-        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-        self.model = self.model_init(
-            vocab_size=len(X.fields["source"].vocab)
-        ).to(device)
-
-        pi = X.fields["target"].vocab.stoi["<pad>"]
-        self.criterion = torch.nn.CrossEntropyLoss(ignore_index=pi).to(device)
-        self.optimizer = torch.optim.Adam(self.model.parameters())
-
-        train_dataset, test_dataset = X.split(split_ratio=0.7)
-
-        data_iter, test_iter = BucketIterator.splits(
-            (train_dataset, test_dataset),
-            batch_sizes=(self.batch_size, self.batch_size * 4),
-            shuffle=True,
-            device=device,
-            sort=False,
-        )
-        for i in range(self.epochs_count):
-            name_prefix = "[{} / {}] ".format(i + 1, self.epochs_count)
-            epoch(
-                model=self.model,
-                criterion=self.criterion,
-                data_iter=data_iter,
-                optimizer=self.optimizer,
-                name=f"Train {name_prefix}",
-            )
-            epoch(
-                model=self.model,
-                criterion=self.criterion,
-                data_iter=test_iter,
-                name=f"Valid {name_prefix}",
-            )
-            print(f"Blue score: {self.score(test_dataset):.3g} %")
-        return self
-
-    def score(self, data, y=None):
-        self.model.eval()
-        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-        refs, hyps = [], []
-
-        bos_index = data.fields["target"].vocab.stoi["<s>"]
-        eos_index = data.fields["target"].vocab.stoi["</s>"]
-
-        data_iter = BucketIterator(
-            data,
-            batch_size=self.batch_size,
-            shuffle=True,
-            device=device,
-        )
-        with torch.no_grad():
-            for i, batch in enumerate(data_iter):
-                encoded, hidden = self.model.encoder(batch.source)
-                encoder_mask = (batch.source == 1)
-
-                result = [torch.LongTensor([bos_index]).expand(
-                    1, batch.target.shape[1]).to(device)]
-
-                for _ in range(30):
-                    step, hidden = self.model.decoder(
-                        result[-1], encoded, encoder_mask, hidden)
-                    step = step.argmax(-1)
-                    result.append(step)
-
-                targets = batch.target.data.cpu().numpy().T
-                eos_indices = (targets == eos_index).argmax(-1)
-                eos_indices[eos_indices == 0] = targets.shape[1]
-
-                targets = [target[:eos_ind]
-                           for eos_ind, target in zip(eos_indices, targets)]
-                refs.extend(targets)
-
-                result = torch.cat(result).data.cpu().numpy().T
-                eos_indices = (result == eos_index).argmax(-1)
-                eos_indices[eos_indices == 0] = result.shape[1]
-
-                result = [res[:eos_ind]
-                          for eos_ind, res in zip(eos_indices, result)]
-                hyps.extend(result)
-
-        return corpus_bleu([[ref] for ref in refs], hyps) * 100
-
-    def transform(self, X):
-        self.model.eval()
-        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-        bos_index = X.fields["target"].vocab.stoi["<s>"]
-        eos_index = X.fields["target"].vocab.stoi["</s>"]
-
-        itos = X.fields["target"].vocab.itos
-        outputs = []
-        with torch.no_grad():
-            for example in X:
-                inputs = X.fields["source"].process(
-                    [example.source]).to(device)
-                encoded, hidden = self.model.encoder(inputs)
-
-                step = torch.LongTensor([[bos_index]]).to(device)
-                result = []
-                encoder_mask = (inputs == 1)
-                for _ in range(30):
-                    step, hidden = self.model.decoder(
-                        step, encoded, encoder_mask, hidden)
-                    step = step.argmax(-1)
-
-                    if step.item() == eos_index:
-                        break
-
-                    result.append(step)
-                outputs.append(
-                    " ".join(itos[ind.squeeze().item()] for ind in result))
-        return outputs
 
 
 class LanguageModelNet(skorch.NeuralNet):
