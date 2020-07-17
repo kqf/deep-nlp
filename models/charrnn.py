@@ -1,11 +1,14 @@
 import math
 import tqdm
 import torch
+import skorch
 import random
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.metrics import f1_score
+from torchtext.data import BucketIterator
+
 sns.set()
 
 
@@ -82,6 +85,19 @@ def generate_data(num_batches=10, batch_size=100, seq_len=5):
     for _ in range(num_batches * batch_size):
         data = np.random.randint(0, 10, seq_len)
         yield data, data[0]
+
+
+class SequenceGenerator(BucketIterator):
+    def __init__(self, dataset, batch_size, *args, **kwargs):
+        self.dataset = dataset
+        self.batch_size = batch_size
+        self.device = kwargs.get("device", "cpu")
+
+    def __iter__(self):
+        for batch, _ in self.dataset:
+            batch = torch.randint(0, 10, (batch, self.batch_size))
+            batch = batch.to(self.device)
+            yield batch, batch[0, :]
 
 
 class BasicRNNClassifier():
@@ -167,6 +183,31 @@ class BasicRNNClassifier():
 
     def predict(self, X):
         return np.argmax(self.predict_proba(X), axis=-1)
+
+
+def build_model(module=MemorizerModel):
+    model = skorch.NeuralNet(
+        module=module,
+        # module__vocab_size=10,  # Dummy dimension
+        module__embedding_size=24,
+        module__hidden_size=24,
+        optimizer=torch.optim.Adam,
+        optimizer__lr=0.01,
+        criterion=torch.nn.CrossEntropyLoss,
+        max_epochs=2,
+        batch_size=32,
+        iterator_train=SequenceGenerator,
+        iterator_train__shuffle=True,
+        iterator_train__sort=False,
+        iterator_valid=SequenceGenerator,
+        iterator_valid__shuffle=False,
+        iterator_valid__sort=False,
+        train_split=lambda x, y, **kwargs: (x, x),
+        callbacks=[
+            skorch.callbacks.GradientNormClipping(1.),
+        ],
+    )
+    return model
 
 
 def main():
