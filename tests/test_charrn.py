@@ -1,8 +1,6 @@
 import torch
 import pytest
 
-from sklearn.metrics import f1_score
-from models.charrnn import generate_data, BasicRNNClassifier
 from models.charrnn import SimpleRNNModel, MemorizerModel
 from models.charrnn import build_model
 
@@ -30,24 +28,5 @@ def test_memorizer_model(batch, n_classes, hidden_size=3):
     assert logits.shape == (batch.shape[1], n_classes)
 
 
-@pytest.fixture
-def sample(seq_len=25):
-    return list(zip(*generate_data(seq_len=25)))
-
-
 def test_model():
     build_model().fit([10] * 100, None)
-
-
-def test_char_rnn(sample):
-    X, y = sample
-
-    model = BasicRNNClassifier(epochs_count=2)
-    model.fit(X, y)
-    assert model.predict_proba(X).shape == (len(X), len(set(y)))
-
-    y_pred = model.predict(X)
-    assert y_pred.shape == (len(X),)
-
-    # In most of the cases this should work
-    # assert f1_score(y, y_pred, average="micro") > 0.9
