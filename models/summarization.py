@@ -197,6 +197,13 @@ class SkorchBucketIterator(BucketIterator):
         return {f: attrgetter(f)(batch) for f in batch.fields}
 
 
+def ppx(loss_type):
+    def _ppx(model, X, y):
+        return np.exp(model.history[-1][loss_type])
+    _ppx.__name__ = f"ppx_{loss_type}"
+    return _ppx
+
+
 class DynamicVariablesSetter(skorch.callbacks.Callback):
     def on_train_begin(self, net, X, y):
         vocab = X.fields["source"].vocab
@@ -228,6 +235,8 @@ def build_model(module=SummarizationModel, packed=False, bidirectional=False):
         train_split=lambda x, y, **kwargs: Dataset.split(x, **kwargs),
         callbacks=[
             skorch.callbacks.GradientNormClipping(1.),
+            skorch.callbacks.EpochScoring(ppx("train_loss"), on_train=True),
+            skorch.callbacks.EpochScoring(ppx("valid_loss"), on_train=False),
             DynamicVariablesSetter(),
         ],
     )
