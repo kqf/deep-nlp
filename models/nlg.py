@@ -5,9 +5,13 @@ import torchtext
 import math
 
 
+from tqdm import tqdm
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.pipeline import make_pipeline
-from tqdm import tqdm
+
+from torchtext.data import Dataset, Example, Field
+from torchtext.data import BucketIterator
+
 
 """
 # Setup
@@ -37,6 +41,24 @@ def data(filename="data/tweets.csv.zip"):
     df = pd.read_csv(filename)
     valid = df[df["text"].str.len() >= 50].reset_index()
     return valid["text"]
+
+
+class TextPreprocessor(BaseEstimator, TransformerMixin):
+    def __init__(self, fields, min_freq=1):
+        self.fields = fields
+        self.min_freq = min_freq
+
+    def fit(self, X, y=None):
+        dataset = self.transform(X, y)
+        for name, field in dataset.fields.items():
+            if field.use_vocab:
+                field.build_vocab(dataset, min_freq=self.min_freq)
+        return self
+
+    def transform(self, X, y=None):
+        proc = [X[col].apply(f.preprocess) for col, f in self.fields]
+        examples = [Example.fromlist(f, self.fields) for f in zip(*proc)]
+        return Dataset(examples, self.fields)
 
 
 def sample(probs, temp):
@@ -232,6 +254,17 @@ class MLTrainer(BaseEstimator, TransformerMixin):
             symbols = list(generate(self.model, temp, seqsize, tstart, tend))
             output.append(np.squeeze(symbols))
         return np.array(output)
+
+
+def build_preprocessor():
+    text_field = Field(
+        batch_first=True,
+    )
+
+    fields = [
+        ("text", text_field),
+    ]
+    return TextPreprocessor(fields)
 
 
 def build_model(**kwargs):

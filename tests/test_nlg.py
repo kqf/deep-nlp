@@ -3,7 +3,9 @@ import torch
 import pandas as pd
 
 from models.nlg import LockedDropout
+from models.nlg import build_preprocessor
 from models.nlg import ConvLM, RnnLM, generate, TextTransformer, build_model
+from torchtext.data import BucketIterator
 
 
 @pytest.fixture
@@ -46,12 +48,24 @@ def corpus():
         "All work and no play makes Jack a dull boy,"
         "All play and no work makes Jack a mere toy."
     )
-    return pd.Series([sample] * 1000)
+    return pd.Series([sample] * 320)
+
+
+@pytest.fixture
+def data(corpus):
+    return pd.DataFrame({"text": corpus.values})
 
 
 def test_text_transformer(corpus):
     tt = TextTransformer().fit(corpus)
     assert len(tt.transform(corpus)) == len(corpus)
+
+
+def test_preprocessing(data, batch_size=32):
+    dataset = build_preprocessor().fit_transform(data)
+
+    batch = next(iter(BucketIterator(dataset, batch_size=batch_size)))
+    assert batch.text.shape[0] == batch_size
 
 
 def test_nlg_training_loop(corpus):

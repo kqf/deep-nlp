@@ -21,7 +21,6 @@ def data(size=320):
     build_preprocessor(preprocessing=ngrams),
 ])
 def test_preprocessing(prep, data, batch_size=32):
-    print(data)
     dataset = prep.fit_transform(data)
 
     batch = next(iter(BucketIterator(dataset, batch_size=batch_size)))
