@@ -5,7 +5,6 @@ import random
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-from sklearn.metrics import f1_score
 from torchtext.data import BucketIterator
 
 sns.set()
@@ -128,7 +127,6 @@ def main():
     sequence_lengths = np.arange(1, 50)
     train, test = [], []
     for seq in tqdm.tqdm(sequence_lengths):
-        # TODO: Add f1 score
         model = build_model.fit([seq] * 100)
         train.append(model.history[-1]["train_loss"])
         test.append(model.history[-1]["valid_loss"])
