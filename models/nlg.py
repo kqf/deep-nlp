@@ -1,7 +1,6 @@
 import torch
 import numpy as np
 import pandas as pd
-import torchtext
 import math
 
 
@@ -59,6 +58,13 @@ class TextPreprocessor(BaseEstimator, TransformerMixin):
         proc = [X[col].apply(f.preprocess) for col, f in self.fields]
         examples = [Example.fromlist(f, self.fields) for f in zip(*proc)]
         return Dataset(examples, self.fields)
+
+    def inverse_transform(self, X):
+        strings = np.take(self.fields[0][-1].vocab.itos, X)
+        output = []
+        for seq in strings:
+            output.append("".join(seq))
+        return output
 
 
 def sample(probs, temp):
@@ -152,38 +158,6 @@ class LockedDropout(torch.nn.Module):
         return inputs * masks
 
 
-class TextTransformer(BaseEstimator, TransformerMixin):
-    def __init__(self):
-        self.text_field = torchtext.data.Field(
-            init_token='<s>',
-            eos_token='</s>',
-            lower=True,
-            tokenize=list
-        )
-
-    def fit(self, X, y=None):
-        return self
-
-    def transform(self, X, y=None):
-        tt = X.apply(self.text_field.preprocess)
-        tokenized = tt[tt.str.len() > 50]
-        fields = [("text", self.text_field)]
-        examples = [
-            torchtext.data.Example.fromlist([lst], fields)
-            for lst in tokenized
-        ]
-        dataset = torchtext.data.Dataset(examples, fields)
-        self.text_field.build_vocab(dataset)
-        return dataset
-
-    def inverse_transform(self, X):
-        strings = np.take(self.text_field.vocab.itos, X)
-        output = []
-        for seq in strings:
-            output.append("".join(seq))
-        return output
-
-
 def shift(seq, by):
     return torch.cat([seq[by:], seq.new_ones((by, seq.shape[1]))])
 
@@ -204,7 +178,7 @@ class MLTrainer(BaseEstimator, TransformerMixin):
         criterion = torch.nn.CrossEntropyLoss(reduction="none").to(device)
         optimizer = torch.optim.Adam(self.model.parameters())
 
-        X_iter = torchtext.data.BucketIterator(
+        X_iter = BucketIterator(
             X,
             batch_size=self.batch_size,
             device=device,
@@ -259,6 +233,10 @@ class MLTrainer(BaseEstimator, TransformerMixin):
 def build_preprocessor():
     text_field = Field(
         batch_first=True,
+        init_token='<s>',
+        eos_token='</s>',
+        lower=True,
+        tokenize=list,
     )
 
     fields = [
@@ -269,7 +247,7 @@ def build_preprocessor():
 
 def build_model(**kwargs):
     model = make_pipeline(
-        TextTransformer(),
+        build_preprocessor(),
         MLTrainer(**kwargs),
     )
     return model

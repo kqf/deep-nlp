@@ -4,7 +4,7 @@ import pandas as pd
 
 from models.nlg import LockedDropout
 from models.nlg import build_preprocessor
-from models.nlg import ConvLM, RnnLM, generate, TextTransformer, build_model
+from models.nlg import ConvLM, RnnLM, generate, build_model
 from torchtext.data import BucketIterator
 
 
@@ -56,11 +56,6 @@ def data(corpus):
     return pd.DataFrame({"text": corpus.values})
 
 
-def test_text_transformer(corpus):
-    tt = TextTransformer().fit(corpus)
-    assert len(tt.transform(corpus)) == len(corpus)
-
-
 def test_preprocessing(data, batch_size=32):
     dataset = build_preprocessor().fit_transform(data)
 
@@ -68,12 +63,12 @@ def test_preprocessing(data, batch_size=32):
     assert batch.text.shape[0] == batch_size
 
 
-def test_nlg_training_loop(corpus):
+def test_nlg_training_loop(data):
     model = build_model()
-    model.fit(corpus, None)
+    model.fit(data, None)
 
-    tstart = model[0].text_field.vocab["<s>"]
-    tend = model[0].text_field.vocab["</s>"]
+    tstart = model[0].fields[0][-1].vocab["<s>"]
+    tend = model[0].fields[0][-1].vocab["</s>"]
 
     generated = model.inverse_transform([[0.1, 100, tstart, tend]])
     print()
