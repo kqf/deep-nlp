@@ -1,7 +1,8 @@
+import math
 import torch
+import skorch
 import numpy as np
 import pandas as pd
-import math
 
 
 from tqdm import tqdm
@@ -161,6 +162,12 @@ class LockedDropout(torch.nn.Module):
 def shift(seq, by):
     return torch.cat([seq[by:], seq.new_ones((by, seq.shape[1]))])
 
+class LanguageModelNet(skorch.NeuralNet):
+
+    def get_loss(self, y_pred, y_true, X=None, training=False):
+        out, _ = y_pred
+        logits = out.view(-1, out.shape[-1])
+        return self.criterion_(logits, shift(y_true.T, by=1).view(-1))
 
 class MLTrainer(BaseEstimator, TransformerMixin):
 
@@ -245,12 +252,38 @@ def build_preprocessor():
     return TextPreprocessor(fields)
 
 
-def build_model(**kwargs):
-    model = make_pipeline(
-        build_preprocessor(),
-        MLTrainer(**kwargs),
+class LanguageModelIterator(BucketIterator):
+    def __iter__(self):
+        for batch in super().__iter__():
+            yield batch.text, batch.text
+
+
+def build_model(module=RnnLM):
+    model = LanguageModelNet(
+        module=module,
+        module__vocab_size=100,  # Dummy dimension
+        optimizer=torch.optim.Adam,
+        criterion=torch.nn.CrossEntropyLoss,
+        max_epochs=2,
+        batch_size=32,
+        iterator_train=LanguageModelIterator,
+        iterator_train__shuffle=True,
+        iterator_train__sort=False,
+        iterator_valid=LanguageModelIterator,
+        iterator_valid__shuffle=False,
+        iterator_valid__sort=False,
+        train_split=lambda x, y, **kwargs: Dataset.split(x, **kwargs),
+        callbacks=[
+            skorch.callbacks.GradientNormClipping(1.),
+            # DynamicParSertter(),
+        ],
     )
-    return model
+
+    full = make_pipeline(
+        build_preprocessor(),
+        model,
+    )
+    return full
 
 
 def main():
