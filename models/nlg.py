@@ -1,11 +1,9 @@
-import math
 import torch
 import skorch
 import numpy as np
 import pandas as pd
 
 
-from tqdm import tqdm
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.pipeline import make_pipeline
 
@@ -169,72 +167,28 @@ class LanguageModelNet(skorch.NeuralNet):
         logits = out.view(-1, out.shape[-1])
         return self.criterion_(logits, shift(y_true.T, by=1).view(-1))
 
-class MLTrainer(BaseEstimator, TransformerMixin):
-
-    def __init__(self, mtype=None, n_epochs=5, batch_size=32):
-        self.n_epochs = n_epochs
-        self.mtype = mtype or RnnLM
-        self.batch_size = batch_size
-
-    def fit(self, X, y=None):
-        device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-        vocabulary = X.fields['text'].vocab
-        self.model = self.mtype(vocab_size=len(vocabulary)).to(device)
-        name = self.model.__class__.__name__
-
-        criterion = torch.nn.CrossEntropyLoss(reduction="none").to(device)
-        optimizer = torch.optim.Adam(self.model.parameters())
-
-        X_iter = BucketIterator(
-            X,
-            batch_size=self.batch_size,
-            device=device,
-            sort=False
-        )
-
-        pad_token = X_iter.dataset.fields["text"].vocab.stoi['<pad>']
-        unk_token = X_iter.dataset.fields["text"].vocab.stoi['<unk>']
-
-        for epoch in range(self.n_epochs):
-            epoch_loss, batch_size = 0, len(X_iter)
-            t = tqdm(X_iter, total=batch_size)
-            for i, batch in enumerate(t):
-                logits, _ = self.model(batch.text)
-                # import ipdb; ipdb.set_trace(); import IPython; IPython.embed() # noqa
-                targets = shift(batch.text, by=1).view(-1)
-                loss_vectors = criterion(
-                    logits.reshape(-1, logits.shape[-1]), targets)
-
-                idx = ((targets != pad_token) & (targets != unk_token))
-                # Average: sum of all divided by number of unmasked
-                loss = (loss_vectors * idx).sum() / (
-                    targets.shape[0] - (~idx).sum() + 1
-                )
-
-                epoch_loss += loss.item()
-
-                optimizer.zero_grad()
-                loss.backward()
-                torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.)
-                optimizer.step()
-
-                t.set_description(
-                    '{:>5s} Loss = {:.5f}, PPX = {:.2f}'.format(
-                        name, loss.item(),
-                        math.exp(loss.item())))
-
-            t.set_description(
-                '{:>5s} Loss = {:.5f}, PPX = {:.2f}'.format(
-                    name, epoch_loss / batch_size,
-                    math.exp(epoch_loss / batch_size)))
-        return self
-
     def inverse_transform(self, X):
         output = []
         for temp, seqsize, tstart, tend in X:
-            symbols = list(generate(self.model, temp, seqsize, tstart, tend))
+            symbols = list(generate(self.module_, temp, seqsize, tstart, tend))
             output.append(np.squeeze(symbols))
         return np.array(output)
+
+
+class MaskedCrossEntropyLoss(torch.nn.CrossEntropyLoss):
+    def __init__(self, pad_token, unk_token, *args, **kwargs):
+        super().__init__(reduce=None, *args, **kwargs)
+        self.pad_token = pad_token
+        self.unk_token = unk_token
+
+    def forward(self, logits, targets):
+        loss_vectors = super().forward(logits, targets)
+        idx = ((targets != self.pad_token) & (targets != self.unk_token))
+        # Average: sum of all divided by number of unmasked
+        loss = (loss_vectors * idx).sum() / (
+            targets.shape[0] - (~idx).sum() + 1
+        )
+        return loss
 
 
 def build_preprocessor():
@@ -263,7 +217,9 @@ def build_model(module=RnnLM):
         module=module,
         module__vocab_size=100,  # Dummy dimension
         optimizer=torch.optim.Adam,
-        criterion=torch.nn.CrossEntropyLoss,
+        criterion=MaskedCrossEntropyLoss,
+        criterion__unk_token=1,
+        criterion__pad_token=0,
         max_epochs=2,
         batch_size=32,
         iterator_train=LanguageModelIterator,
