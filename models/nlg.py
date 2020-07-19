@@ -1,5 +1,6 @@
 import torch
 import skorch
+import random
 import numpy as np
 import pandas as pd
 
@@ -33,6 +34,14 @@ Problems:
 - [ ] Conditional text generation
 - [ ] Try another dataset
 """
+
+SEED = 137
+
+random.seed(SEED)
+np.random.seed(SEED)
+torch.manual_seed(SEED)
+torch.cuda.manual_seed(SEED)
+torch.backends.cudnn.deterministic = True
 
 
 def data(filename="data/tweets.csv.zip"):
