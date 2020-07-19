@@ -46,6 +46,19 @@ class SkipGramDataset(Dataset):
             super().__init__(examples, fields, **kwargs)
 
 
+class CBowDataset(Dataset):
+    def __init__(self, lines, fields, tokenize=split, window_size=3, **kwargs):
+        examples = []
+        for line in lines:
+            words = tokenize(line.strip())
+            if len(words) < window_size + 1:
+                continue
+
+            for word, contexts in build_contexts(words, window_size):
+                examples.append(Example.fromlist((contexts, word), fields))
+            super().__init__(examples, fields, **kwargs)
+
+
 class TextPreprocessor(BaseEstimator, TransformerMixin):
     def __init__(self, fields, dtype=SkipGramDataset):
         self.fields = fields
