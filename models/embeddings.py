@@ -23,27 +23,27 @@ def split(sentence):
     return sentence.split()
 
 
-class SkipGramDataset(Dataset):
+def build_contexts(tokens, window_size):
+    for i, word in enumerate(tokens):
+        contexts = [
+            tokens[i + d] for d in range(-window_size, window_size + 1)
+            if d != 0 and 0 <= i + d < len(tokens)
+        ]
+        yield word, contexts
 
+
+class SkipGramDataset(Dataset):
     def __init__(self, lines, fields, tokenize=split, window_size=3, **kwargs):
         examples = []
-        ws = window_size
         for line in lines:
             words = tokenize(line.strip())
             if len(words) < window_size + 1:
                 continue
 
-            for i in range(len(words)):
-                contexts = words[max(0, i - ws):i]
-                contexts += words[
-                    min(i + 1, len(words)):
-                    min(len(words), i + ws) + 1
-                ]
-
+            for word, contexts in build_contexts(words, window_size):
                 for context in contexts:
-                    examples.append(Example.fromlist(
-                        (context, words[i]), fields))
-        super(SkipGramDataset, self).__init__(examples, fields, **kwargs)
+                    examples.append(Example.fromlist((context, word), fields))
+            super().__init__(examples, fields, **kwargs)
 
 
 class TextPreprocessor(BaseEstimator, TransformerMixin):
