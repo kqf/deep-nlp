@@ -216,9 +216,13 @@ class Decoder(torch.nn.Module):
         return self._out(outputs), hidden
 
 
+# https://arxiv.org/abs/1409.3215v3 -> GRU + scheduled sampling
 class ScheduledSamplingDecoder(torch.nn.Module):
-    def __init__(self, vocab_size, emb_dim=128,
-                 rnn_hidden_dim=256, num_layers=1, sampling_rate=0.5):
+    def __init__(self, vocab_size,
+                 emb_dim=128,
+                 rnn_hidden_dim=256,
+                 num_layers=1,
+                 sampling_rate=0.5):
         super().__init__()
 
         # self.p = sampling_rate
@@ -231,10 +235,9 @@ class ScheduledSamplingDecoder(torch.nn.Module):
         self._out = torch.nn.Linear(rnn_hidden_dim, vocab_size)
 
     def forward(self, inputs, encoder_output, encoder_mask, hidden=None):
-        embeddings = inputs
         step = inputs[0]
         result = []
-        for original in embeddings:
+        for original in inputs:
             output, hidden = self._rnn(self._emb(step).unsqueeze(0), hidden)
             result.append(output)
 
@@ -461,6 +464,11 @@ class DynamicVariablesSetter(skorch.callbacks.Callback):
         return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 
+def initialize_weights(m):
+    if m.data.dim() > 1:
+        torch.nn.init.xavier_uniform_(m.data)
+
+
 def build_model(module=TranslationModel, ptype=TextPreprocessor):
     model = LanguageModelNet(
         module=module,
@@ -482,6 +490,7 @@ def build_model(module=TranslationModel, ptype=TextPreprocessor):
         callbacks=[
             DynamicVariablesSetter(),
             skorch.callbacks.GradientNormClipping(1.),
+            skorch.callbacks.Initializer("*", fn=initialize_weights),
         ],
     )
 
