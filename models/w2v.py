@@ -211,10 +211,10 @@ class Word2VecGeneric:
     def build_contexts(tokenized_texts, window_size):
         for tokens in tokenized_texts:
             for i, central_word in enumerate(tokens):
-                context = [
+                contexts = [
                     tokens[i + d] for d in range(-window_size, window_size + 1)
                     if d != 0 and 0 <= i + d < len(tokens)]
-                yield central_word, context
+                yield central_word, contexts
 
 
 class SkipGram(Word2VecGeneric):

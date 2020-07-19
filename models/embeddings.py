@@ -1,5 +1,6 @@
 import torch
 import skorch
+import random
 import numpy as np
 
 from torchtext.data import Dataset, Example
@@ -7,6 +8,15 @@ from torchtext.data import Field, BucketIterator
 
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.pipeline import make_pipeline
+
+
+SEED = 137
+
+random.seed(SEED)
+np.random.seed(SEED)
+torch.manual_seed(SEED)
+torch.cuda.manual_seed(SEED)
+torch.backends.cudnn.deterministic = True
 
 
 def split(sentence):
