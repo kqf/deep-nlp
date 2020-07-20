@@ -74,19 +74,26 @@ class TextPreprocessor(BaseEstimator, TransformerMixin):
         return self.dtype(X, self.fields)
 
 
-def build_preprocessor():
+def build_preprocessor(dtype=SkipGramDataset):
     word = Field(tokenize=lambda x: [x], batch_first=True)
     fields = [
         ('context', word),
         ('target', word)
     ]
-    return TextPreprocessor(fields, dtype=SkipGramDataset)
+    return TextPreprocessor(fields, dtype=dtype)
 
 
 class SkorchBucketIterator(BucketIterator):
     def __iter__(self):
         for batch in super().__iter__():
             yield batch.context.view(-1), batch.target.view(-1)
+
+
+class CbowBucketIterator(BucketIterator):
+    def __iter__(self):
+        for batch in super().__iter__():
+            # import ipdb; ipdb.set_trace(); import IPython; IPython.embed() # noqa
+            yield batch.context, batch.target.view(-1)
 
 
 class SkipGramModel(torch.nn.Module):
@@ -101,14 +108,19 @@ class SkipGramModel(torch.nn.Module):
 
 
 class CBoWModel(torch.nn.Module):
-    def __init__(self, vocab_size, embedding_dim):
+    def __init__(self, vocab_size=1, emb_dim=256):
         super().__init__()
-        self.embeddings = torch.nn.Embedding(vocab_size, embedding_dim)
-        self.out_layer = torch.nn.Linear(embedding_dim, vocab_size)
+        self.embeddings = torch.nn.Embedding(vocab_size, emb_dim)
+        self.out_layer = torch.nn.Linear(emb_dim, vocab_size)
 
     def forward(self, inputs):
+        # [batch_size, seq_len] -> [batch_size, seq_len, emb_dim]
         latent = self.embeddings(inputs)
+
+        # [batch_size, emb_dim]
         weight = latent.mean(dim=1)
+
+        # [batch_size, vocab_size]
         return self.out_layer(weight)
 
 
@@ -209,6 +221,32 @@ def build_model():
     return full
 
 
+def build_cbow_model():
+    model = skorch.NeuralNet(
+        module=CBoWModel,
+        optimizer=torch.optim.Adam,
+        criterion=torch.nn.CrossEntropyLoss,
+        max_epochs=2,
+        batch_size=100,
+        iterator_train=CbowBucketIterator,
+        iterator_train__shuffle=True,
+        iterator_train__sort=False,
+        iterator_valid=CbowBucketIterator,
+        iterator_valid__shuffle=False,
+        iterator_valid__sort=False,
+        train_split=lambda x, y, **kwargs: Dataset.split(x, **kwargs),
+        callbacks=[
+            DynamicParameterSetter(),
+        ],
+    )
+
+    full = make_pipeline(
+        build_preprocessor(dtype=CBowDataset),
+        model,
+    )
+    return full
+
+
 class SGNSLanguageModel(skorch.NeuralNet):
     def get_loss(self, y_pred, y_true, X=None, training=False):
         return y_pred
@@ -245,7 +283,7 @@ def build_sgns_model():
         iterator_valid=NegativeSamplingIterator,
         iterator_valid__neg_samples=5,
         iterator_valid__ns_exponent=3. / 4.,
-        iterator_valid__shuffle=True,
+        iterator_valid__shuffle=False,
         iterator_valid__sort=False,
         train_split=lambda x, y, **kwargs: Dataset.split(x, **kwargs),
         callbacks=[
