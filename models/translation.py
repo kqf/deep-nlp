@@ -250,6 +250,50 @@ class ScheduledSamplingDecoder(torch.nn.Module):
         return self._out(outputs), hidden
 
 
+# https://arxiv.org/abs/1406.1078 -> + scheduled sampling
+class ExplicitConditioningDecoder(torch.nn.Module):
+    def __init__(self, vocab_size,
+                 emb_dim=128,
+                 rnn_hidden_dim=256,
+                 num_layers=1,
+                 sampling_rate=0.5):
+        super().__init__()
+
+        # self.p = sampling_rate
+        self._emb = torch.nn.Embedding(vocab_size, emb_dim)
+        self._rnn = torch.nn.GRU(
+            input_size=emb_dim + rnn_hidden_dim,
+            hidden_size=rnn_hidden_dim,
+            num_layers=num_layers
+        )
+        self._out = torch.nn.Linear(rnn_hidden_dim * 2 + emb_dim, vocab_size)
+
+    def forward(self, inputs, encoder_output, encoder_mask, hidden=None):
+        step = inputs[0]
+        context = encoder_output[[-1]]
+        result = []
+        for original in inputs:
+            emb = self._emb(step).unsqueeze(0)
+            output, hidden = self._rnn(
+                torch.cat((emb, context), dim=2), hidden)
+
+            output = torch.cat((
+                emb.squeeze(0),
+                hidden.squeeze(0),
+                context.squeeze(0)),
+                dim=1
+            )
+            result.append(output.unsqueeze(0))
+
+            step = original
+            if self.training and bool(np.random.binomial(n=1, p=0.5)):
+                with torch.no_grad():
+                    step = self._out(output.detach()).argmax(-1).squeeze(0)
+
+        outputs = torch.cat(result)
+        return self._out(outputs), hidden
+
+
 def attentiondecoder(atype):
     return partial(AttentionDecoder, atype=atype)
 
@@ -360,7 +404,7 @@ class LanguageModelNet(skorch.NeuralNet):
                     output, hidden = self.module_.decoder(
                         target.T, enc_src, source_mask, hidden)
 
-                last_pred = output[[-1], :]
+                last_pred = output[[-1]]
                 target = torch.cat([target, last_pred.argmax(-1)], dim=-1)
 
             # Ensure the sequence has an end
