@@ -100,6 +100,18 @@ class SkipGramModel(torch.nn.Module):
         return self.out_layer(latent)
 
 
+class CBoWModel(torch.nn.Module):
+    def __init__(self, vocab_size, embedding_dim):
+        super().__init__()
+        self.embeddings = torch.nn.Embedding(vocab_size, embedding_dim)
+        self.out_layer = torch.nn.Linear(embedding_dim, vocab_size)
+
+    def forward(self, inputs):
+        latent = self.embeddings(inputs)
+        weight = latent.mean(dim=1)
+        return self.out_layer(weight)
+
+
 class NegativeSamplingIterator(BucketIterator):
     def __init__(self, dataset, batch_size,
                  neg_samples, ns_exponent, *args, **kwargs):
