@@ -83,16 +83,9 @@ def build_preprocessor(dtype=SkipGramDataset):
     return TextPreprocessor(fields, dtype=dtype)
 
 
-class SkorchBucketIterator(BucketIterator):
+class ContextIterator(BucketIterator):
     def __iter__(self):
         for batch in super().__iter__():
-            yield batch.context.view(-1), batch.target.view(-1)
-
-
-class CbowBucketIterator(BucketIterator):
-    def __iter__(self):
-        for batch in super().__iter__():
-            # import ipdb; ipdb.set_trace(); import IPython; IPython.embed() # noqa
             yield batch.context, batch.target.view(-1)
 
 
@@ -103,7 +96,7 @@ class SkipGramModel(torch.nn.Module):
         self.out_layer = torch.nn.Linear(emb_dim, vocab_size)
 
     def forward(self, context):
-        latent = self._emb(context)
+        latent = self._emb(context.squeeze(-1))
         return self.out_layer(latent)
 
 
@@ -202,10 +195,10 @@ def build_model():
         criterion=torch.nn.CrossEntropyLoss,
         max_epochs=2,
         batch_size=100,
-        iterator_train=SkorchBucketIterator,
+        iterator_train=ContextIterator,
         iterator_train__shuffle=True,
         iterator_train__sort=False,
-        iterator_valid=SkorchBucketIterator,
+        iterator_valid=ContextIterator,
         iterator_valid__shuffle=True,
         iterator_valid__sort=False,
         train_split=lambda x, y, **kwargs: Dataset.split(x, **kwargs),
@@ -228,10 +221,10 @@ def build_cbow_model():
         criterion=torch.nn.CrossEntropyLoss,
         max_epochs=2,
         batch_size=100,
-        iterator_train=CbowBucketIterator,
+        iterator_train=ContextIterator,
         iterator_train__shuffle=True,
         iterator_train__sort=False,
-        iterator_valid=CbowBucketIterator,
+        iterator_valid=ContextIterator,
         iterator_valid__shuffle=False,
         iterator_valid__sort=False,
         train_split=lambda x, y, **kwargs: Dataset.split(x, **kwargs),
