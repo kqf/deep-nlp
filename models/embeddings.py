@@ -23,13 +23,13 @@ def split(sentence):
     return sentence.split()
 
 
-def build_contexts(tokens, window_size):
+def wrange(i, sentence, window=5):
+    return range(max(i - window, 0), min(i + window, len(sentence)))
+
+
+def build_contexts(tokens, window):
     for i, word in enumerate(tokens):
-        contexts = [
-            tokens[i + d] for d in range(-window_size, window_size + 1)
-            if d != 0 and 0 <= i + d < len(tokens)
-        ]
-        yield word, contexts
+        yield word, [tokens[j] for j in wrange(i, tokens, window)]
 
 
 class SkipGramDataset(Dataset):
