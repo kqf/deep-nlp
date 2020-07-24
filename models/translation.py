@@ -197,20 +197,18 @@ class Encoder(torch.nn.Module):
 
 class ConvEncoder(torch.nn.Module):
     def __init__(self,
-                 input_dim,
-                 emb_dim,
-                 hid_dim,
-                 n_layers,
-                 kernel_size,
-                 dropout,
-                 device,
+                 vocab_size,
+                 emb_dim=128,
+                 hid_dim=256,
+                 n_layers=1,
+                 kernel_size=3,
+                 dropout=0.5,
                  max_length=100):
         super().__init__()
         assert kernel_size % 2 == 1, "Kernel size must be odd!"
-        self.device = device
 
-        self.scale = torch.sqrt(torch.FloatTensor([0.5])).to(device)
-        self.tok_embedding = torch.nn.Embedding(input_dim, emb_dim)
+        self.scale = torch.sqrt(torch.FloatTensor([0.5]))
+        self.tok_embedding = torch.nn.Embedding(vocab_size, emb_dim)
         self.pos_embedding = torch.nn.Embedding(max_length, emb_dim)
 
         self.emb2hid = torch.nn.Linear(emb_dim, hid_dim)
@@ -265,7 +263,7 @@ class ConvEncoder(torch.nn.Module):
 
             # apply residual connection
             # conved [batch_size, hid_dim, src_len]
-            conved = (conved + conv_input) * self.scale
+            conved = (conved + conv_input) * self.scale.to(conved.device)
 
             # set conv_input to conved for next loop iteration
             conv_input = conved
