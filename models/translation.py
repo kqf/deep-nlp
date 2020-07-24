@@ -195,6 +195,92 @@ class Encoder(torch.nn.Module):
         return self._rnn(self._emb(inputs))
 
 
+class ConvEncoder(torch.nn.Module):
+    def __init__(self,
+                 input_dim,
+                 emb_dim,
+                 hid_dim,
+                 n_layers,
+                 kernel_size,
+                 dropout,
+                 device,
+                 max_length=100):
+        super().__init__()
+        assert kernel_size % 2 == 1, "Kernel size must be odd!"
+        self.device = device
+
+        self.scale = torch.sqrt(torch.FloatTensor([0.5])).to(device)
+        self.tok_embedding = torch.nn.Embedding(input_dim, emb_dim)
+        self.pos_embedding = torch.nn.Embedding(max_length, emb_dim)
+
+        self.emb2hid = torch.nn.Linear(emb_dim, hid_dim)
+        self.hid2emb = torch.nn.Linear(hid_dim, emb_dim)
+        self.convs = torch.nn.ModuleList([
+            torch.nn.Conv1d(
+                in_channels=hid_dim,
+                out_channels=2 * hid_dim,
+                kernel_size=kernel_size,
+                padding=(kernel_size - 1) // 2
+            )
+            for _ in range(n_layers)])
+
+        self.dropout = torch.nn.Dropout(dropout)
+
+    def forward(self, src):
+        # src = [batch_size, src_len]
+        batch_size, src_len = src.shape
+
+        # create position tensor
+        # pos = [0, 1, 2, 3, ..., src_len - 1]
+        # pos = [batch_size, src_len]
+        pos = torch.arange(0, src_len).unsqueeze(
+            0).repeat(batch_size, 1).to(src.device)
+
+        # embed tokens and positions
+        # both[batch_size, src_len, emb_dim]
+        token_embedded = self.tok_embedding(src)
+        position_embedded = self.pos_embedding(pos)
+
+        # combine embeddings by elementwise summing
+        # embedded [batch_size, src_len, emb_dim]
+        embedded = self.dropout(token_embedded + position_embedded)
+
+        # pass embedded through linear layer to convert from emb_dim to hid_dim
+        # conv_input [batch_size, src_len, hid_dim]
+        conv_input = self.emb2hid(embedded)
+
+        # permute for convolutional layer
+        # conv_input [batch_size, hid_dim, src_len]
+        conv_input = conv_input.permute(0, 2, 1)
+
+        # convolutional blocks
+        for i, conv in enumerate(self.convs):
+            # conv: [batch_size, hid_dim, src_len] -> [batch_size, 2 * hid_dim, src_len] # noqa
+            # conved [batch_size, 2 * hid_dim, src_len]
+            conved = conv(self.dropout(conv_input))
+
+            # pass through GLU activation function
+            # conved [batch_size, hid_dim, src_len]
+            conved = torch.nn.functional.glu(conved, dim=1)
+
+            # apply residual connection
+            # conved [batch_size, hid_dim, src_len]
+            conved = (conved + conv_input) * self.scale
+
+            # set conv_input to conved for next loop iteration
+            conv_input = conved
+
+        # permute and convert back to emb_dim
+        # conved [batch_size, src_len, emb_dim]
+        conved = self.hid2emb(conved.permute(0, 2, 1))
+
+        # elementwise sum output (conved) and input (embedded)
+        # to be used for attention
+        # combined [batch_size, src_len, emb_dim]
+        combined = (conved + embedded) * self.scale
+        return conved, combined
+
+
 class Decoder(torch.nn.Module):
     def __init__(self, vocab_size, emb_dim=128,
                  rnn_hidden_dim=256, num_layers=1):
