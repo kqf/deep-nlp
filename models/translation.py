@@ -372,7 +372,7 @@ class ConvDecoder(torch.nn.Module):
         # attended_combined [batch_size, hid_dim, trg_len]
         return attention, attended_combined
 
-    def forward(self, trg, encoder_conved, encoder_combined):
+    def forward(self, trg, encoder_conved, encoder_mask, encoder_combined):
         # trg [batch_size, trg_len]
         # encoder_conved, encoder_combined [batch_size, src_len, emb_dim]
         batch_size, trg_len = trg.shape
