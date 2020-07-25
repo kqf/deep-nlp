@@ -441,9 +441,9 @@ class ConvDecoder(torch.nn.Module):
         # conved [batch_size, trg_len, emb_dim]
         conved = self.hid2emb(conved.permute(0, 2, 1))
 
-        # output [batch_size, trg_len, output dim]
-        output = self.fc_out(self.dropout(conved))
-
+        # output [batch_size, trg_len, vocab_size]
+        output = self.fc_out(self.dropout(conved)).permute(1, 0, 2)
+        # TODO: Fix the attention shapes
         return output, attention
 
 
@@ -610,7 +610,7 @@ class LanguageModelNet(skorch.NeuralNet):
 
     def get_loss(self, y_pred, y_true, X=None, training=False):
         out, _ = y_pred
-        logits = out.view(-1, out.shape[-1])
+        logits = out.reshape(-1, out.shape[-1])
         return self.criterion_(logits, shift(y_true.T, by=1).view(-1))
 
     def _decode_iterator(self, X, max_len):
