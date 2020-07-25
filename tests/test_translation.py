@@ -9,6 +9,7 @@ from models.translation import SubwordPreprocessor, TextPreprocessor
 from models.translation import Encoder, Decoder, AttentionDecoder
 from models.translation import ExplicitConditioningDecoder
 from models.translation import AdditiveAttention, DotAttention
+# from models.translation import ConvDecoder, ConvEncoder
 from models.translation import MultiplicativeAttention
 from models.translation import TranslationModel
 from models.translation import ScheduledSamplingDecoder
@@ -137,6 +138,8 @@ def examples():
     partial(TranslationModel, decodertype=ScheduledSamplingDecoder),
     partial(TranslationModel, decodertype=AttentionDecoder),
     partial(TranslationModel, decodertype=ExplicitConditioningDecoder),
+    # partial(TranslationModel,
+    #         decodertype=ConvDecoder, encodertype=ConvEncoder),
 ])
 @pytest.mark.parametrize("ptype", [
     TextPreprocessor,

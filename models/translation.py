@@ -201,6 +201,7 @@ class ConvEncoder(torch.nn.Module):
                  emb_dim=128,
                  hid_dim=256,
                  n_layers=1,
+                 bidirectional="dummy",
                  kernel_size=3,
                  dropout=0.5,
                  max_length=100):
@@ -280,8 +281,8 @@ class ConvEncoder(torch.nn.Module):
 
 
 class Decoder(torch.nn.Module):
-    def __init__(self, vocab_size, emb_dim=128,
-                 rnn_hidden_dim=256, num_layers=1):
+    def __init__(self, vocab_size, emb_dim=128, rnn_hidden_dim=256,
+                 num_layers=1):
         super().__init__()
 
         self._emb = torch.nn.Embedding(vocab_size, emb_dim)
@@ -302,24 +303,22 @@ class Decoder(torch.nn.Module):
 
 class ConvDecoder(torch.nn.Module):
     def __init__(self,
-                 output_dim,
-                 emb_dim,
-                 hid_dim,
-                 n_layers,
-                 kernel_size,
-                 dropout,
-                 trg_pad_idx,
-                 device,
+                 vocab_size,
+                 emb_dim=128,
+                 hid_dim=256,
+                 n_layers=1,
+                 bidirectional="dummy",
+                 kernel_size=3,
+                 dropout=0.5,
+                 trg_pad_idx=0,
                  max_length=100):
         super().__init__()
 
         self.kernel_size = kernel_size
         self.trg_pad_idx = trg_pad_idx
-        self.device = device
+        self.scale = torch.sqrt(torch.FloatTensor([0.5]))
 
-        self.scale = torch.sqrt(torch.FloatTensor([0.5])).to(device)
-
-        self.tok_embedding = torch.nn.Embedding(output_dim, emb_dim)
+        self.tok_embedding = torch.nn.Embedding(vocab_size, emb_dim)
         self.pos_embedding = torch.nn.Embedding(max_length, emb_dim)
 
         self.emb2hid = torch.nn.Linear(emb_dim, hid_dim)
@@ -328,7 +327,7 @@ class ConvDecoder(torch.nn.Module):
         self.attn_hid2emb = torch.nn.Linear(hid_dim, emb_dim)
         self.attn_emb2hid = torch.nn.Linear(emb_dim, hid_dim)
 
-        self.fc_out = torch.nn.Linear(emb_dim, output_dim)
+        self.fc_out = torch.nn.Linear(emb_dim, vocab_size)
 
         self.convs = torch.nn.ModuleList([
             torch.nn.Conv1d(in_channels=hid_dim,
@@ -380,7 +379,7 @@ class ConvDecoder(torch.nn.Module):
         # create position tensor
         # pos [batch_size, trg_len]
         pos = torch.arange(0, trg_len).unsqueeze(
-            0).repeat(batch_size, 1).to(self.device)
+            0).repeat(batch_size, 1).to(trg.device)
 
         # embed tokens and positions
         # tok_embedded [batch_size, trg_len, emb_dim]
@@ -400,7 +399,7 @@ class ConvDecoder(torch.nn.Module):
         # conv_input [batch_size, hid_dim, trg_len]
         conv_input = conv_input.permute(0, 2, 1)
 
-        batch_size, hid_dim = conv_input.shape
+        batch_size, hid_dim = conv_input.shape[:2]
         for i, conv in enumerate(self.convs):
             # apply dropout
             conv_input = self.dropout(conv_input)
@@ -409,7 +408,7 @@ class ConvDecoder(torch.nn.Module):
             padding = torch.zeros(
                 batch_size,
                 hid_dim,
-                self.kernel_size - 1).fill_(self.trg_pad_idx).to(self.device)
+                self.kernel_size - 1).fill_(self.trg_pad_idx).to(trg.device)
 
             # padded_conv_inp [batch_size, hid_dim, trg_len + kernel size - 1]
             padded_conv_inp = torch.cat((padding, conv_input), dim=2)
