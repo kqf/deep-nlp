@@ -227,6 +227,7 @@ class ConvEncoder(torch.nn.Module):
 
     def forward(self, src):
         # src = [batch_size, src_len]
+        src = src.T
         batch_size, src_len = src.shape
 
         # create position tensor
@@ -373,6 +374,8 @@ class ConvDecoder(torch.nn.Module):
 
     def forward(self, trg, encoder_conved, encoder_mask, encoder_combined):
         # trg [batch_size, trg_len]
+        trg = trg.T
+
         # encoder_conved, encoder_combined [batch_size, src_len, emb_dim]
         batch_size, trg_len = trg.shape
 
