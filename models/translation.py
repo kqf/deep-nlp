@@ -300,6 +300,151 @@ class Decoder(torch.nn.Module):
         return self._out(outputs), hidden
 
 
+class ConvDecoder(torch.nn.Module):
+    def __init__(self,
+                 output_dim,
+                 emb_dim,
+                 hid_dim,
+                 n_layers,
+                 kernel_size,
+                 dropout,
+                 trg_pad_idx,
+                 device,
+                 max_length=100):
+        super().__init__()
+
+        self.kernel_size = kernel_size
+        self.trg_pad_idx = trg_pad_idx
+        self.device = device
+
+        self.scale = torch.sqrt(torch.FloatTensor([0.5])).to(device)
+
+        self.tok_embedding = torch.nn.Embedding(output_dim, emb_dim)
+        self.pos_embedding = torch.nn.Embedding(max_length, emb_dim)
+
+        self.emb2hid = torch.nn.Linear(emb_dim, hid_dim)
+        self.hid2emb = torch.nn.Linear(hid_dim, emb_dim)
+
+        self.attn_hid2emb = torch.nn.Linear(hid_dim, emb_dim)
+        self.attn_emb2hid = torch.nn.Linear(emb_dim, hid_dim)
+
+        self.fc_out = torch.nn.Linear(emb_dim, output_dim)
+
+        self.convs = torch.nn.ModuleList([
+            torch.nn.Conv1d(in_channels=hid_dim,
+                            out_channels=2 * hid_dim,
+                            kernel_size=kernel_size
+                            )
+            for _ in range(n_layers)])
+
+        self.dropout = torch.nn.Dropout(dropout)
+
+    def attn(self, embedded, conved, encoder_conved, encoder_combined):
+        # embedded [batch_size, trg_len, emb_dim]
+        # conved [batch_size, hid_dim, trg_len]
+        # encoder_conved,encoder_combined [batch_size, src_len, emb_dim]
+
+        # permute and convert back to emb_dim
+        # conved_emb [batch_size, trg_len, emb_dim]
+        conved_emb = self.attn_hid2emb(conved.permute(0, 2, 1))
+
+        # combined [batch_size, trg_len, emb_dim]
+        combined = (conved_emb + embedded) * self.scale
+
+        # energy [batch_size, trg_len, src_len]
+        energy = torch.matmul(combined, encoder_conved.permute(0, 2, 1))
+
+        # attention [batch_size, trg_len, src_len]
+        attention = torch.nn.functional.softmax(energy, dim=2)
+
+        # attended_encoding [batch_size, trg_len, emd dim]
+        attended_encoding = torch.matmul(attention, encoder_combined)
+
+        # convert from emb_dim -> hid_dim
+        attended_encoding = self.attn_emb2hid(attended_encoding)
+
+        # attended_encoding [batch_size, trg_len, hid_dim]
+
+        # apply residual connection
+        attended_combined = (conved + attended_encoding.permute(0, 2, 1))
+        attended_combined *= self.scale.to(conved.device)
+
+        # attended_combined [batch_size, hid_dim, trg_len]
+        return attention, attended_combined
+
+    def forward(self, trg, encoder_conved, encoder_combined):
+        # trg [batch_size, trg_len]
+        # encoder_conved, encoder_combined [batch_size, src_len, emb_dim]
+        batch_size, trg_len = trg.shape
+
+        # create position tensor
+        # pos [batch_size, trg_len]
+        pos = torch.arange(0, trg_len).unsqueeze(
+            0).repeat(batch_size, 1).to(self.device)
+
+        # embed tokens and positions
+        # tok_embedded [batch_size, trg_len, emb_dim]
+        tok_embedded = self.tok_embedding(trg)
+        # pos_embedded [batch_size, trg_len, emb_dim]
+        pos_embedded = self.pos_embedding(pos)
+
+        # combine embeddings by elementwise summing
+        # embedded [batch_size, trg_len, emb_dim]
+        embedded = self.dropout(tok_embedded + pos_embedded)
+
+        # pass embedded through linear layer to go through emb_dim -> hid_dim
+        # conv_input [batch_size, trg_len, hid_dim]
+        conv_input = self.emb2hid(embedded)
+
+        # permute for convolutional layer
+        # conv_input [batch_size, hid_dim, trg_len]
+        conv_input = conv_input.permute(0, 2, 1)
+
+        batch_size, hid_dim = conv_input.shape
+        for i, conv in enumerate(self.convs):
+            # apply dropout
+            conv_input = self.dropout(conv_input)
+
+            # need to pad so decoder can't "cheat"
+            padding = torch.zeros(
+                batch_size,
+                hid_dim,
+                self.kernel_size - 1).fill_(self.trg_pad_idx).to(self.device)
+
+            # padded_conv_inp [batch_size, hid_dim, trg_len + kernel size - 1]
+            padded_conv_inp = torch.cat((padding, conv_input), dim=2)
+
+            # pass through convolutional layer
+            # conved [batch_size, 2 * hid_dim, trg_len]
+            conved = conv(padded_conv_inp)
+
+            # pass through GLU activation function
+            # conved [batch_size, hid_dim, trg_len]
+            conved = torch.nn.functional.glu(conved, dim=1)
+
+            # calculate attention
+            # attention [batch_size, trg_len, src_len]
+            attention, conved = self.attn(embedded,
+                                          conved,
+                                          encoder_conved,
+                                          encoder_combined)
+
+            # apply residual connection
+            # conved [batch_size, hid_dim, trg_len]
+            conved = (conved + conv_input) * self.scale.to(conved.device)
+
+            # set conv_input to conved for next loop iteration
+            conv_input = conved
+
+        # conved [batch_size, trg_len, emb_dim]
+        conved = self.hid2emb(conved.permute(0, 2, 1))
+
+        # output [batch_size, trg_len, output dim]
+        output = self.fc_out(self.dropout(conved))
+
+        return output, attention
+
+
 # https://arxiv.org/abs/1409.3215v3 -> GRU + scheduled sampling
 class ScheduledSamplingDecoder(torch.nn.Module):
     def __init__(self, vocab_size,
